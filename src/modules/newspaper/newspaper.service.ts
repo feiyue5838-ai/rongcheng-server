@@ -45,13 +45,13 @@ export class NewspaperService {
     });
   }
 
-  /** 计算登报价格 */
-  async calculatePrice(newspaperId: string, contentLength: number) {
+  /** 计算登报价格（含期数：单价 × max(字数, 最少字数) × 期数） */
+  async calculatePrice(newspaperId: string, contentLength: number, issueCount = 1) {
     const newspaper = await this.prisma.newspaper.findUnique({ where: { id: newspaperId } });
     if (!newspaper) return null;
 
     const words = Math.max(contentLength, newspaper.minWords);
-    const price = words * Number(newspaper.pricePerWord);
+    const price = words * Number(newspaper.pricePerWord) * (Number(issueCount) || 1);
     return { words, unitPrice: newspaper.pricePerWord, totalPrice: price };
   }
 

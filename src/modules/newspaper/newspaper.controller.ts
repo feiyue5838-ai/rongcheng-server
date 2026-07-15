@@ -51,9 +51,9 @@ export class NewspaperController {
   }
 
   @Get('price')
-  @ApiOperation({ summary: '计算登报价格' })
-  async calculatePrice(@Query('newspaperId') newspaperId: string, @Query('contentLength') contentLength: number) {
-    return this.newspaperService.calculatePrice(newspaperId, contentLength);
+  @ApiOperation({ summary: '计算登报价格（含期数）' })
+  async calculatePrice(@Query('newspaperId') newspaperId: string, @Query('contentLength') contentLength: number, @Query('issueCount') issueCount?: number) {
+    return this.newspaperService.calculatePrice(newspaperId, contentLength, issueCount);
   }
 
   // 管理端

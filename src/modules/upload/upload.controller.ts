@@ -2,7 +2,7 @@ import { Controller, Post, Body, UseInterceptors, UploadedFile, UploadedFiles, U
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiConsumes, ApiBearerAuth } from '@nestjs/swagger';
 import { UploadService } from './upload.service';
-import { AdminJwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { AdminJwtAuthGuard, JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @ApiTags('文件上传')
 @Controller('upload')
@@ -17,6 +17,17 @@ export class UploadController {
   @UseInterceptors(FileInterceptor('file'))
   async uploadImage(@UploadedFile() file: Express.Multer.File) {
     const url = await this.uploadService.uploadFile(file, 'images');
+    return { url };
+  }
+
+  @Post('user-image')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: '上传图片（用户端，登报证件等）' })
+  @UseInterceptors(FileInterceptor('file'))
+  async uploadUserImage(@UploadedFile() file: Express.Multer.File) {
+    const url = await this.uploadService.uploadFile(file, 'newspapers');
     return { url };
   }
 

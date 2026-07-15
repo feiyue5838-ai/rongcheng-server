@@ -204,6 +204,11 @@ model SealOrder {
   // 地址
   addressId       String?  @map("address_id")           // 收货地址 ID
   addressJson     String?  @map("address_json")         // 收货地址快照（JSON）
+  newspaperContent  String? @map("newspaper_content")   // 登报正文内容
+  newspaperIssueCount Int? @map("newspaper_issue_count") // 登报期数
+  newspaperImages   String? @map("newspaper_images")    // 登报证件图片（JSON 数组，存访问 URL）
+  newspaperCopyCount Int? @map("newspaper_copy_count") // 报纸份数
+  invoiceJson      String? @map("invoice_json")        // 发票信息快照（JSON）
   // 发票
   needInvoice     Boolean  @default(false) @map("need_invoice")
   invoiceId       String?  @map("invoice_id")           // 发票 ID

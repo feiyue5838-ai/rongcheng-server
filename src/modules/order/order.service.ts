@@ -182,7 +182,27 @@ export class OrderService {
   // ==================== 创建登报订单 ====================
 
   async createNewspaperOrder(userId: string, dto: any) {
-    const { type, content, newspaperId, templateId, addressId, remark, price } = dto;
+    const { type, content, newspaperId, templateId, addressId, addressJson, remark, price, newspaperName, issueCount, invoice, copyCount, images } = dto;
+
+    // 校验/快照地址（与刻章订单保持一致）
+    let addressData: any = null;
+    if (addressId) {
+      addressData = await this.prisma.address.findUnique({ where: { id: addressId } });
+      if (!addressData) throw new NotFoundException('收货地址不存在');
+    } else if (addressJson) {
+      try { addressData = typeof addressJson === 'string' ? JSON.parse(addressJson) : addressJson; } catch { addressData = null; }
+    }
+
+    // 服务端权威计价：单价 × max(字数, 最少字数) × 期数（覆盖客户端传入 price，防篡改）
+    let serverPrice = Number(price) || 0;
+    if (newspaperId) {
+      const np = await this.prisma.newspaper.findUnique({ where: { id: newspaperId } });
+      if (np) {
+        const chars = (content || '').length;
+        const words = Math.max(chars, np.minWords || 0);
+        serverPrice = words * Number(np.pricePerWord) * (Number(issueCount) || 1);
+      }
+    }
 
     const orderNo = this.generateOrderNo('RB');
     const order = await this.prisma.sealOrder.create({
@@ -191,17 +211,23 @@ export class OrderService {
         userId,
         module: 'newspaper',
         type: type || '登报声明',
-        totalPrice: price || 0,
-        contactPhone: null,
+        totalPrice: serverPrice,
+        contactPhone: addressData?.phone || null,
         addressId: addressId || null,
+        addressJson: addressData ? JSON.stringify(addressData) : null,
+        newspaperContent: content || null,
+        newspaperIssueCount: issueCount ? Number(issueCount) : null,
+        newspaperImages: Array.isArray(images) ? JSON.stringify(images) : null,
+        newspaperCopyCount: copyCount ? Number(copyCount) : null,
+        invoiceJson: invoice ? JSON.stringify(invoice) : null,
         remark: remark || null,
         status: 1,
         statusText: '待支付',
         orderItems: {
           create: [{
             itemType: 'newspaper',
-            name: dto.newspaperName || '报纸登报',
-            price: price || 0,
+            name: newspaperName || '报纸登报',
+            price: serverPrice,
             quantity: 1,
           }],
         },
@@ -210,6 +236,26 @@ export class OrderService {
     });
 
     return order;
+  }
+
+  /** 用户取消订单 / 申请退款：未支付→已取消(6)，已支付→退款中(7) */
+  async cancelOrder(orderId: string, userId: string) {
+    const order = await this.prisma.sealOrder.findFirst({ where: { id: orderId, userId } });
+    if (!order) throw new NotFoundException('订单不存在');
+    if (order.status === 1) {
+      return this.prisma.sealOrder.update({
+        where: { id: orderId },
+        data: { status: 6, statusText: '已取消' },
+      });
+    }
+    if (order.status === 2) {
+      // 已支付：进入退款中，由管理端处理实际微信退款
+      return this.prisma.sealOrder.update({
+        where: { id: orderId },
+        data: { status: 7, statusText: '退款中' },
+      });
+    }
+    throw new BadRequestException('当前订单状态不可取消');
   }
 
   // ==================== 订单列表（用户端） ====================

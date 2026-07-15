@@ -42,3 +42,5 @@ _*.js
 .vscode/
 .idea/
 .DS_Store
+# ===== macOS AppleDouble junk =====
+._*

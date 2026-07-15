@@ -12,8 +12,8 @@ export class OrderController {
   // ==================== 用户端接口 ====================
 
   @Post('seal')
-  // @UseGuards(JwtAuthGuard) // TODO: 上线前恢复
-  // @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: '创建刻章订单' })
   async createSealOrder(@Request() req, @Body() dto: any) {
     // req.user.id 来自 User 表；如无效则 fallback 到匿名用户
@@ -22,8 +22,8 @@ export class OrderController {
   }
 
   @Post('newspaper')
-  // @UseGuards(JwtAuthGuard) // TODO: 上线前恢复
-  // @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: '创建登报订单' })
   async createNewspaperOrder(@Request() req, @Body() dto: any) {
     const userId = req.user?.id || '00000000-0000-0000-0000-000000000000';
@@ -162,8 +162,8 @@ export class OrderController {
   }
 
   @Post(':id/pay')
-  // @UseGuards(JwtAuthGuard) // TODO: 上线前恢复鉴权
-  // @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: '发起微信支付（获取支付参数）' })
   async createPayOrder(@Param('id') id: string, @Request() req, @Body() body: { openid?: string }) {
     // 与 createSealOrder 一致：开发期容忍匿名用户，上线前恢复 JWT 鉴权
@@ -173,6 +173,8 @@ export class OrderController {
   }
 
   @Post(':id/dev-paid')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
   // 仅开发/测试环境可用；生产环境 NODE_ENV=production 时控制器拦截返回 403
   @ApiOperation({ summary: '【开发专用】模拟微信支付回调（生产环境禁用）' })
   async devConfirmPaid(@Param('id') id: string, @Request() req) {
@@ -181,5 +183,14 @@ export class OrderController {
     }
     const userId = req.user?.id || '00000000-0000-0000-0000-000000000000';
     return this.orderService.devConfirmPaid(id, userId);
+  }
+
+  @Post(':id/cancel')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '用户取消订单 / 申请退款（未支付→已取消；已支付→退款中）' })
+  async cancelOrder(@Param('id') id: string, @Request() req) {
+    const userId = req.user?.id || '00000000-0000-0000-0000-000000000000';
+    return this.orderService.cancelOrder(id, userId);
   }
 }
