@@ -330,6 +330,9 @@ export class OrderService {
       data: {
         status: 2,
         statusText: '已支付',
+        // 修复：支付完成时记录实付金额，否则 payPrice 永久为 null，
+        // 导致营收统计（sum payPrice）严重低估且订单详情缺实付金额
+        payPrice: order.totalPrice,
         payTime: new Date(),
         payMethod: pay.payMethod,
         transactionId: pay.transactionId || null,
