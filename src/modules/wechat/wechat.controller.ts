@@ -20,7 +20,7 @@ export class WechatController {
       if (!result || !result.orderNo) {
         return { code: 'FAIL', message: '订单号缺失' };
       }
-      // 2) 统一入口：置『已支付』并触发门店自动分配（幂等，可重复回调）
+      // 2) 统一入口：置『已支付』并触发网点自动分配（幂等，可重复回调）
       await this.orderService.completePayment(
         { orderNo: result.orderNo },
         { payMethod: 'wechat', transactionId: result.transactionId },

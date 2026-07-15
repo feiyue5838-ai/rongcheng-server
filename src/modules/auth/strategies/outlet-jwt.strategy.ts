@@ -5,7 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../../prisma/prisma.service';
 
 @Injectable()
-export class StoreJwtStrategy extends PassportStrategy(Strategy, 'store-jwt') {
+export class StoreJwtStrategy extends PassportStrategy(Strategy, 'Outlet-jwt') {
   constructor(
     private config: ConfigService,
     private prisma: PrismaService,
@@ -18,20 +18,20 @@ export class StoreJwtStrategy extends PassportStrategy(Strategy, 'store-jwt') {
   }
 
   async validate(payload: any) {
-    if (payload.type !== 'store') {
-      throw new UnauthorizedException('无效的门店令牌');
+    if (payload.type !== 'Outlet') {
+      throw new UnauthorizedException('无效的网点令牌');
     }
 
-    const store = await this.prisma.store.findUnique({ where: { id: payload.sub } });
-    if (!store || store.status === 0) {
-      throw new UnauthorizedException('门店不存在或已被禁用');
+    const Outlet = await this.prisma.outlet.findUnique({ where: { id: payload.sub } });
+    if (!Outlet || Outlet.status === 0) {
+      throw new UnauthorizedException('网点不存在或已被禁用');
     }
 
     return {
-      id: store.id,
-      phone: store.phone,
-      name: store.name,
-      type: 'store',
+      id: Outlet.id,
+      phone: Outlet.phone,
+      name: Outlet.name,
+      type: 'Outlet',
     };
   }
 }

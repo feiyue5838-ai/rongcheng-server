@@ -10,16 +10,16 @@ export class OrderService {
     private wechatService: WechatService,
   ) {}
 
-  // ==================== 全国门店自动分配 ====================
+  // ==================== 全国网点自动分配 ====================
 
   /**
-   * 根据收货地址自动匹配最近门店
+   * 根据收货地址自动匹配最近网点
    * 匹配规则：
    *   1. serviceArea JSON 中有精确 city 匹配优先
    *   2. 其次 province 匹配
-   *   3. 都无 → 随机分配一个成都门店兜底
+   *   3. 都无 → 随机分配一个成都网点兜底
    */
-  async autoAssignStore(addressJson: string | null, adminId?: string): Promise<{ storeId: string; storeName: string; matchType: string } | null> {
+  async autoAssignStore(addressJson: string | null, adminId?: string): Promise<{ outletId: string; storeName: string; matchType: string } | null> {
     if (!addressJson) return null;
 
     let province = '', city = '';
@@ -31,8 +31,8 @@ export class OrderService {
       return null;
     }
 
-    // 查询所有启用门店
-    const stores = await this.prisma.store.findMany({
+    // 查询所有启用网点
+    const stores = await this.prisma.outlet.findMany({
       where: { status: 1 },
       select: { id: true, name: true, serviceArea: true },
     });
@@ -42,10 +42,10 @@ export class OrderService {
     let bestStore: (typeof stores)[0] | null = null;
     let matchType = 'fallback';
 
-    for (const store of stores) {
+    for (const Outlet of stores) {
       let serviceArea: Array<{ province: string; city?: string }> = [];
       try {
-        serviceArea = JSON.parse(store.serviceArea || '[]');
+        serviceArea = JSON.parse(Outlet.serviceArea || '[]');
       } catch {
         serviceArea = [];
       }
@@ -54,7 +54,7 @@ export class OrderService {
       if (city) {
         const cityMatch = serviceArea.find(s => s.city === city);
         if (cityMatch) {
-          bestStore = store;
+          bestStore = Outlet;
           matchType = `city:${city}`;
           break; // 精确匹配直接退出
         }
@@ -64,13 +64,13 @@ export class OrderService {
       if (!bestStore && province) {
         const provMatch = serviceArea.find(s => s.province === province);
         if (provMatch) {
-          bestStore = store;
+          bestStore = Outlet;
           matchType = `province:${province}`;
         }
       }
     }
 
-    // 无任何匹配 → 随机选一个成都门店兜底
+    // 无任何匹配 → 随机选一个成都网点兜底
     if (!bestStore) {
       const chengduStores = stores.filter(s => {
         try {
@@ -83,11 +83,11 @@ export class OrderService {
         matchType = 'fallback:成都';
       } else {
         bestStore = stores[0];
-        matchType = 'fallback:首位门店';
+        matchType = 'fallback:首位网点';
       }
     }
 
-    return { storeId: bestStore.id, storeName: bestStore.name, matchType };
+    return { outletId: bestStore.id, storeName: bestStore.name, matchType };
   }
 
   // ==================== 创建刻章订单 ====================
@@ -173,7 +173,7 @@ export class OrderService {
     });
 
     // ⚠️ 安全要点：订单创建时一律保持『待支付』，绝不在下单接口里根据前端
-    // 传入的 paidStatus 预置已付 / 触发门店分配。支付完成由微信支付回调（或开发
+    // 传入的 paidStatus 预置已付 / 触发网点分配。支付完成由微信支付回调（或开发
     // 模拟回调）通过 completePayment 统一处理（见下方方法）。前端永远不能自己判定
     // 支付成功。
     return order;
@@ -304,7 +304,7 @@ export class OrderService {
         orderItems: { include: { seal: true, package: true } },
         materials: true,
         reviews: { include: { user: { select: { nickname: true, avatar: true } } } },
-        assignment: { include: { store: { select: { id: true, name: true, phone: true } } } },
+        assignment: { include: { outlet: { select: { id: true, name: true, phone: true } } } },
         receipts: true,
       },
     });
@@ -324,7 +324,7 @@ export class OrderService {
     if (!order) throw new NotFoundException('订单不存在');
     if (order.status !== 1) throw new BadRequestException('订单状态不允许支付');
 
-    // 价格为 0：直接完成支付（仍走统一入口，自动分配门店）
+    // 价格为 0：直接完成支付（仍走统一入口，自动分配网点）
     if (Number(order.totalPrice) === 0) {
       await this.completePayment({ id: orderId }, { payMethod: 'free' });
       return { type: 'free', orderId };
@@ -353,7 +353,7 @@ export class OrderService {
   // ==================== 支付完成（统一入口） ====================
 
   /**
-   * 支付完成处理：置『已支付』并触发门店自动分配。
+   * 支付完成处理：置『已支付』并触发网点自动分配。
    * 这是「已支付 + 自动分配」的唯一真相源，只允许被以下路径调用：
    *   - 微信支付结果通知回调（wechat/pay-notify，已验签）
    *   - 免费订单（createPayOrder 内，price=0）
@@ -385,14 +385,14 @@ export class OrderService {
       },
     });
 
-    // 支付成功后触发全国门店自动分配（仅未分配时）
+    // 支付成功后触发全国网点自动分配（仅未分配时）
     if (order.assignmentStatus === 0 && order.addressJson) {
       const assignResult = await this.autoAssignStore(order.addressJson, 'system');
       if (assignResult) {
         await this.prisma.orderAssignment.create({
           data: {
             orderId: order.id,
-            storeId: assignResult.storeId,
+            outletId: assignResult.outletId,
             status: 1,
             statusText: '待接单',
             assignedBy: 'system',
@@ -449,7 +449,7 @@ export class OrderService {
         include: {
           user: { select: { id: true, nickname: true, phone: true } },
           orderItems: { include: { seal: true } },
-          assignment: { include: { store: { select: { id: true, name: true } } } },
+          assignment: { include: { outlet: { select: { id: true, name: true } } } },
           receipts: true,
         },
         orderBy: { createdAt: 'desc' },
@@ -567,7 +567,7 @@ export class OrderService {
           user: { select: { id: true, nickname: true, phone: true } },
           orderItems: true,
           assignment: {
-            include: { store: { select: { id: true, name: true, phone: true } } },
+            include: { outlet: { select: { id: true, name: true, phone: true } } },
           },
           receipts: true,
         },
@@ -598,22 +598,22 @@ export class OrderService {
     };
   }
 
-  /** 分配订单给门店 */
-  async assignOrder(orderId: string, storeId: string, remark: string | undefined, adminId: string) {
+  /** 分配订单给网点 */
+  async assignOrder(orderId: string, outletId: string, remark: string | undefined, adminId: string) {
     const order = await this.prisma.sealOrder.findUnique({ where: { id: orderId } });
     if (!order) throw new NotFoundException('订单不存在');
     if (order.status < 2) throw new BadRequestException('订单未支付，无法分配');
     if (order.assignmentStatus > 0) throw new BadRequestException('订单已分配，请勿重复分配');
 
-    const store = await this.prisma.store.findUnique({ where: { id: storeId } });
-    if (!store) throw new NotFoundException('门店不存在');
-    if (store.status === 0) throw new BadRequestException('门店已被禁用');
+    const Outlet = await this.prisma.outlet.findUnique({ where: { id: outletId } });
+    if (!Outlet) throw new NotFoundException('网点不存在');
+    if (Outlet.status === 0) throw new BadRequestException('网点已被禁用');
 
     await this.prisma.$transaction([
       this.prisma.orderAssignment.create({
         data: {
           orderId,
-          storeId,
+          outletId,
           status: 1,
           statusText: '待接单',
           assignedBy: adminId,
@@ -629,13 +629,13 @@ export class OrderService {
     return { message: '分配成功' };
   }
 
-  /** 门店接单 */
-  async acceptOrder(orderId: string, storeId: string) {
+  /** 网点接单 */
+  async acceptOrder(orderId: string, outletId: string) {
     const assignment = await this.prisma.orderAssignment.findUnique({
       where: { orderId },
     });
     if (!assignment) throw new NotFoundException('订单分配记录不存在');
-    if (assignment.storeId !== storeId) throw new BadRequestException('无权操作此订单');
+    if (assignment.outletId !== outletId) throw new BadRequestException('无权操作此订单');
     if (assignment.status === 2) throw new BadRequestException('该订单已接单');
     if (assignment.status === 3) throw new BadRequestException('该订单已交付');
 
@@ -653,21 +653,21 @@ export class OrderService {
     return { message: '接单成功' };
   }
 
-  /** 门店提交交付（自动生效） */
-  async deliverOrder(orderId: string, dto: { expressCompany: string; expressNo: string; receipts: Array<{ type: string; url: string; remark?: string }>; remark?: string }, storeId: string) {
+  /** 网点提交交付（自动生效） */
+  async deliverOrder(orderId: string, dto: { expressCompany: string; expressNo: string; receipts: Array<{ type: string; url: string; remark?: string }>; remark?: string }, outletId: string) {
     const assignment = await this.prisma.orderAssignment.findUnique({
       where: { orderId },
       include: { order: true },
     });
     if (!assignment) throw new NotFoundException('订单分配记录不存在');
-    if (assignment.storeId !== storeId) throw new BadRequestException('无权操作此订单');
+    if (assignment.outletId !== outletId) throw new BadRequestException('无权操作此订单');
     if (assignment.status === 1) throw new BadRequestException('请先接单再交付');
     if (assignment.status >= 3) throw new BadRequestException('该订单已交付');
 
     await this.prisma.$transaction([
       ...dto.receipts.map(r =>
         this.prisma.deliveryReceipt.create({
-          data: { orderId, storeId, type: r.type, url: r.url, remark: r.remark },
+          data: { orderId, outletId, type: r.type, url: r.url, remark: r.remark },
         }),
       ),
       this.prisma.orderAssignment.update({
@@ -686,8 +686,8 @@ export class OrderService {
           deliveredAt: new Date(),
         },
       }),
-      this.prisma.store.update({
-        where: { id: storeId },
+      this.prisma.outlet.update({
+        where: { id: outletId },
         data: { totalOrders: { increment: 1 } },
       }),
     ]);
@@ -726,7 +726,7 @@ export class OrderService {
       where: { id: orderId },
       include: {
         assignment: {
-          include: { store: { select: { id: true, name: true, contact: true, phone: true } } },
+          include: { outlet: { select: { id: true, name: true, contact: true, phone: true } } },
         },
         receipts: { select: { id: true, type: true, url: true, remark: true, createdAt: true } },
       },
@@ -744,14 +744,14 @@ export class OrderService {
         statusText: order.assignment.statusText,
         acceptedAt: order.assignment.acceptedAt,
         completedAt: order.assignment.completedAt,
-        store: order.assignment.store,
+        Outlet: order.assignment.outlet,
       } : null,
       receipts: order.receipts,
     };
   }
 
-  /** 门店端订单详情（含用户信息、印章明细、快递信息、交付凭证） */
-  async getStoreOrderDetail(orderId: string, storeId: string) {
+  /** 网点端订单详情（含用户信息、印章明细、快递信息、交付凭证） */
+  async getStoreOrderDetail(orderId: string, outletId: string) {
     const assignment = await this.prisma.orderAssignment.findUnique({
       where: { orderId },
       include: {
@@ -761,15 +761,15 @@ export class OrderService {
             orderItems: true,
           },
         },
-        store: { select: { id: true, name: true, contact: true, phone: true, address: true } },
+        outlet: { select: { id: true, name: true, contact: true, phone: true, address: true } },
       },
     });
 
     if (!assignment) throw new NotFoundException('订单分配记录不存在');
-    if (assignment.storeId !== storeId) throw new ForbiddenException('无权查看此订单');
+    if (assignment.outletId !== outletId) throw new ForbiddenException('无权查看此订单');
 
     const receipts = await this.prisma.deliveryReceipt.findMany({
-      where: { orderId, storeId },
+      where: { orderId, outletId },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -791,7 +791,7 @@ export class OrderService {
       completedAt: assignment.completedAt,
       user: assignment.order.user,
       orderItems: assignment.order.orderItems,
-      store: assignment.store,
+      Outlet: assignment.outlet,
       // 快递信息
       expressCompany: assignment.order.expressCompany,
       expressNo: assignment.order.expressNo,

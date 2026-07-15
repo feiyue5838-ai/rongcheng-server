@@ -1,8 +1,8 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Request } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
-import { StoreService } from './store.service';
+import { StoreService } from './Outlet.service';
 import { AdminJwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { StoreJwtAuthGuard } from '../auth/guards/store-jwt-auth.guard';
+import { StoreJwtAuthGuard } from '../auth/guards/Outlet-jwt-auth.guard';
 
 class CreateStoreDto {
   name: string;
@@ -23,8 +23,8 @@ class UpdateStoreDto {
   status?: number;
 }
 
-@ApiTags('门店管理')
-@Controller('stores')
+@ApiTags('网点管理')
+@Controller('outlets')
 export class StoreController {
   constructor(private readonly storeService: StoreService) {}
 
@@ -33,7 +33,7 @@ export class StoreController {
   @Get()
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: '门店列表' })
+  @ApiOperation({ summary: '网点列表' })
   async findAll(
     @Query('page') page?: number,
     @Query('pageSize') pageSize?: number,
@@ -46,7 +46,7 @@ export class StoreController {
   @Get(':id')
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: '门店详情' })
+  @ApiOperation({ summary: '网点详情' })
   async findOne(@Param('id') id: string) {
     return this.storeService.findOne(id);
   }
@@ -54,7 +54,7 @@ export class StoreController {
   @Post()
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: '新增门店' })
+  @ApiOperation({ summary: '新增网点' })
   async create(@Body() dto: CreateStoreDto) {
     return this.storeService.create(dto);
   }
@@ -62,7 +62,7 @@ export class StoreController {
   @Put(':id')
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: '编辑门店' })
+  @ApiOperation({ summary: '编辑网点' })
   async update(@Param('id') id: string, @Body() dto: UpdateStoreDto) {
     return this.storeService.update(id, dto);
   }
@@ -70,7 +70,7 @@ export class StoreController {
   @Delete(':id')
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: '删除门店' })
+  @ApiOperation({ summary: '删除网点' })
   async remove(@Param('id') id: string) {
     return this.storeService.remove(id);
   }
@@ -78,30 +78,30 @@ export class StoreController {
   @Post(':id/reset-password')
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: '重置门店密码' })
+  @ApiOperation({ summary: '重置网点密码' })
   async resetPassword(@Param('id') id: string) {
     return this.storeService.resetPassword(id);
   }
 
-  // 门店端：获取自己的订单列表（从 token 中提取 storeId）
+  // 网点端：获取自己的订单列表（从 token 中提取 outletId）
   @Get('me/orders')
   @UseGuards(StoreJwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: '门店订单列表（门店端）' })
+  @ApiOperation({ summary: '网点订单列表（网点端）' })
   async getMyOrders(@Request() req: any) {
     return this.storeService.getStoreOrders(req.user.id, { page: 1, pageSize: 100 });
   }
 
-  @Get(':storeId/orders')
+  @Get(':outletId/orders')
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: '门店订单列表（管理端查看）' })
+  @ApiOperation({ summary: '网点订单列表（管理端查看）' })
   async getStoreOrders(
-    @Param('storeId') storeId: string,
+    @Param('outletId') outletId: string,
     @Query('page') page?: number,
     @Query('pageSize') pageSize?: number,
     @Query('status') status?: number,
   ) {
-    return this.storeService.getStoreOrders(storeId, { page: Number(page) || 1, pageSize: Number(pageSize) || 20, status });
+    return this.storeService.getStoreOrders(outletId, { page: Number(page) || 1, pageSize: Number(pageSize) || 20, status });
   }
 }

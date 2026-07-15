@@ -10,7 +10,7 @@ import { ReviewModule } from './modules/review/review.module';
 import { UploadModule } from './modules/upload/upload.module';
 import { ConfigModule as SysConfigModule } from './modules/config/config.module';
 import { AdminModule } from './modules/admin/admin.module';
-import { StoreModule } from './modules/store/store.module';
+import { StoreModule } from './modules/Outlet/Outlet.module';
 import { DeliveryModule } from './modules/delivery/delivery.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 

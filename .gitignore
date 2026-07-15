@@ -44,3 +44,6 @@ _*.js
 .DS_Store
 # ===== macOS AppleDouble junk =====
 ._*
+
+# 防止编译产物误入 src (tsconfig outDir=dist)
+src/**/*.js

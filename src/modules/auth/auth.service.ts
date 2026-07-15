@@ -1,4 +1,4 @@
-﻿import { Injectable, UnauthorizedException, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException, NotFoundException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -143,50 +143,50 @@ export class AuthService {
     return { id: admin.id, username: admin.username };
   }
 
-  // ==================== 门店登录 ====================
+  // ==================== 网点登录 ====================
 
   /**
-   * 门店登录
+   * 网点登录
    */
   async storeLogin(phone: string, password: string) {
-    const store = await this.prisma.store.findUnique({ where: { phone } });
-    if (!store) {
-      throw new NotFoundException('门店账号不存在');
+    const Outlet = await this.prisma.outlet.findUnique({ where: { phone } });
+    if (!Outlet) {
+      throw new NotFoundException('网点账号不存在');
     }
 
-    if (store.status === 0) {
+    if (Outlet.status === 0) {
       throw new BadRequestException('账号已被禁用，请联系管理员');
     }
 
-    const isMatch = await bcrypt.compare(password, store.password);
+    const isMatch = await bcrypt.compare(password, Outlet.password);
     if (!isMatch) {
       throw new UnauthorizedException('密码错误');
     }
 
     // 更新登录信息
-    await this.prisma.store.update({
-      where: { id: store.id },
+    await this.prisma.outlet.update({
+      where: { id: Outlet.id },
       data: { lastLoginAt: new Date() },
     });
 
     const token = this.jwtService.sign({
-      sub: store.id,
-      phone: store.phone,
-      name: store.name,
-      type: 'store',
+      sub: Outlet.id,
+      phone: Outlet.phone,
+      name: Outlet.name,
+      type: 'Outlet',
     });
 
     return {
       token,
-      store: {
-        id: store.id,
-        name: store.name,
-        contact: store.contact,
-        phone: store.phone,
-        province: store.province,
-        city: store.city,
-        address: store.address,
-        status: store.status,
+      Outlet: {
+        id: Outlet.id,
+        name: Outlet.name,
+        contact: Outlet.contact,
+        phone: Outlet.phone,
+        province: Outlet.province,
+        city: Outlet.city,
+        address: Outlet.address,
+        status: Outlet.status,
       },
     };
   }

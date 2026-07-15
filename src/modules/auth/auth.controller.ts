@@ -1,4 +1,4 @@
-﻿import { Controller, Post, Body, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Body, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBody } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 
@@ -56,9 +56,9 @@ export class AuthController {
     return this.authService.createSuperAdmin(dto.username, dto.password);
   }
 
-  @Post('store/login')
+  @Post('Outlet/login')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: '门店登录' })
+  @ApiOperation({ summary: '网点登录' })
   @ApiBody({
     schema: {
       properties: {

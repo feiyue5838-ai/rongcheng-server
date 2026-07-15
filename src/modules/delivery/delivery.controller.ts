@@ -4,7 +4,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes } from '@nestjs/swagg
 import { PrismaService } from '../../prisma/prisma.service';
 import { AdminJwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { StoreJwtAuthGuard } from '../auth/guards/store-jwt-auth.guard';
+import { StoreJwtAuthGuard } from '../auth/guards/Outlet-jwt-auth.guard';
 import { UploadService } from '../upload/upload.service';
 
 @ApiTags('交付回执')
@@ -22,13 +22,13 @@ export class DeliveryReceiptController {
   async findAll(
     @Query('page') page?: number,
     @Query('pageSize') pageSize?: number,
-    @Query('storeId') storeId?: string,
+    @Query('outletId') outletId?: string,
     @Query('orderId') orderId?: string,
   ) {
     const pageNum = Number(page) || 1;
     const pageSizeNum = Number(pageSize) || 20;
     const where: any = {};
-    if (storeId) where.storeId = storeId;
+    if (outletId) where.outletId = outletId;
     if (orderId) where.orderId = orderId;
 
     const [list, total] = await Promise.all([
@@ -37,8 +37,7 @@ export class DeliveryReceiptController {
         skip: (pageNum - 1) * pageSizeNum,
         take: pageSizeNum,
         orderBy: { createdAt: 'desc' },
-        include: {
-          store: { select: { id: true, name: true, contact: true, phone: true } },
+        include: { outlet: { select: { id: true, name: true, contact: true, phone: true } },
           order: {
             select: {
               id: true,
@@ -69,7 +68,7 @@ export class DeliveryReceiptController {
   @UseGuards(StoreJwtAuthGuard)
   @ApiBearerAuth()
   @ApiConsumes('multipart/form-data')
-  @ApiOperation({ summary: '提交交付回执（门店端）' })
+  @ApiOperation({ summary: '提交交付回执（网点端）' })
   @UseInterceptors(FileInterceptor('file'))
   async create(
     @UploadedFile() file: Express.Multer.File,
@@ -81,7 +80,7 @@ export class DeliveryReceiptController {
     if (!file) throw new BadRequestException('请上传回执图片');
     if (!orderId) throw new BadRequestException('缺少订单 ID');
 
-    const storeId = req.user.storeId;
+    const outletId = req.user.outletId;
 
     // 上传图片
     const url = await this.uploadService.uploadFile(file, 'receipts');
@@ -90,13 +89,12 @@ export class DeliveryReceiptController {
     const receipt = await this.prisma.deliveryReceipt.create({
       data: {
         orderId,
-        storeId,
+        outletId,
         type: type || 'certificate',
         url,
         remark,
       },
-      include: {
-        store: { select: { id: true, name: true, phone: true } },
+      include: { outlet: { select: { id: true, name: true, phone: true } },
       },
     });
 

@@ -424,13 +424,13 @@ model SystemConfig {
   @@map("system_configs")
 }
 // ============================================================
-// 合作门店模块
+// 合作网点模块
 // ============================================================
 
-/// 合作门店表
-model Store {
+/// 合作网点表
+model Outlet {
   id          String   @id @default(uuid())
-  name        String                                  // 门店名称
+  name        String                                  // 网点名称
   contact     String                                  // 联系人姓名
   phone       String   @unique                       // 联系电话（同时作为登录账号）
   password    String   @map("password")              // 登录密码（bcrypt 加密）
@@ -439,7 +439,7 @@ model Store {
   address     String?                                 // 详细地址
   // 服务区域：JSON 数组，支持多省/多市
   // 格式：[{"province":"四川省","city":"成都市"},{"province":"四川省","city":"绵阳市"}]
-  // 空数组表示服务全国（默认成都店兜底）
+  // 空数组表示服务全国（默认成都网点兜底）
   serviceArea String   @default("[]") @map("service_area")
   status      Int      @default(1)                   // 状态：0=停用 1=正常
   totalOrders Int      @default(0)  @map("total_orders") // 累计处理订单数
@@ -451,24 +451,24 @@ model Store {
   assignments OrderAssignment[]                        // 分配的订单
   receipts   DeliveryReceipt[]                        // 交付回执
 
-  @@map("stores")
+  @@map("outlets")
 }
 
-/// 订单分配表（总部→门店，一对一）
+/// 订单分配表（总部→网点，一对一）
 model OrderAssignment {
   id          String    @id @default(uuid())
   orderId     String    @unique @map("order_id")    // 订单 ID（唯一）
-  storeId     String    @map("store_id")            // 门店 ID
+  outletId    String    @map("outlet_id")            // 网点 ID
   status      Int       @default(1)                   // 状态：1=待接单 2=制作中 3=已完成
   statusText  String    @default("待接单") @map("status_text")
   assignedBy  String?   @map("assigned_by")         // 分配的管理员 ID
   assignedAt  DateTime  @default(now()) @map("assigned_at") // 分配时间
-  acceptedAt DateTime? @map("accepted_at")         // 门店接单时间
-  completedAt DateTime? @map("completed_at")       // 门店完成时间
+  acceptedAt DateTime? @map("accepted_at")         // 网点接单时间
+  completedAt DateTime? @map("completed_at")       // 网点完成时间
   remark      String?                                 // 分配备注
 
   order       SealOrder @relation(fields: [orderId], references: [id])
-  store       Store     @relation(fields: [storeId], references: [id])
+  outlet      Outlet    @relation(fields: [outletId], references: [id])
 
   @@map("order_assignments")
 }
@@ -477,14 +477,14 @@ model OrderAssignment {
 model DeliveryReceipt {
   id          String   @id @default(uuid())
   orderId     String   @map("order_id")             // 订单 ID
-  storeId     String   @map("store_id")             // 上传的门店 ID
+  outletId    String   @map("outlet_id")            // 上传的网点 ID
   type        String                                  // 回执类型：certificate=备案证明 / signature=盖章文件 / other=其他
   url         String                                  // 文件 URL
   remark      String?                                 // 备注
   createdAt   DateTime @default(now()) @map("created_at")
 
   order       SealOrder @relation(fields: [orderId], references: [id])
-  store       Store     @relation(fields: [storeId], references: [id])
+  outlet      Outlet    @relation(fields: [outletId], references: [id])
 
   @@map("delivery_receipts")
 }

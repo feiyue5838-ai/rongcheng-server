@@ -6,7 +6,7 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { AdminJwtStrategy } from './strategies/admin-jwt.strategy';
-import { StoreJwtStrategy } from './strategies/store-jwt.strategy';
+import { StoreJwtStrategy } from './strategies/Outlet-jwt.strategy';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { WechatModule } from '../wechat/wechat.module';
 import { UserModule } from '../user/user.module';

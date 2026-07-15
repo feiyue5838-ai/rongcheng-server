@@ -2,7 +2,7 @@ import { Controller, Get, Post, Put, Body, Param, Query, UseGuards, Request, For
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { OrderService } from './order.service';
 import { JwtAuthGuard, AdminJwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { StoreJwtAuthGuard } from '../auth/guards/store-jwt-auth.guard';
+import { StoreJwtAuthGuard } from '../auth/guards/Outlet-jwt-auth.guard';
 
 @ApiTags('订单')
 @Controller('orders')
@@ -96,19 +96,19 @@ export class OrderController {
   @Post(':id/assign')
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: '分配订单给门店' })
+  @ApiOperation({ summary: '分配订单给网点' })
   async assignOrder(
     @Param('id') id: string,
-    @Body() dto: { storeId: string; remark?: string },
+    @Body() dto: { outletId: string; remark?: string },
     @Request() req: any,
   ) {
-    return this.orderService.assignOrder(id, dto.storeId, dto.remark, req.user.id as string);
+    return this.orderService.assignOrder(id, dto.outletId, dto.remark, req.user.id as string);
   }
 
   @Put(':id/accept')
   @UseGuards(StoreJwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: '门店接单' })
+  @ApiOperation({ summary: '网点接单' })
   async acceptOrder(@Param('id') id: string, @Request() req: any) {
     return this.orderService.acceptOrder(id, req.user.id);
   }
@@ -116,7 +116,7 @@ export class OrderController {
   @Put(':id/deliver')
   @UseGuards(StoreJwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: '门店提交交付（自动生效）' })
+  @ApiOperation({ summary: '网点提交交付（自动生效）' })
   async deliverOrder(
     @Param('id') id: string,
     @Body() dto: { expressCompany: string; expressNo: string; receipts: Array<{ type: string; url: string; remark?: string }>; remark?: string },
@@ -141,12 +141,12 @@ export class OrderController {
     return this.orderService.getDeliveryInfo(id);
   }
 
-  // ==================== 门店端接口 ====================
+  // ==================== 网点端接口 ====================
 
-  @Get('store/:id')
+  @Get('Outlet/:id')
   @UseGuards(StoreJwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: '门店端：订单详情（含凭证）' })
+  @ApiOperation({ summary: '网点端：订单详情（含凭证）' })
   async getStoreOrderDetail(@Param('id') id: string, @Request() req: any) {
     return this.orderService.getStoreOrderDetail(id, req.user.id);
   }
