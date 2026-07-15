@@ -1,0 +1,44 @@
+# ===== 依赖 & 构建产物 =====
+node_modules/
+dist/
+build/
+*.tsbuildinfo
+
+# ===== 环境变量 / 密钥（敏感，切勿提交） =====
+.env
+.env.local
+.env.*.local
+
+# ===== 上传文件（用户数据，运行时生成） =====
+uploads/
+
+# ===== 日志 & 运行输出 =====
+*.log
+out.log
+_dev.log
+_dev.err
+server_out.txt
+server_err.txt
+backend.log
+backend.err.log
+err.log
+debug_out.txt
+debug_out2.txt
+jwt_*.txt
+*.bat
+
+# ===== 临时 / 一次性调试脚本（非项目源码） =====
+check_*
+debug_*
+test_*.js
+test2.js
+verify_*
+step1_*
+*_tmp.js
+console.log*
+_*.js
+
+# ===== 编辑器 / 系统 =====
+.vscode/
+.idea/
+.DS_Store
