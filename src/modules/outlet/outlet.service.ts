@@ -80,7 +80,7 @@ export class StoreService {
     const existing = await this.prisma.outlet.findUnique({ where: { phone: data.phone } });
     if (existing) throw new BadRequestException('该手机号已被注册');
 
-    const initPassword = Math.random().toString().slice(2, 8);
+    const initPassword = Math.random().toString().slice(2, 10);
     const hashed = await bcrypt.hash(initPassword, 10);
 
     const Outlet = await this.prisma.outlet.create({
@@ -125,7 +125,7 @@ export class StoreService {
     const Outlet = await this.prisma.outlet.findUnique({ where: { id } });
     if (!Outlet) throw new NotFoundException('网点不存在');
 
-    const newPassword = Math.random().toString().slice(2, 8);
+    const newPassword = Math.random().toString().slice(2, 10);
     const hashed = await bcrypt.hash(newPassword, 10);
     await this.prisma.outlet.update({ where: { id }, data: { password: hashed } });
 
