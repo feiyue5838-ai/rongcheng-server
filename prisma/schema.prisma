@@ -441,6 +441,8 @@ model Outlet {
   // 格式：[{"province":"四川省","city":"成都市"},{"province":"四川省","city":"绵阳市"}]
   // 空数组表示服务全国（默认成都网点兜底）
   serviceArea String   @default("[]") @map("service_area")
+  businessLicense String? @map("business_license")     // 营业执照 URL
+  specialPermits  String  @default("[]") @map("special_permits") // 特种证件 URL 数组（JSON）
   status      Int      @default(1)                   // 状态：0=停用 1=正常
   totalOrders Int      @default(0)  @map("total_orders") // 累计处理订单数
   lastLoginAt DateTime? @map("last_login_at")       // 最后登录时间

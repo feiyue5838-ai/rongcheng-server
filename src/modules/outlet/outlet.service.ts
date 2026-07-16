@@ -2,6 +2,22 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { PrismaService } from '../../prisma/prisma.service';
 import * as bcrypt from 'bcryptjs';
 
+// 省份 -> 大区 映射（方案A：派生，不入库）
+const REGION_MAP: Record<string, string> = {
+  '北京市': '华北', '天津市': '华北', '河北省': '华北', '山西省': '华北', '内蒙古自治区': '华北',
+  '辽宁省': '东北', '吉林省': '东北', '黑龙江省': '东北',
+  '上海市': '华东', '江苏省': '华东', '浙江省': '华东', '安徽省': '华东', '福建省': '华东', '江西省': '华东', '山东省': '华东', '台湾': '华东',
+  '河南省': '华中', '湖北省': '华中', '湖南省': '华中',
+  '广东省': '华南', '广西壮族自治区': '华南', '海南省': '华南', '香港': '华南', '澳门': '华南',
+  '重庆市': '西南', '四川省': '西南', '贵州省': '西南', '云南省': '西南', '西藏自治区': '西南',
+  '陕西省': '西北', '甘肃省': '西北', '青海省': '西北', '宁夏回族自治区': '西北', '新疆维吾尔自治区': '西北',
+};
+
+function provinceToRegion(p?: string | null): string {
+  if (!p) return '未知';
+  return REGION_MAP[p] || '未知';
+}
+
 @Injectable()
 export class StoreService {
   constructor(private prisma: PrismaService) {}
@@ -9,7 +25,7 @@ export class StoreService {
   // ==================== 网点 CRUD ====================
 
   /** 网点列表 */
-  async findAll(params: { page?: number; pageSize?: number; keyword?: string; status?: number }) {
+  async findAll(params: { page?: number; pageSize?: number; keyword?: string; status?: number; region?: string }) {
     const { page = 1, pageSize = 20, keyword, status } = params;
     const where: any = {};
     if (keyword) {
@@ -20,6 +36,14 @@ export class StoreService {
       ];
     }
     if (status !== undefined) where.status = Number(status);
+    if (params.region) {
+      if (params.region === '未知') {
+        where.province = { notIn: Object.keys(REGION_MAP) };
+      } else {
+        const provinces = Object.keys(REGION_MAP).filter(k => REGION_MAP[k] === params.region);
+        where.province = { in: provinces };
+      }
+    }
 
     const [list, total] = await Promise.all([
       this.prisma.outlet.findMany({
@@ -35,6 +59,7 @@ export class StoreService {
     return {
       list: list.map(s => ({
         ...s,
+        region: provinceToRegion(s.province),
         password: undefined,
         totalOrders: s._count?.assignments ?? 0,
         statusText: s.status === 1 ? '营业中' : '已歇业',
@@ -51,7 +76,7 @@ export class StoreService {
   }
 
   /** 新增网点 */
-  async create(data: { name: string; contact: string; phone: string; province?: string; city?: string; address?: string }) {
+  async create(data: { name: string; contact: string; phone: string; province?: string; city?: string; address?: string; businessLicense?: string; specialPermits?: string[] }) {
     const existing = await this.prisma.outlet.findUnique({ where: { phone: data.phone } });
     if (existing) throw new BadRequestException('该手机号已被注册');
 
@@ -59,19 +84,28 @@ export class StoreService {
     const hashed = await bcrypt.hash(initPassword, 10);
 
     const Outlet = await this.prisma.outlet.create({
-      data: { ...data, password: hashed, status: 1 },
+      data: {
+        ...data,
+        businessLicense: data.businessLicense || null,
+        specialPermits: JSON.stringify(data.specialPermits || []),
+        password: hashed,
+        status: 1,
+      },
     });
 
     return { ...Outlet, password: undefined, initPassword };
   }
 
   /** 编辑网点 */
-  async update(id: string, data: { name?: string; contact?: string; phone?: string; province?: string; city?: string; address?: string; status?: number }) {
+  async update(id: string, data: { name?: string; contact?: string; phone?: string; province?: string; city?: string; address?: string; status?: number; businessLicense?: string; specialPermits?: string[] }) {
     if (data.phone) {
       const existing = await this.prisma.outlet.findFirst({ where: { phone: data.phone, NOT: { id } } });
       if (existing) throw new BadRequestException('该手机号已被其他网点使用');
     }
-    const Outlet = await this.prisma.outlet.update({ where: { id }, data });
+    const updateData: any = { ...data };
+    updateData.businessLicense = data.businessLicense || null;
+    updateData.specialPermits = JSON.stringify(data.specialPermits || []);
+    const Outlet = await this.prisma.outlet.update({ where: { id }, data: updateData });
     return { ...Outlet, password: undefined };
   }
 
