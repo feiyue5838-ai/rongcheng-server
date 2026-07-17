@@ -3,6 +3,7 @@ import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiConsumes, ApiBearerAuth } from '@nestjs/swagger';
 import { UploadService } from './upload.service';
 import { AdminJwtAuthGuard, JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { StoreJwtAuthGuard } from '../auth/guards/outlet-jwt-auth.guard';
 
 @ApiTags('文件上传')
 @Controller('upload')
@@ -61,6 +62,17 @@ export class UploadController {
   @UseInterceptors(FileInterceptor('file'))
   async uploadSealImage(@UploadedFile() file: Express.Multer.File) {
     const url = await this.uploadService.uploadFile(file, 'seals');
+    return { url };
+  }
+
+  @Post('outlet-image')
+  @UseGuards(StoreJwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: '上传图片（网点端：印章照片/交付凭证）' })
+  @UseInterceptors(FileInterceptor('file'))
+  async uploadOutletImage(@UploadedFile() file: Express.Multer.File) {
+    const url = await this.uploadService.uploadFile(file, 'outlets');
     return { url };
   }
 }

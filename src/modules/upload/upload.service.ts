@@ -48,8 +48,8 @@ export class UploadService {
     fs.writeFileSync(filePath, file.buffer);
 
     // 返回访问路径
-    const baseUrl = process.env.UPLOAD_BASE_URL || `http://localhost:${process.env.PORT || 3000}`;
-    return `${baseUrl}/uploads/${subDir}/${filename}`;
+    // 返回相对路径，让前端通过当前域名访问
+    return `/uploads/${subDir}/${filename}`;
   }
 
   /**

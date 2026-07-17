@@ -1,22 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import * as bcrypt from 'bcryptjs';
-
-// 省份 -> 大区 映射（方案A：派生，不入库）
-const REGION_MAP: Record<string, string> = {
-  '北京市': '华北', '天津市': '华北', '河北省': '华北', '山西省': '华北', '内蒙古自治区': '华北',
-  '辽宁省': '东北', '吉林省': '东北', '黑龙江省': '东北',
-  '上海市': '华东', '江苏省': '华东', '浙江省': '华东', '安徽省': '华东', '福建省': '华东', '江西省': '华东', '山东省': '华东', '台湾': '华东',
-  '河南省': '华中', '湖北省': '华中', '湖南省': '华中',
-  '广东省': '华南', '广西壮族自治区': '华南', '海南省': '华南', '香港': '华南', '澳门': '华南',
-  '重庆市': '西南', '四川省': '西南', '贵州省': '西南', '云南省': '西南', '西藏自治区': '西南',
-  '陕西省': '西北', '甘肃省': '西北', '青海省': '西北', '宁夏回族自治区': '西北', '新疆维吾尔自治区': '西北',
-};
-
-function provinceToRegion(p?: string | null): string {
-  if (!p) return '未知';
-  return REGION_MAP[p] || '未知';
-}
+import { REGION_MAP, provinceToRegion } from '../../common/region';
 
 @Injectable()
 export class StoreService {
@@ -271,5 +256,70 @@ export class StoreService {
     ]);
 
     return { message: '已标记为已发货' };
+  }
+
+  /** 全网点总览：按网点聚合订单状态 + 大区汇总 + Top10 */
+  async getOverview() {
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    const outlets = await this.prisma.outlet.findMany();
+    const groups = await this.prisma.orderAssignment.groupBy({
+      by: ['outletId', 'status'],
+      _count: { _all: true },
+    });
+    const todayRows = await this.prisma.orderAssignment.findMany({
+      where: { assignedAt: { gte: todayStart } },
+      select: { outletId: true },
+    });
+
+    const stat: Record<string, { pending: number; processing: number; completed: number; today: number }> = {};
+    for (const o of outlets) stat[o.id] = { pending: 0, processing: 0, completed: 0, today: 0 };
+    for (const g of groups) {
+      if (!stat[g.outletId]) stat[g.outletId] = { pending: 0, processing: 0, completed: 0, today: 0 };
+      if (g.status === 1) stat[g.outletId].pending += g._count._all;
+      else if (g.status === 2) stat[g.outletId].processing += g._count._all;
+      else if (g.status === 3) stat[g.outletId].completed += g._count._all;
+    }
+    for (const t of todayRows) {
+      if (stat[t.outletId]) stat[t.outletId].today += 1;
+    }
+
+    const outletStats = outlets.map(o => {
+      const s = stat[o.id] || { pending: 0, processing: 0, completed: 0, today: 0 };
+      return {
+        id: o.id, name: o.name, province: o.province, city: o.city,
+        region: provinceToRegion(o.province), status: o.status,
+        totalOrders: s.pending + s.processing + s.completed,
+        pending: s.pending, processing: s.processing, completed: s.completed, today: s.today,
+      };
+    });
+
+    const regionMap: Record<string, any> = {};
+    for (const o of outletStats) {
+      const r = o.region;
+      if (!regionMap[r]) regionMap[r] = { region: r, outletCount: 0, totalOrders: 0, pending: 0, processing: 0, completed: 0, provinces: [] as string[] };
+      regionMap[r].outletCount += 1;
+      regionMap[r].totalOrders += o.totalOrders;
+      regionMap[r].pending += o.pending;
+      regionMap[r].processing += o.processing;
+      regionMap[r].completed += o.completed;
+      if (o.province && !regionMap[r].provinces.includes(o.province)) regionMap[r].provinces.push(o.province);
+    }
+
+    const summary = {
+      totalOutlets: outlets.length,
+      activeOutlets: outlets.filter(o => o.status === 1).length,
+      inactiveOutlets: outlets.filter(o => o.status !== 1).length,
+      totalOrders: outletStats.reduce((s, o) => s + o.totalOrders, 0),
+      totalPending: outletStats.reduce((s, o) => s + o.pending, 0),
+      totalProcessing: outletStats.reduce((s, o) => s + o.processing, 0),
+      totalCompleted: outletStats.reduce((s, o) => s + o.completed, 0),
+      todayTotal: outletStats.reduce((s, o) => s + o.today, 0),
+    };
+
+    const topOutlets = [...outletStats].sort((a, b) => b.totalOrders - a.totalOrders).slice(0, 10);
+
+    return { summary, regions: Object.values(regionMap), outlets: outletStats, topOutlets };
   }
 }

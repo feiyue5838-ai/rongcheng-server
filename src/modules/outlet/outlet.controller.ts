@@ -48,6 +48,14 @@ export class StoreController {
     return this.storeService.findAll({ page: Number(page) || 1, pageSize: Number(pageSize) || 20, keyword, status, region });
   }
 
+  @Get('admin/overview')
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '全网点总览' })
+  async getOverview() {
+    return this.storeService.getOverview();
+  }
+
   @Get(':id')
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()

@@ -1,12 +1,16 @@
 ﻿import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
+import { Express } from 'express';
+import * as express from 'express';
+import * as path from 'path';
 
 import * as dotenv from 'dotenv';
 dotenv.config();
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
   // CORS: 开发环境允许前端 localhost:5173/5174，生产环境配置实际域名
   app.enableCors({
@@ -20,6 +24,9 @@ async function bootstrap() {
   });
 
   app.useGlobalPipes(new ValidationPipe());
+
+  // 静态资源：上传的图片通过 /uploads 访问
+  app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
   // 全局前缀: 所有路由统一加上 /api
   app.setGlobalPrefix('api');

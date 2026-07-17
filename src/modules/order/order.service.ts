@@ -181,6 +181,28 @@ export class OrderService {
 
   // ==================== 创建登报订单 ====================
 
+  // 登报 type 白名单（与小程序 categories.js 对齐，防止直接 API 注入脏数据）
+  private readonly VALID_NEWSPAPER_TYPES = new Set([
+    '身份证挂失', '个人证件', '企业证件', '发票收据', '真情告白',
+    '公告声明', '法院公告', '政府送达', '债权债务', '解除劳动',
+    '环评公示', '拍卖公告', '登报道歉', '表扬信', '宣传稿', '招标公告',
+    // DB 中历史存在的分类（小程序静态配置之外的）
+    '注销公告', '吸收合并公告',
+    // 通用兜底
+    '登报声明', '个人声明',
+  ]);
+
+  /**
+   * 安全获取 type 值：白名单之外一律替换为 '登报声明'
+   * 防止 UUID/ID/???? 等脏数据写入
+   */
+  private sanitizeNewspaperType(type: any): string {
+    if (typeof type === 'string' && type.length >= 2 && type.length <= 20 && this.VALID_NEWSPAPER_TYPES.has(type)) {
+      return type;
+    }
+    return '登报声明';
+  }
+
   async createNewspaperOrder(userId: string, dto: any) {
     const { type, content, newspaperId, templateId, addressId, addressJson, remark, price, newspaperName, issueCount, invoice, copyCount, images } = dto;
 
@@ -204,13 +226,14 @@ export class OrderService {
       }
     }
 
+    const safeType = this.sanitizeNewspaperType(type);
     const orderNo = this.generateOrderNo('RB');
     const order = await this.prisma.sealOrder.create({
       data: {
         orderNo,
         userId,
         module: 'newspaper',
-        type: type || '登报声明',
+        type: safeType,
         totalPrice: serverPrice,
         contactPhone: addressData?.phone || null,
         addressId: addressId || null,
@@ -386,7 +409,7 @@ export class OrderService {
     });
 
     // 支付成功后触发全国网点自动分配（仅未分配时）
-    if (order.assignmentStatus === 0 && order.addressJson) {
+    if ((order.assignmentStatus === 0 || order.assignmentStatus == null) && order.addressJson) {
       const assignResult = await this.autoAssignStore(order.addressJson, 'system');
       if (assignResult) {
         await this.prisma.orderAssignment.create({
@@ -467,14 +490,15 @@ export class OrderService {
         type: o.type,
         companyName: o.companyName,
         contactPhone: o.contactPhone,
-        totalPrice: o.totalPrice,
-        payPrice: o.payPrice,
+        totalPrice: Number(o.totalPrice) || 0,
+        payPrice: Number(o.payPrice) || 0,
         status: o.status,
         statusText: o.statusText,
         payTime: o.payTime,
         createdAt: o.createdAt,
         user: o.user,
         orderItems: o.orderItems,
+        assignmentStatus: o.assignmentStatus,
         assignment: o.assignment ? (() => {
           const map: Record<number, string> = { 0: '待接单', 1: '已接单', 2: '制作中', 3: '已发货', 4: '已完成', 5: '已拒绝' };
           return { ...o.assignment, statusText: map[o.assignment.status] ?? o.assignment.statusText };
@@ -538,7 +562,7 @@ export class OrderService {
       totalOrders,
       todayOrders,
       pendingOrders,
-      totalRevenue: totalRevenue._sum.payPrice || 0,
+      totalRevenue: Number(totalRevenue._sum.payPrice) || 0,
     };
   }
 
@@ -583,14 +607,15 @@ export class OrderService {
         type: o.type,
         companyName: o.companyName,
         contactPhone: o.contactPhone,
-        totalPrice: o.totalPrice,
-        payPrice: o.payPrice,
+        totalPrice: Number(o.totalPrice) || 0,
+        payPrice: Number(o.payPrice) || 0,
         status: o.status,
         statusText: o.statusText,
         payTime: o.payTime,
         createdAt: o.createdAt,
         user: o.user,
         orderItems: o.orderItems,
+        assignmentStatus: o.assignmentStatus,
         assignment: o.assignment,
         receipts: o.receipts,
       })),
@@ -654,7 +679,7 @@ export class OrderService {
   }
 
   /** 网点提交交付（自动生效） */
-  async deliverOrder(orderId: string, dto: { expressCompany: string; expressNo: string; receipts: Array<{ type: string; url: string; remark?: string }>; remark?: string }, outletId: string) {
+  async deliverOrder(orderId: string, dto: { expressCompany: string; expressNo: string; receipts: Array<{ type: string; url: string; remark?: string }>; sealImages?: Array<{ url: string; remark?: string }>; remark?: string }, outletId: string) {
     const assignment = await this.prisma.orderAssignment.findUnique({
       where: { orderId },
       include: { order: true },
@@ -667,7 +692,12 @@ export class OrderService {
     await this.prisma.$transaction([
       ...dto.receipts.map(r =>
         this.prisma.deliveryReceipt.create({
-          data: { orderId, outletId, type: r.type, url: r.url, remark: r.remark },
+          data: { orderId, outletId, type: r.type || 'certificate', url: r.url, remark: r.remark },
+        }),
+      ),
+      ...(dto.sealImages || []).map(img =>
+        this.prisma.deliveryReceipt.create({
+          data: { orderId, outletId, type: 'seal', url: img.url, remark: img.remark || null },
         }),
       ),
       this.prisma.orderAssignment.update({
