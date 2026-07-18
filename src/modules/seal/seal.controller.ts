@@ -46,6 +46,64 @@ export class SealController {
     return this.sealService.getSceneProducts(id);
   }
 
+  // ==================== 管理端：场景（SealScene）管理 ====================
+
+  @Get('admin/scenes')
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '管理端：场景列表（含印章/套餐数量）' })
+  async adminGetScenes() {
+    return this.sealService.adminGetScenes();
+  }
+
+  @Get('admin/scenes/:id')
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '管理端：场景详情（印章+套餐）' })
+  async adminGetScene(@Param('id') id: string) {
+    return this.sealService.adminGetScene(id);
+  }
+
+  @Post('admin/scenes')
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '管理端：创建场景' })
+  async adminCreateScene(@Body() dto: any) {
+    return this.sealService.adminCreateScene(dto);
+  }
+
+  @Put('admin/scenes/:id')
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '管理端：更新场景' })
+  async adminUpdateScene(@Param('id') id: string, @Body() dto: any) {
+    return this.sealService.adminUpdateScene(id, dto);
+  }
+
+  @Delete('admin/scenes/:id')
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '管理端：删除场景' })
+  async adminDeleteScene(@Param('id') id: string) {
+    return this.sealService.adminDeleteScene(id);
+  }
+
+  @Put('admin/scenes/:id/seals')
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '管理端：设置场景印章（整体替换）' })
+  async adminSetSceneSeals(@Param('id') id: string, @Body() dto: { sealIds: string[] }) {
+    return this.sealService.adminSetSceneSeals(id, dto.sealIds || []);
+  }
+
+  @Put('admin/scenes/:id/packages')
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '管理端：设置场景套餐（整体替换）' })
+  async adminSetScenePackages(@Param('id') id: string, @Body() dto: { packages: any[] }) {
+    return this.sealService.adminSetScenePackages(id, dto.packages || []);
+  }
+
   // ==================== 管理端 ====================
 
   @Get('admin/categories')

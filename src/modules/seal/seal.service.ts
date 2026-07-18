@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { v4 as uuidv4 } from 'uuid';
 import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
@@ -252,5 +253,136 @@ export class SealService {
 
   async adminDeletePackage(id: string) {
     return this.prisma.sealPackage.delete({ where: { id } });
+  }
+
+  // ==================== 管理端：场景（SealScene）管理 ====================
+
+  /** 管理端：场景列表（含印章/套餐数量） */
+  async adminGetScenes() {
+    return this.prisma.sealScene.findMany({
+      where: { sceneType: 'scene' },
+      orderBy: { sort: 'asc' },
+      include: {
+        _count: {
+          select: { sealSceneSeals: true, sealScenePackages: true },
+        },
+      },
+    });
+  }
+
+  /** 管理端：场景详情（印章 + 套餐） */
+  async adminGetScene(id: string) {
+    const scene = await this.prisma.sealScene.findUnique({ where: { id } });
+    if (!scene) throw new NotFoundException('场景不存在');
+    const seals = await this.prisma.sealSceneSeal.findMany({
+      where: { sceneId: id },
+      orderBy: { sort: 'asc' },
+      include: { seal: true },
+    });
+    const packages = await this.prisma.sealScenePackage.findMany({
+      where: { sceneId: id },
+      orderBy: { sort: 'asc' },
+      include: { package: true },
+    });
+    return {
+      scene,
+      seals: seals.map((s) => s.seal),
+      packages: packages.map((p) => p.package),
+    };
+  }
+
+  /** 管理端：创建场景 */
+  async adminCreateScene(dto: any) {
+    return this.prisma.sealScene.create({
+      data: { ...dto, sceneType: 'scene' },
+    });
+  }
+
+  /** 管理端：更新场景 */
+  async adminUpdateScene(id: string, dto: any) {
+    return this.prisma.sealScene.update({ where: { id }, data: dto });
+  }
+
+  /** 管理端：删除场景（级联清除关联） */
+  async adminDeleteScene(id: string) {
+    await this.prisma.sealSceneSeal.deleteMany({ where: { sceneId: id } });
+    const oldJoins = await this.prisma.sealScenePackage.findMany({
+      where: { sceneId: id },
+      select: { packageId: true },
+    });
+    await this.prisma.sealScenePackage.deleteMany({ where: { sceneId: id } });
+    const oldIds = oldJoins.map((j) => j.packageId);
+    if (oldIds.length > 0) {
+      // 仅删除未被其他场景引用的套餐，避免误删共享套餐
+      const stillRef = await this.prisma.sealScenePackage.findMany({
+        where: { packageId: { in: oldIds } },
+        select: { packageId: true },
+      });
+      const safeDelete = oldIds.filter((pid) => !stillRef.some((r) => r.packageId === pid));
+      if (safeDelete.length > 0) {
+        await this.prisma.sealPackage.deleteMany({ where: { id: { in: safeDelete } } });
+      }
+    }
+    return this.prisma.sealScene.delete({ where: { id } });
+  }
+
+  /** 管理端：设置场景印章（整体替换） */
+  async adminSetSceneSeals(sceneId: string, sealIds: string[]) {
+    await this.prisma.sealSceneSeal.deleteMany({ where: { sceneId } });
+    if (sealIds.length > 0) {
+      await this.prisma.sealSceneSeal.createMany({
+        data: sealIds.map((sealId, i) => ({ sceneId, sealId, sort: i + 1 })),
+      });
+    }
+    return { count: sealIds.length };
+  }
+
+  /** 管理端：设置场景套餐（整体替换）
+   *  packages: [{ id?, name, price, sealIds?, badge? }]
+   *  - 带 id 且非新建：仅建立关联（复用已有套餐）
+   *  - 不带 id / isNew：新建套餐并关联
+   */
+  async adminSetScenePackages(sceneId: string, packages: any[]) {
+    const oldJoins = await this.prisma.sealScenePackage.findMany({
+      where: { sceneId },
+      select: { packageId: true },
+    });
+    const oldIds = oldJoins.map((j) => j.packageId);
+    await this.prisma.sealScenePackage.deleteMany({ where: { sceneId } });
+    // 删除仅本场景使用的旧套餐
+    if (oldIds.length > 0) {
+      const stillRef = await this.prisma.sealScenePackage.findMany({
+        where: { packageId: { in: oldIds } },
+        select: { packageId: true },
+      });
+      const safeDelete = oldIds.filter((pid) => !stillRef.some((r) => r.packageId === pid));
+      if (safeDelete.length > 0) {
+        await this.prisma.sealPackage.deleteMany({ where: { id: { in: safeDelete } } });
+      }
+    }
+    for (let i = 0; i < packages.length; i++) {
+      const pkg = packages[i];
+      if (pkg.id && !pkg.isNew) {
+        await this.prisma.sealScenePackage.create({
+          data: { sceneId, packageId: pkg.id, sort: i + 1 },
+        });
+      } else {
+        const pkgId = uuidv4();
+        await this.prisma.sealPackage.create({
+          data: {
+            id: pkgId,
+            name: pkg.name,
+            price: pkg.price,
+            sealIds: pkg.sealIds || [],
+            badge: pkg.badge || null,
+            sort: i + 1,
+          },
+        });
+        await this.prisma.sealScenePackage.create({
+          data: { sceneId, packageId: pkgId, sort: i + 1 },
+        });
+      }
+    }
+    return { count: packages.length };
   }
 }
