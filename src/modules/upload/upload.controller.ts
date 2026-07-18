@@ -32,6 +32,17 @@ export class UploadController {
     return { url };
   }
 
+  @Post('user-material')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: '上传材料文件（用户端，刻章材料）' })
+  @UseInterceptors(FileInterceptor('file'))
+  async uploadUserMaterial(@UploadedFile() file: Express.Multer.File) {
+    const url = await this.uploadService.uploadFile(file, 'materials');
+    return { url };
+  }
+
   @Post('images')
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()

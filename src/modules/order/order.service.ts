@@ -176,6 +176,40 @@ export class OrderService {
     // 传入的 paidStatus 预置已付 / 触发网点分配。支付完成由微信支付回调（或开发
     // 模拟回调）通过 completePayment 统一处理（见下方方法）。前端永远不能自己判定
     // 支付成功。
+
+    // 5. 持久化用户上传的材料（前端已在下单前上传至 /api/upload/user-material 拿到 URL）
+    let materialsInput: any = dto.materials;
+    if (typeof materialsInput === 'string') {
+      try { materialsInput = JSON.parse(materialsInput); } catch { materialsInput = null; }
+    }
+    if (materialsInput && typeof materialsInput === 'object') {
+      const typeMap: Record<string, string> = {
+        license: 'license',
+        idCardFront: 'id_card_front',
+        idCardBack: 'id_card_back',
+        legalPhoto: 'photo',
+        professionalCert: 'professional_cert',
+        signature: 'signature',
+        handheldIdPhoto: 'handheld_id',
+        additional: 'additional',
+      };
+      const toCreate: { orderId: string; type: string; url: string }[] = [];
+      for (const key of Object.keys(typeMap)) {
+        const val = materialsInput[key];
+        if (!val) continue;
+        if (Array.isArray(val)) {
+          for (const u of val) {
+            if (typeof u === 'string' && u) toCreate.push({ orderId: order.id, type: typeMap[key], url: u });
+          }
+        } else if (typeof val === 'string' && val) {
+          toCreate.push({ orderId: order.id, type: typeMap[key], url: val });
+        }
+      }
+      if (toCreate.length > 0) {
+        await this.prisma.material.createMany({ data: toCreate });
+      }
+    }
+
     return order;
   }
 
