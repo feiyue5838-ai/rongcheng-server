@@ -11,6 +11,7 @@ import { UploadModule } from './modules/upload/upload.module';
 import { ConfigModule as SysConfigModule } from './modules/config/config.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { StoreModule } from './modules/Outlet/Outlet.module';
+import { NotificationModule } from './modules/notification/notification.module';
 import { DeliveryModule } from './modules/delivery/delivery.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 
@@ -28,6 +29,7 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
     SysConfigModule,
     AdminModule,
     StoreModule,
+    NotificationModule,
     DeliveryModule,
     DashboardModule,
   ],

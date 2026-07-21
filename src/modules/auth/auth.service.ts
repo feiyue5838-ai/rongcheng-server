@@ -39,6 +39,7 @@ export class AuthService {
 
     return {
       token,
+      openid,
       user: {
         id: user.id,
         nickname: user.nickname,
@@ -178,7 +179,7 @@ export class AuthService {
 
     return {
       token,
-      Outlet: {
+      outlet: {
         id: Outlet.id,
         name: Outlet.name,
         contact: Outlet.contact,
@@ -187,6 +188,8 @@ export class AuthService {
         city: Outlet.city,
         address: Outlet.address,
         status: Outlet.status,
+        outletOpenid: Outlet.outletOpenid || null,
+        subscribeMsg: Outlet.subscribeMsg,
       },
     };
   }

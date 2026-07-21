@@ -11,9 +11,9 @@ export class SealController {
   // ==================== 用户端 ====================
 
   @Get('categories')
-  @ApiOperation({ summary: '获取印章分类列表（8个业务场景）' })
+  @ApiOperation({ summary: '获取印章分类列表（全部分类，管理后台用）' })
   async getCategories() {
-    return this.sealService.getCategories(true);
+    return this.sealService.getCategories();
   }
 
   @Get('categories/:id')
@@ -105,22 +105,6 @@ export class SealController {
   }
 
   // ==================== 管理端 ====================
-
-  @Get('admin/categories')
-  @UseGuards(AdminJwtAuthGuard)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: '管理端：获取旧印章分类（SealCategory）' })
-  async adminGetCategories() {
-    return this.sealService.adminGetCategories();
-  }
-
-  @Get('admin')
-  @UseGuards(AdminJwtAuthGuard)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: '管理端：印章列表（按旧 categoryId 筛选）' })
-  async adminGetSeals(@Query('categoryId') categoryId?: string) {
-    return this.sealService.adminGetSeals(categoryId);
-  }
 
   @Post('categories')
   @UseGuards(AdminJwtAuthGuard)
@@ -218,5 +202,13 @@ export class SealController {
   @ApiOperation({ summary: '更新套餐' })
   async updatePackage(@Param('id') id: string, @Body() dto: any) {
     return this.sealService.adminUpdatePackage(id, dto);
+  }
+
+  @Delete('packages/:id')
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '删除套餐' })
+  async deletePackage(@Param('id') id: string) {
+    return this.sealService.adminDeletePackage(id);
   }
 }

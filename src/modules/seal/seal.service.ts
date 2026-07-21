@@ -8,10 +8,10 @@ export class SealService {
 
   // ==================== 用户端 ====================
 
-  /** 获取印章分类列表 */
-  async getCategories(userFacing = true) {
+  /** 获取印章分类列表（管理后台用：返回全部分类含辅助场景） */
+  async getCategories() {
     return this.prisma.sealScene.findMany({
-      where: userFacing ? { status: 1, sceneType: 'scene' } : { sceneType: 'scene' },
+      where: { status: 1 },
       orderBy: { sort: 'asc' },
     });
   }
@@ -63,9 +63,12 @@ export class SealService {
     );
   }
 
-  /** 获取业务场景列表（用户端首页选择） */
+  /** 获取业务场景列表（小程序用户端首页选择，只返回 sceneType=scene） */
   async getScenes(userFacing = true) {
-    return this.getCategories(userFacing);
+    return this.prisma.sealScene.findMany({
+      where: userFacing ? { status: 1, sceneType: 'scene' } : { sceneType: 'scene' },
+      orderBy: { sort: 'asc' },
+    });
   }
 
   /** 获取某个场景下的印章和套餐（用户端弹窗用） */
@@ -96,37 +99,20 @@ export class SealService {
           where: { id: { in: sp.package.sealIds } },
           include: { category: true },
         });
-        return { ...sp.package, seals };
+        // 显示排序优先用关联表 sp.sort；未设置时回退到套餐自身 package.sort
+        return { ...sp.package, seals, sort: sp.sort || sp.package.sort };
       }),
     );
 
     return {
       scene,
-      seals: sceneSeals.map((sf) => ({ ...sf.seal, category: sf.seal.category })),
+      // 显示排序优先用关联表 sf.sort；未设置（默认 0）时回退到印章自身 seal.sort，使管理端排序字段生效
+      seals: sceneSeals.map((sf) => ({ ...sf.seal, category: sf.seal.category, sort: sf.sort || sf.seal.sort })),
       packages,
     };
   }
 
   // ==================== 管理端 ====================
-
-  /** 管理端：印章列表（按旧 SealCategory.categoryId 筛选） */
-  async adminGetSeals(categoryId?: string) {
-    const where: any = { status: 1 };
-    if (categoryId) where.categoryId = categoryId;
-    return this.prisma.seal.findMany({
-      where,
-      include: { category: true },
-      orderBy: { sort: 'asc' },
-    });
-  }
-
-  /** 管理端：获取旧印章分类（SealCategory，用于管理后台筛选 Tab） */
-  async adminGetCategories() {
-    return this.prisma.sealCategory.findMany({
-      where: { status: 1 },
-      orderBy: { sort: 'asc' },
-    });
-  }
 
   /** 管理端：分类 CRUD（已统一为 SealScene） */
   async adminCreateCategory(dto: any) {
@@ -148,9 +134,11 @@ export class SealService {
 
   /** 管理端：印章 CRUD */
   async adminCreateSeal(dto: any) {
-    // categoryId 现在是场景 id，同时创建 SealSceneSeal 关联
-    const { categoryId, ...rest } = dto;
-    const seal = await this.prisma.seal.create({ data: rest });
+    // categoryId = 场景 id（建立 SealSceneSeal 关联）；sealCategoryId = 旧 SealCategory（个人子分类，写回 seal.categoryId）
+    const { categoryId, sealCategoryId, ...rest } = dto;
+    const seal = await this.prisma.seal.create({
+      data: { ...rest, categoryId: sealCategoryId ?? null },
+    });
     if (categoryId) {
       await this.prisma.sealSceneSeal.create({
         data: { sceneId: categoryId, sealId: seal.id, sort: 0 },
@@ -160,8 +148,11 @@ export class SealService {
   }
 
   async adminUpdateSeal(id: string, dto: any) {
-    const { categoryId, ...rest } = dto;
-    const seal = await this.prisma.seal.update({ where: { id }, data: rest });
+    const { categoryId, sealCategoryId, ...rest } = dto;
+    const updateData: any = { ...rest };
+    // 个人印章子分类：写回/清除 seal.categoryId（空串统一为 null，避免无效外键）
+    if (sealCategoryId !== undefined) updateData.categoryId = sealCategoryId || null;
+    const seal = await this.prisma.seal.update({ where: { id }, data: updateData });
     if (categoryId !== undefined) {
       // 重新建立该印章的场景关联
       await this.prisma.sealSceneSeal.deleteMany({ where: { sealId: id } });
@@ -179,13 +170,20 @@ export class SealService {
     return this.prisma.seal.delete({ where: { id } });
   }
 
-  /** 刻章备案查询场景 ID（常量） */
-  private readonly RECORD_QUERY_SCENE_ID = '9837519a-9dbf-4e52-b19e-60eea192eef6';
+  /** 刻章备案查询场景：按 route 动态解析（不再写死 UUID），找不到时回退常量 */
+  private readonly RECORD_QUERY_SCENE_ID_FALLBACK = '9837519a-9dbf-4e52-b19e-60eea192eef6';
+  private async getRecordQuerySceneId(): Promise<string> {
+    const scene = await this.prisma.sealScene.findFirst({
+      where: { route: { contains: 'type=query' } },
+    });
+    return scene?.id ?? this.RECORD_QUERY_SCENE_ID_FALLBACK;
+  }
 
   /** 管理端：刻章备案查询 - 列表（所有省份） */
   async adminGetRecordQueries() {
+    const sceneId = await this.getRecordQuerySceneId();
     const sceneSeals = await this.prisma.sealSceneSeal.findMany({
-      where: { sceneId: this.RECORD_QUERY_SCENE_ID },
+      where: { sceneId },
       orderBy: { sort: 'asc' },
       include: { seal: true },
     });
@@ -208,9 +206,10 @@ export class SealService {
       },
     });
     // 2. 关联到备案查询场景
+    const sceneId = await this.getRecordQuerySceneId();
     await this.prisma.sealSceneSeal.create({
       data: {
-        sceneId: this.RECORD_QUERY_SCENE_ID,
+        sceneId,
         sealId: seal.id,
         sort: dto.sort ?? 0,
       },
@@ -227,8 +226,9 @@ export class SealService {
     const seal = await this.prisma.seal.update({ where: { id }, data: updateData });
 
     if (dto.sort !== undefined) {
+      const sceneId = await this.getRecordQuerySceneId();
       await this.prisma.sealSceneSeal.updateMany({
-        where: { sealId: id, sceneId: this.RECORD_QUERY_SCENE_ID },
+        where: { sealId: id, sceneId },
         data: { sort: dto.sort },
       });
     }
@@ -238,7 +238,8 @@ export class SealService {
 
   /** 管理端：刻章备案查询 - 删除省份 */
   async adminDeleteRecordQuery(id: string) {
-    await this.prisma.sealSceneSeal.deleteMany({ where: { sealId: id, sceneId: this.RECORD_QUERY_SCENE_ID } });
+    const sceneId = await this.getRecordQuerySceneId();
+    await this.prisma.sealSceneSeal.deleteMany({ where: { sealId: id, sceneId } });
     return this.prisma.seal.delete({ where: { id } });
   }
 
@@ -260,7 +261,6 @@ export class SealService {
   /** 管理端：场景列表（含印章/套餐数量） */
   async adminGetScenes() {
     return this.prisma.sealScene.findMany({
-      where: { sceneType: 'scene' },
       orderBy: { sort: 'asc' },
       include: {
         _count: {

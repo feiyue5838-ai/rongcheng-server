@@ -17,7 +17,7 @@ export class OrderService {
    * 匹配规则：
    *   1. serviceArea JSON 中有精确 city 匹配优先
    *   2. 其次 province 匹配
-   *   3. 都无 → 随机分配一个成都网点兜底
+   *   3. 都无 → 随机分配一个活跃网点兜底
    */
   async autoAssignStore(addressJson: string | null, adminId?: string): Promise<{ outletId: string; storeName: string; matchType: string } | null> {
     if (!addressJson) return null;
@@ -70,21 +70,10 @@ export class OrderService {
       }
     }
 
-    // 无任何匹配 → 随机选一个成都网点兜底
+    // 无任何匹配 → 随机选一个活跃网点兜底
     if (!bestStore) {
-      const chengduStores = stores.filter(s => {
-        try {
-          const area = JSON.parse(s.serviceArea || '[]');
-          return area.some((a: any) => a.province === '四川省' || a.city?.includes('成都'));
-        } catch { return false; }
-      });
-      if (chengduStores.length > 0) {
-        bestStore = chengduStores[Math.floor(Math.random() * chengduStores.length)];
-        matchType = 'fallback:成都';
-      } else {
-        bestStore = stores[0];
-        matchType = 'fallback:首位网点';
-      }
+      bestStore = stores[Math.floor(Math.random() * stores.length)];
+      matchType = 'fallback:随机网点';
     }
 
     return { outletId: bestStore.id, storeName: bestStore.name, matchType };
@@ -217,12 +206,10 @@ export class OrderService {
 
   // 登报 type 白名单（与小程序 categories.js 对齐，防止直接 API 注入脏数据）
   private readonly VALID_NEWSPAPER_TYPES = new Set([
-    '身份证挂失', '个人证件', '企业证件', '发票收据', '真情告白',
+    '身份证挂失', '个人证件', '企业证件', '发票收据', '声明公告',
     '公告声明', '法院公告', '政府送达', '债权债务', '解除劳动',
     '环评公示', '拍卖公告', '登报道歉', '表扬信', '宣传稿', '招标公告',
-    // DB 中历史存在的分类（小程序静态配置之外的）
-    '注销公告', '吸收合并公告',
-    // 通用兜底
+    // 通用兜底（脏数据或历史订单兼容）
     '登报声明', '个人声明',
   ]);
 
@@ -256,7 +243,8 @@ export class OrderService {
       if (np) {
         const chars = (content || '').length;
         const words = Math.max(chars, np.minWords || 0);
-        serverPrice = words * Number(np.pricePerWord) * (Number(issueCount) || 1);
+        const copies = Number(copyCount) || 1;
+        serverPrice = words * Number(np.pricePerWord) * (Number(issueCount) || 1) * copies;
       }
     }
 
@@ -460,10 +448,59 @@ export class OrderService {
           where: { id: order.id },
           data: { assignmentStatus: 1 },
         });
+
+        // ============ 新单通知（站内 + 订阅消息） ============
+        const orderTypeDesc = order.module === 'newspaper'
+          ? `登报-${order.type || '声明'}`
+          : `刻章-${order.type || '印章'}`;
+        const notifyContent = `订单 ${order.orderNo} 已分配到 ${assignResult.storeName}，请尽快接单处理`;
+
+        // 1. 站内通知
+        await this.prisma.outletNotification.create({
+          data: {
+            outletId: assignResult.outletId,
+            title: '新订单待接单',
+            content: notifyContent,
+            type: 'order',
+            orderId: order.id,
+            orderNo: order.orderNo,
+            isRead: false,
+          },
+        });
+
+        // 2. 微信订阅消息（网点负责人 openid）
+        const outlet = await this.prisma.outlet.findUnique({
+          where: { id: assignResult.outletId },
+          select: { outletOpenid: true, name: true, subscribeMsg: true },
+        });
+        if (outlet?.outletOpenid && outlet.subscribeMsg !== 0) {
+          await this.wechatService.sendNewOrderSubscribeMessage(
+            outlet.outletOpenid,
+            order.orderNo,
+            orderTypeDesc,
+            assignResult.storeName,
+          );
+        }
       }
     }
 
-    return this.prisma.sealOrder.findFirst({ where: { id: order.id } });
+    // 返回完整订单数据（含 assignment、receipts 等）
+    return this.prisma.sealOrder.findFirst({
+      where: { id: order.id },
+      include: {
+        user: { select: { id: true, nickname: true, phone: true } },
+        orderItems: { include: { seal: true } },
+        assignment: {
+          include: {
+            outlet: { select: { id: true, name: true, phone: true, address: true } },
+          },
+        },
+        receipts: {
+          include: { outlet: { select: { id: true, name: true } } },
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+    });
   }
 
   /**

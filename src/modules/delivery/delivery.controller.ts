@@ -16,6 +16,43 @@ export class DeliveryReceiptController {
     private uploadService: UploadService,
   ) {}
 
+  @Get('user/list')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '回执列表（用户端）' })
+  async findByUser(
+    @Query('orderId') orderId: string,
+    @Request() req: any,
+  ) {
+    if (!orderId) {
+      return { list: [] };
+    }
+
+    // 校验订单归属（确保用户只能查看自己订单的回执）
+    const order = await this.prisma.sealOrder.findFirst({
+      where: { id: orderId, userId: req.user.id },
+      select: { id: true },
+    });
+    if (!order) {
+      return { list: [] };
+    }
+
+    const list = await this.prisma.deliveryReceipt.findMany({
+      where: { orderId },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        orderId: true,
+        type: true,
+        url: true,
+        remark: true,
+        createdAt: true,
+      },
+    });
+
+    return { list };
+  }
+
   @Get()
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
@@ -128,10 +165,20 @@ export class DeliveryReceiptController {
     if (!file) throw new BadRequestException('请上传回执图片');
     if (!orderId) throw new BadRequestException('缺少订单 ID');
 
-    const outletId = req.user.outletId;
+    const outletId = req.user.id;
 
     // 上传图片
     const url = await this.uploadService.uploadFile(file, 'receipts');
+
+    // 查询订单（SealOrder 表存刻章+登报，module 字段区分）
+    const order = await this.prisma.sealOrder.findUnique({
+      where: { id: orderId },
+      select: { id: true, module: true },
+    });
+
+    if (!order) {
+      throw new BadRequestException('订单不存在');
+    }
 
     // 创建回执记录
     const receipt = await this.prisma.deliveryReceipt.create({
@@ -142,8 +189,7 @@ export class DeliveryReceiptController {
         url,
         remark,
       },
-      include: { outlet: { select: { id: true, name: true, phone: true } },
-      },
+      include: { outlet: { select: { id: true, name: true, phone: true } } },
     });
 
     // 更新订单状态 → 已发货
@@ -152,11 +198,13 @@ export class DeliveryReceiptController {
       data: { status: 4, statusText: '已发货' },
     });
 
-    // 更新分配状态 → 已完成
-    await this.prisma.orderAssignment.update({
-      where: { orderId },
-      data: { status: 3, statusText: '已完成', completedAt: new Date() },
-    });
+    // 刻章订单：更新分配状态 → 已完成（登报订单无 orderAssignment）
+    if (order.module === 'seal') {
+      await this.prisma.orderAssignment.update({
+        where: { orderId },
+        data: { status: 3, statusText: '已完成', completedAt: new Date() },
+      });
+    }
 
     return receipt;
   }
@@ -169,7 +217,7 @@ export class DeliveryReceiptController {
     @Query('orderId') orderId: string,
     @Request() req: any,
   ) {
-    const outletId = req.user.outletId;
+    const outletId = req.user.id;
     const where: any = { outletId };
     if (orderId) where.orderId = orderId;
 

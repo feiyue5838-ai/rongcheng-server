@@ -95,6 +95,55 @@ export class WechatService {
     throw new BadRequestException('获取 AccessToken 失败');
   }
 
+  // ==================== 订阅消息（网点新单通知） ====================
+
+  /**
+   * 发送订阅消息给网点负责人
+   * @param openid 网点负责人微信 openid
+   * @param orderNo 订单号
+   * @param orderType 订单类型描述（如 "刻章-公司印章"）
+   * @param outletName 分配到的网点名称
+   */
+  async sendNewOrderSubscribeMessage(
+    openid: string,
+    orderNo: string,
+    orderType: string,
+    outletName: string,
+  ): Promise<void> {
+    const templateId = this.config.get<string>('WECHAT_SUBSCRIBE_TEMPLATE_ID');
+    if (!openid || !templateId) {
+      console.warn('⚠️ 订阅消息未配置（openid 或 template_id 缺失），跳过发送');
+      return;
+    }
+    if (!this.appId || !this.appSecret) {
+      console.warn('⚠️ 微信配置未设置，跳过订阅消息发送');
+      return;
+    }
+
+    try {
+      const accessToken = await this.getAccessToken();
+      const url = `https://api.weixin.qq.com/cgi-bin/message/subscribe/send?access_token=${accessToken}`;
+      const response = await axios.post(url, {
+        touser: openid,
+        template_id: templateId,
+        page: 'pages/notification/index',
+        data: {
+          thing1: { value: '您有一笔新订单待处理' },
+          character_string2: { value: orderNo },
+          thing3: { value: orderType.slice(0, 20) },
+          thing4: { value: outletName.slice(0, 20) },
+        },
+      });
+      if (response.data.errcode !== 0) {
+        console.error('订阅消息发送失败:', response.data);
+      } else {
+        console.log('✅ 订阅消息已发送:', openid, orderNo);
+      }
+    } catch (error) {
+      console.error('订阅消息发送异常:', error.message);
+    }
+  }
+
   // ==================== 微信支付 ====================
 
   /**

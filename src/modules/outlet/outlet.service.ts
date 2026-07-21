@@ -7,6 +7,27 @@ import { REGION_MAP, provinceToRegion } from '../../common/region';
 export class StoreService {
   constructor(private prisma: PrismaService) {}
 
+  // ==================== 网点通知相关 ====================
+
+  /** 绑定网点负责人微信 openid（用于订阅消息通知） */
+  async bindOpenid(outletId: string, openid: string) {
+    if (!openid) throw new BadRequestException('openid 不能为空');
+    await this.prisma.outlet.update({
+      where: { id: outletId },
+      data: { outletOpenid: openid },
+    });
+    return { success: true };
+  }
+
+  /** 开关订阅消息 */
+  async toggleSubscribe(outletId: string, enabled: boolean) {
+    await this.prisma.outlet.update({
+      where: { id: outletId },
+      data: { subscribeMsg: enabled ? 1 : 0 },
+    });
+    return { success: true };
+  }
+
   // ==================== 网点 CRUD ====================
 
   /** 网点列表 */
@@ -216,48 +237,6 @@ export class StoreService {
     return { pending, processing, completed, todayTotal };
   }
 
-  /** 网点接单 */
-  async acceptOrder(assignmentId: string, outletId: string) {
-    const assignment = await this.prisma.orderAssignment.findUnique({ where: { id: assignmentId } });
-    if (!assignment) throw new NotFoundException('分配记录不存在');
-    if (assignment.outletId !== outletId) throw new BadRequestException('无权操作此订单');
-    if (assignment.status !== 1) throw new BadRequestException('当前状态无法接单');
-
-    await this.prisma.$transaction([
-      this.prisma.orderAssignment.update({
-        where: { id: assignmentId },
-        data: { status: 2, statusText: '制作中', acceptedAt: new Date() },
-      }),
-      this.prisma.sealOrder.update({
-        where: { id: assignment.orderId },
-        data: { assignmentStatus: 2 },
-      }),
-    ]);
-
-    return { message: '接单成功' };
-  }
-
-  /** 网点完成制作 → 标记为"已发货" */
-  async completeOrder(assignmentId: string, outletId: string) {
-    const assignment = await this.prisma.orderAssignment.findUnique({ where: { id: assignmentId } });
-    if (!assignment) throw new NotFoundException('分配记录不存在');
-    if (assignment.outletId !== outletId) throw new BadRequestException('无权操作此订单');
-    if (assignment.status !== 2) throw new BadRequestException('当前状态无法完成制作');
-
-    await this.prisma.$transaction([
-      this.prisma.orderAssignment.update({
-        where: { id: assignmentId },
-        data: { status: 3, statusText: '已发货', completedAt: new Date() },
-      }),
-      this.prisma.sealOrder.update({
-        where: { id: assignment.orderId },
-        data: { assignmentStatus: 3, status: 4, statusText: '已发货' },
-      }),
-    ]);
-
-    return { message: '已标记为已发货' };
-  }
-
   /** 全网点总览：按网点聚合订单状态 + 大区汇总 + Top10 */
   async getOverview() {
     const now = new Date();
@@ -322,4 +301,117 @@ export class StoreService {
 
     return { summary, regions: Object.values(regionMap), outlets: outletStats, topOutlets };
   }
+
+  // ==================== 网点订单操作 ====================
+
+  /** 网点接单 */
+  async acceptOrder(outletId: string, orderId: string) {
+    // 验证订单归属
+    const assignment = await this.prisma.orderAssignment.findFirst({
+      where: { orderId, outletId },
+    });
+    if (!assignment) {
+      throw new BadRequestException('订单不属于当前网点');
+    }
+
+    // 检查订单状态
+    const order = await this.prisma.sealOrder.findUnique({
+      where: { id: orderId },
+      select: { status: true, module: true },
+    });
+    if (!order) {
+      throw new NotFoundException('订单不存在');
+    }
+    if (order.status !== 2) {
+      throw new BadRequestException('只能接已支付的订单');
+    }
+
+    // 更新订单状态为制作中
+    await this.prisma.sealOrder.update({
+      where: { id: orderId },
+      data: { status: 3, statusText: '制作中' },
+    });
+
+    // 更新分配状态为进行中
+    await this.prisma.orderAssignment.update({
+      where: { orderId },
+      data: { status: 2, statusText: '进行中', acceptedAt: new Date() },
+    });
+
+    return { success: true, message: '接单成功' };
+  }
+
+  /** 网点完成制作 */
+  async completeOrder(outletId: string, orderId: string, remark?: string) {
+    // 验证订单归属
+    const assignment = await this.prisma.orderAssignment.findFirst({
+      where: { orderId, outletId },
+    });
+    if (!assignment) {
+      throw new BadRequestException('订单不属于当前网点');
+    }
+
+    // 检查订单状态
+    const order = await this.prisma.sealOrder.findUnique({
+      where: { id: orderId },
+      select: { status: true, module: true },
+    });
+    if (!order) {
+      throw new NotFoundException('订单不存在');
+    }
+    if (order.status !== 3) {
+      throw new BadRequestException('只能完成制作中的订单');
+    }
+
+    // 状态保持 3，但标记为制作完成（等待发货或上传回执）
+    await this.prisma.sealOrder.update({
+      where: { id: orderId },
+      data: { statusText: '制作完成待发货', remark },
+    });
+
+    return { success: true, message: '制作完成' };
+  }
+
+  /** 网点发货 */
+  async shipOrder(outletId: string, orderId: string, trackingNo?: string, remark?: string) {
+    // 验证订单归属
+    const assignment = await this.prisma.orderAssignment.findFirst({
+      where: { orderId, outletId },
+    });
+    if (!assignment) {
+      throw new BadRequestException('订单不属于当前网点');
+    }
+
+    // 检查订单状态
+    const order = await this.prisma.sealOrder.findUnique({
+      where: { id: orderId },
+      select: { status: true, module: true },
+    });
+    if (!order) {
+      throw new NotFoundException('订单不存在');
+    }
+    if (order.status !== 3 && order.status !== 3.5) {
+      throw new BadRequestException('只能发制作中或制作完成的订单');
+    }
+
+    // 更新订单状态为已发货
+    await this.prisma.sealOrder.update({
+      where: { id: orderId },
+      data: {
+        status: 4,
+        statusText: '已发货',
+        expressNo: trackingNo,
+        remark,
+      },
+    });
+
+    // 更新分配状态为已完成
+    await this.prisma.orderAssignment.update({
+      where: { orderId },
+      data: { status: 3, statusText: '已完成', completedAt: new Date() },
+    });
+
+    return { success: true, message: '发货成功' };
+  }
 }
+

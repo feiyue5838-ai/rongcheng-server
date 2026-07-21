@@ -173,6 +173,7 @@ model SealPackage {
   badge       String?                                 // 标签（如"特惠"）
   price       Decimal  @db.Decimal(10, 2)              // 套餐价格
   sealIds     String[]  @map("seal_ids")               // 包含的印章 ID 列表
+  images      String[]  @map("images")                 // 套餐图片列表
   status      Int      @default(1)                    // 状态：0=下架 1=上架
   sort        Int      @default(0)                    // 排序
   createdAt   DateTime @default(now()) @map("created_at")
@@ -291,8 +292,11 @@ model Newspaper {
   name        String                                  // 报纸名称
   alias       String?  @map("alias")                   // 别名
   publisher   String?  @map("publisher")               // 出版社
-  province    String?                                 // 省份
-  city        String?                                 // 城市
+  province    String?                                 // 省份（展示用）
+  region     String?                                 // 大区：华北/东北/华东/华中/华南/西南/西北/全国
+  city        String?                                 // 城市（展示用）
+  provinceCode String?  @map("province_code")          // 省份代码（标准行政区划）
+  cityCode    String?  @map("city_code")               // 城市代码（标准行政区划）
   pricePerWord Decimal @db.Decimal(10, 2) @map("price_per_word") // 每字价格（元）
   minWords    Int      @default(50) @map("min_words")  // 最少字数
   coverage    Int      @default(1)                     // 发行覆盖：1=市级 2=省级 3=全国
@@ -315,17 +319,21 @@ model Newspaper {
 /// 登报模板表
 model NewspaperTemplate {
   id          String   @id @default(uuid())
-  newspaperId String   @map("newspaper_id")            // 报纸 ID
+  newspaperId String?  @map("newspaper_id")            // 报纸 ID（可选，通用模板不绑定具体报纸）
   categoryId  String   @map("category_id")             // 分类 ID
   name        String                                  // 模板名称
   content     String   @db.Text                        // 模板内容（MD 格式）
   sampleData  String?  @map("sample_data")              // 示例数据（JSON）
+  templateType String?                               // 公告分类标识（对应前端 17 分类：company/estate/seal/debt 等）
+  businessType String?                               // 业务类型（用于前端分类导航，如"身份证挂失"）
+  desc        String?                                // 模板简短描述（如"基础个人信息"）
+  color       String?                                // 模板配色（如"#5B6FE8"）
   sort        Int      @default(0)                    // 排序
   status      Int      @default(1)                    // 状态
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  newspaper   Newspaper       @relation(fields: [newspaperId], references: [id])
+  newspaper   Newspaper?      @relation(fields: [newspaperId], references: [id])
   category    NewspaperCategory @relation(fields: [categoryId], references: [id])
 
   @@map("newspaper_templates")
@@ -443,6 +451,9 @@ model Outlet {
   serviceArea String   @default("[]") @map("service_area")
   businessLicense String? @map("business_license")     // 营业执照 URL
   specialPermits  String  @default("[]") @map("special_permits") // 特种证件 URL 数组（JSON）
+  // 微信订阅消息用
+  outletOpenid String?  @map("outlet_openid")             // 网点负责人微信 openid（用于接收订阅消息通知）
+  subscribeMsg Int      @default(1)  @map("subscribe_msg")  // 订阅消息开关：0=关闭 1=开启
   status      Int      @default(1)                   // 状态：0=停用 1=正常
   totalOrders Int      @default(0)  @map("total_orders") // 累计处理订单数
   lastLoginAt DateTime? @map("last_login_at")       // 最后登录时间
@@ -452,8 +463,28 @@ model Outlet {
 
   assignments OrderAssignment[]                        // 分配的订单
   receipts   DeliveryReceipt[]                        // 交付回执
+  notifications OutletNotification[]               // 网点通知
 
   @@map("outlets")
+}
+
+/// 网点通知表
+model OutletNotification {
+  id        String   @id @default(uuid())
+  outletId  String   @map("outlet_id")
+  title     String                                 // 通知标题
+  content   String                                 // 通知内容
+  type      String   @default("order") @map("type") // 类型：order=新订单 notification=系统通知
+  orderId   String?  @map("order_id")              // 关联订单ID
+  orderNo   String?  @map("order_no")              // 关联订单号
+  isRead    Boolean  @default(false) @map("is_read")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  outlet    Outlet    @relation(fields: [outletId], references: [id])
+
+  @@index([outletId, isRead])
+  @@index([outletId, createdAt])
+  @@map("outlet_notifications")
 }
 
 /// 订单分配表（总部→网点，一对一）
@@ -489,5 +520,43 @@ model DeliveryReceipt {
   outlet      Outlet    @relation(fields: [outletId], references: [id])
 
   @@map("delivery_receipts")
+}
+
+// ============================================================
+// 个人证件模块
+// ============================================================
+
+/// 个人证件大类表
+model PersonalDocCategory {
+  id        String   @id @default(uuid())
+  name      String                                // 大类名称
+  desc      String?                               // 大类描述
+  color     String?                               // 颜色
+  icon      String?                               // 图标路径
+  sort      Int      @default(0)                 // 排序
+  status    Int      @default(1)                 // 状态
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  items PersonalDocItem[]
+
+  @@map("personal_doc_categories")
+}
+
+/// 个人证件细项表
+model PersonalDocItem {
+  id         String   @id @default(uuid())
+  categoryId String   @map("category_id")
+  name       String                                // 证件名称
+  content    String?  @db.Text                    // 模板内容（占位符 {{name}}、{{date}} 等）
+  desc       String?                               // 描述
+  sort       Int      @default(0)                 // 排序
+  status     Int      @default(1)                 // 状态
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  category PersonalDocCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@map("personal_doc_items")
 }
 

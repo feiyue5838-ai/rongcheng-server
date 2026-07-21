@@ -56,9 +56,10 @@ export class AuthController {
     return this.authService.createSuperAdmin(dto.username, dto.password);
   }
 
-  @Post('Outlet/login')
+  // 小程序网点端登录（/api/auth/store-login 兼容旧路径）
+  @Post('store-login')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: '网点登录' })
+  @ApiOperation({ summary: '网点登录（小程序端）' })
   @ApiBody({
     schema: {
       properties: {
@@ -68,6 +69,21 @@ export class AuthController {
     },
   })
   async storeLogin(@Body() dto: StoreLoginDto) {
+    return this.authService.storeLogin(dto.phone, dto.password);
+  }
+
+  @Post('Outlet/login')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: '网点登录（Web 端）' })
+  @ApiBody({
+    schema: {
+      properties: {
+        phone: { type: 'string', example: '13800138000' },
+        password: { type: 'string', example: '123456' },
+      },
+    },
+  })
+  async storeLoginForWeb(@Body() dto: StoreLoginDto) {
     return this.authService.storeLogin(dto.phone, dto.password);
   }
 }

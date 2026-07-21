@@ -105,6 +105,49 @@ export class StoreController {
     return this.storeService.getStoreOrders(req.user.id, { page: 1, pageSize: 100 });
   }
 
+  // 网点端：接单
+  @Put('me/orders/:id/accept')
+  @UseGuards(StoreJwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '网点接单' })
+  async acceptOrder(@Param('id') orderId: string, @Request() req: any) {
+    return this.storeService.acceptOrder(req.user.id, orderId);
+  }
+
+  // 网点端：完成制作
+  @Put('me/orders/:id/complete')
+  @UseGuards(StoreJwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '网点完成制作' })
+  async completeOrder(@Param('id') orderId: string, @Body() body: { remark?: string }, @Request() req: any) {
+    return this.storeService.completeOrder(req.user.id, orderId, body.remark);
+  }
+
+  // 网点端：发货
+  @Put('me/orders/:id/ship')
+  @UseGuards(StoreJwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '网点发货' })
+  async shipOrder(@Param('id') orderId: string, @Body() body: { trackingNo?: string; remark?: string }, @Request() req: any) {
+    return this.storeService.shipOrder(req.user.id, orderId, body.trackingNo, body.remark);
+  }
+
+  @Put('me/bind-openid')
+  @UseGuards(StoreJwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '网点端：绑定微信 openid（接收订阅消息）' })
+  async bindOpenid(@Body() dto: { openid: string }, @Request() req: any) {
+    return this.storeService.bindOpenid(req.user.id, dto.openid);
+  }
+
+  @Put('me/subscribe-toggle')
+  @UseGuards(StoreJwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '网点端：开关订阅消息' })
+  async toggleSubscribe(@Body() dto: { enabled: boolean }, @Request() req: any) {
+    return this.storeService.toggleSubscribe(req.user.id, dto.enabled);
+  }
+
   @Get(':outletId/orders')
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
