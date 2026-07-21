@@ -176,6 +176,50 @@ export class StoreService {
 
   // ==================== 网点订单 ====================
 
+  /** 网点单条订单详情 */
+  async getStoreOrderDetail(outletId: string, orderId: string) {
+    const assignment = await this.prisma.orderAssignment.findFirst({
+      where: { orderId, outletId },
+      include: {
+        order: {
+          include: {
+            user: { select: { id: true, nickname: true, phone: true } },
+            orderItems: true,
+          },
+        },
+      },
+    });
+    if (!assignment) {
+      throw new NotFoundException('订单不存在或不属于当前网点');
+    }
+
+    // 回执列表
+    const receipts = await this.prisma.deliveryReceipt.findMany({
+      where: { orderId },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, orderId: true, outletId: true, type: true, url: true, remark: true, createdAt: true },
+    });
+
+    return {
+      id: assignment.id,
+      orderId: assignment.orderId,
+      orderNo: assignment.order.orderNo,
+      companyName: assignment.order.companyName,
+      type: assignment.order.type,
+      status: assignment.order.status,
+      statusText: assignment.order.statusText,
+      expressNo: assignment.order.expressNo,
+      createdAt: assignment.order.createdAt,
+      acceptedAt: assignment.acceptedAt,
+      completedAt: assignment.completedAt,
+      assignmentStatus: assignment.status,
+      assignmentStatusText: assignment.statusText,
+      user: assignment.order.user,
+      orderItems: assignment.order.orderItems,
+      receipts,
+    };
+  }
+
   /** 网点订单列表（该网点分配的订单） */
   async getStoreOrders(outletId: string, params: { page?: number; pageSize?: number; status?: number }) {
     const { page = 1, pageSize = 20, status } = params;
