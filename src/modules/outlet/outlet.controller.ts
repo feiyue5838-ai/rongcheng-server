@@ -105,6 +105,15 @@ export class StoreController {
     return this.storeService.getStoreOrders(req.user.id, { page: 1, pageSize: 100 });
   }
 
+  // 网点端：单条订单详情
+  @Get('me/orders/:id')
+  @UseGuards(StoreJwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '网点订单详情（网点端）' })
+  async getMyOrderDetail(@Param('id') orderId: string, @Request() req: any) {
+    return this.storeService.getStoreOrderDetail(req.user.id, orderId);
+  }
+
   // 网点端：接单
   @Put('me/orders/:id/accept')
   @UseGuards(StoreJwtAuthGuard)
