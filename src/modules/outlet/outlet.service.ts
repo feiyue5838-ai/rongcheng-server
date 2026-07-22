@@ -181,6 +181,7 @@ export class StoreService {
     const assignment = await this.prisma.orderAssignment.findFirst({
       where: { orderId, outletId },
       include: {
+        outlet: { select: { id: true, name: true } },
         order: {
           include: {
             user: { select: { id: true, nickname: true, phone: true } },
@@ -208,6 +209,11 @@ export class StoreService {
       type: assignment.order.type,
       status: assignment.order.status,
       statusText: assignment.order.statusText,
+      addressJson: assignment.order.addressJson,
+      contactPhone: assignment.order.contactPhone,
+      sealReason: assignment.order.sealReason,
+      legalPhone: assignment.order.legalPhone,
+      expressCompany: assignment.order.expressCompany,
       expressNo: assignment.order.expressNo,
       createdAt: assignment.order.createdAt,
       acceptedAt: assignment.acceptedAt,
@@ -216,6 +222,7 @@ export class StoreService {
       assignmentStatusText: assignment.statusText,
       user: assignment.order.user,
       orderItems: assignment.order.orderItems,
+      outlet: assignment.outlet,
       receipts,
     };
   }
