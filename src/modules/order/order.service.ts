@@ -468,18 +468,23 @@ export class OrderService {
           },
         });
 
-        // 2. 微信订阅消息（网点负责人 openid）
+        // 2. 微信订阅消息（网点负责人 openid）— 不阻断主流程
         const outlet = await this.prisma.outlet.findUnique({
           where: { id: assignResult.outletId },
           select: { outletOpenid: true, name: true, subscribeMsg: true },
         });
         if (outlet?.outletOpenid && outlet.subscribeMsg !== 0) {
-          await this.wechatService.sendNewOrderSubscribeMessage(
-            outlet.outletOpenid,
-            order.orderNo,
-            orderTypeDesc,
-            assignResult.storeName,
-          );
+          try {
+            await this.wechatService.sendNewOrderSubscribeMessage(
+              outlet.outletOpenid,
+              order.orderNo,
+              orderTypeDesc,
+              assignResult.storeName,
+            );
+          } catch (e) {
+            // 订阅消息失败不影响分配流程，仅记录
+            console.warn(`[notify] 订阅消息发送失败 orderNo=${order.orderNo}:`, e.message);
+          }
         }
       }
     }
@@ -599,6 +604,57 @@ export class OrderService {
     const updateData: any = { ...dto };
     if (dto.status !== undefined) {
       updateData.statusText = statusMap[dto.status] || '未知状态';
+    }
+
+    // Fix: 管理员改状态为"已支付"时，自动触发网点分配（与 completePayment 逻辑对齐）
+    const isPaid = dto.status !== undefined && dto.status >= 2;
+    const needsAssign = isPaid && (order.assignmentStatus === 0 || order.assignmentStatus == null) && order.addressJson;
+
+    if (needsAssign) {
+      const assignResult = await this.autoAssignStore(order.addressJson, adminId);
+      if (assignResult) {
+        await this.prisma.orderAssignment.create({
+          data: {
+            orderId: order.id,
+            outletId: assignResult.outletId,
+            status: 1,
+            statusText: '待接单',
+            assignedBy: adminId,
+            remark: `管理员改状态时自动分配 [${assignResult.matchType}] → ${assignResult.storeName}`,
+          },
+        });
+        updateData.assignmentStatus = 1;
+
+        // 站内通知
+        await this.prisma.outletNotification.create({
+          data: {
+            outletId: assignResult.outletId,
+            title: '新订单待接单',
+            content: `订单 ${order.orderNo} 已由管理员标记为已支付并分配到 ${assignResult.storeName}，请尽快接单处理`,
+            type: 'order',
+            orderId: order.id,
+            orderNo: order.orderNo,
+            isRead: false,
+          },
+        });
+
+        // 订阅消息 — 不阻断
+        const outlet = await this.prisma.outlet.findUnique({
+          where: { id: assignResult.outletId },
+          select: { outletOpenid: true, subscribeMsg: true },
+        });
+        if (outlet?.outletOpenid && outlet.subscribeMsg !== 0) {
+          try {
+            await this.wechatService.sendNewOrderSubscribeMessage(
+              outlet.outletOpenid, order.orderNo,
+              order.module === 'newspaper' ? `登报-${order.type || '声明'}` : `刻章-${order.type || '印章'}`,
+              assignResult.storeName,
+            );
+          } catch (e) {
+            console.warn(`[notify] 订阅消息发送失败 orderNo=${order.orderNo}:`, e.message);
+          }
+        }
+      }
     }
 
     updateData.processedBy = adminId;
