@@ -2,6 +2,7 @@ import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Requ
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { ReviewService } from './review.service';
 import { JwtAuthGuard, AdminJwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Log } from '../../common/decorators/log.decorator';
 
 @ApiTags('评价')
 @Controller('reviews')
@@ -46,6 +47,7 @@ export class ReviewController {
   }
 
   @Put(':id/status')
+  @Log("评价", "状态", ":id/status")
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '审核评价' })
@@ -54,6 +56,7 @@ export class ReviewController {
   }
 
   @Put(':id/reply')
+  @Log("评价", "回复", ":id/reply")
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '回复评价' })
@@ -62,6 +65,7 @@ export class ReviewController {
   }
 
   @Delete(':id')
+  @Log("评价", ":id", ":id")
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '删除评价' })

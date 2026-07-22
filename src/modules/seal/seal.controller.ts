@@ -2,6 +2,7 @@ import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards } fro
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { SealService } from './seal.service';
 import { AdminJwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Log } from '../../common/decorators/log.decorator';
 
 @ApiTags('刻章产品')
 @Controller('seals')
@@ -65,6 +66,7 @@ export class SealController {
   }
 
   @Post('admin/scenes')
+  @Log("印章", "印章场景", "admin/scenes")
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '管理端：创建场景' })
@@ -73,6 +75,7 @@ export class SealController {
   }
 
   @Put('admin/scenes/:id')
+  @Log("印章", "印章场景", "admin/scenes/:id")
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '管理端：更新场景' })
@@ -81,6 +84,7 @@ export class SealController {
   }
 
   @Delete('admin/scenes/:id')
+  @Log("印章", "印章场景", "admin/scenes/:id")
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '管理端：删除场景' })
@@ -89,6 +93,7 @@ export class SealController {
   }
 
   @Put('admin/scenes/:id/seals')
+  @Log("印章", "印章场景", "admin/scenes/:id/seals")
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '管理端：设置场景印章（整体替换）' })
@@ -97,6 +102,7 @@ export class SealController {
   }
 
   @Put('admin/scenes/:id/packages')
+  @Log("印章", "印章场景", "admin/scenes/:id/packages")
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '管理端：设置场景套餐（整体替换）' })
@@ -107,6 +113,7 @@ export class SealController {
   // ==================== 管理端 ====================
 
   @Post('categories')
+  @Log("印章", "分类", "categories")
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '创建印章分类' })
@@ -115,6 +122,7 @@ export class SealController {
   }
 
   @Put('categories/:id')
+  @Log("印章", "分类", "categories/:id")
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '更新印章分类' })
@@ -123,6 +131,7 @@ export class SealController {
   }
 
   @Delete('categories/:id')
+  @Log("印章", "分类", "categories/:id")
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '删除印章分类' })
@@ -149,6 +158,7 @@ export class SealController {
   }
 
   @Post('admin/record-queries')
+  @Log("印章", "备案查询", "admin/record-queries")
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '管理端：新增备案查询省份' })
@@ -157,6 +167,7 @@ export class SealController {
   }
 
   @Put('admin/record-queries/:id')
+  @Log("印章", "备案查询", "admin/record-queries/:id")
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '管理端：更新备案查询省份' })
@@ -165,6 +176,7 @@ export class SealController {
   }
 
   @Delete('admin/record-queries/:id')
+  @Log("印章", "备案查询", "admin/record-queries/:id")
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '管理端：删除备案查询省份' })
@@ -173,6 +185,7 @@ export class SealController {
   }
 
   @Put(':id')
+  @Log("印章", ":id", ":id")
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '更新印章' })
@@ -181,6 +194,7 @@ export class SealController {
   }
 
   @Delete(':id')
+  @Log("印章", ":id", ":id")
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '删除印章' })
@@ -189,6 +203,7 @@ export class SealController {
   }
 
   @Post('packages')
+  @Log("印章", "套餐", "packages")
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '创建套餐' })
@@ -197,6 +212,7 @@ export class SealController {
   }
 
   @Put('packages/:id')
+  @Log("印章", "套餐", "packages/:id")
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '更新套餐' })
@@ -205,6 +221,7 @@ export class SealController {
   }
 
   @Delete('packages/:id')
+  @Log("印章", "套餐", "packages/:id")
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '删除套餐' })

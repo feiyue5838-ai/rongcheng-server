@@ -2,6 +2,7 @@ import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Requ
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { QuestionService } from './question.service';
 import { JwtAuthGuard, AdminJwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Log } from '../../common/decorators/log.decorator';
 
 @ApiTags('问答')
 @Controller('questions')
@@ -44,6 +45,7 @@ export class QuestionController {
   }
 
   @Put(':id/status')
+  @Log("问答", "状态", ":id/status")
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '审核问题' })
@@ -52,6 +54,7 @@ export class QuestionController {
   }
 
   @Post(':id/replies')
+  @Log("问答", "replies", ":id/replies")
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '回复问题' })
@@ -61,6 +64,7 @@ export class QuestionController {
   }
 
   @Delete(':id')
+  @Log("问答", ":id", ":id")
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '删除问题' })
@@ -69,6 +73,7 @@ export class QuestionController {
   }
 
   @Delete('replies/:replyId')
+  @Log("问答", "回复", "replies/:replyId")
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '删除回复' })

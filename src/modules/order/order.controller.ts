@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { OrderService } from './order.service';
 import { JwtAuthGuard, AdminJwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { StoreJwtAuthGuard } from '../auth/guards/Outlet-jwt-auth.guard';
+import { Log } from '../../common/decorators/log.decorator';
 
 @ApiTags('订单')
 @Controller('orders')
@@ -12,6 +13,7 @@ export class OrderController {
   // ==================== 用户端接口 ====================
 
   @Post('seal')
+  @Log("订单", "seal", "seal")
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '创建刻章订单' })
@@ -22,6 +24,7 @@ export class OrderController {
   }
 
   @Post('newspaper')
+  @Log("订单", "newspaper", "newspaper")
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '创建登报订单' })
@@ -76,6 +79,7 @@ export class OrderController {
   }
 
   @Put('admin/:id')
+  @Log("订单", ":id", "admin/:id")
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '管理端：更新订单（状态、物流等）' })
@@ -84,6 +88,7 @@ export class OrderController {
   }
 
   @Put('admin/materials/:id/audit')
+  @Log("订单", "材料", "admin/materials/:id/audit")
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '管理端：审核材料（通过/驳回）' })
@@ -102,6 +107,7 @@ export class OrderController {
   // ==================== 订单分配与交付 ====================
 
   @Post(':id/assign')
+  @Log("订单", "分配", ":id/assign")
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '分配订单给网点' })
@@ -114,6 +120,7 @@ export class OrderController {
   }
 
   @Put(':id/accept')
+  @Log("订单", "接单", ":id/accept")
   @UseGuards(StoreJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '网点接单' })
@@ -122,6 +129,7 @@ export class OrderController {
   }
 
   @Put(':id/deliver')
+  @Log("订单", "deliver", ":id/deliver")
   @UseGuards(StoreJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '网点提交交付（自动生效）' })
@@ -134,6 +142,7 @@ export class OrderController {
   }
 
   @Put(':id/sign')
+  @Log("订单", "签收", ":id/sign")
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '客户确认签收' })
@@ -170,6 +179,7 @@ export class OrderController {
   }
 
   @Post(':id/pay')
+  @Log("订单", "支付", ":id/pay")
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '发起微信支付（获取支付参数）' })
@@ -181,6 +191,7 @@ export class OrderController {
   }
 
   @Post(':id/dev-paid')
+  @Log("订单", "dev-paid", ":id/dev-paid")
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   // 仅开发/测试环境可用；生产环境 NODE_ENV=production 时控制器拦截返回 403
@@ -194,6 +205,7 @@ export class OrderController {
   }
 
   @Post(':id/cancel')
+  @Log("订单", "取消", ":id/cancel")
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '用户取消订单（仅限未支付订单）已支付订单退款请联系管理员' })

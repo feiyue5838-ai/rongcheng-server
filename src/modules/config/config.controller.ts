@@ -2,6 +2,7 @@ import { Controller, Get, Put, Body, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { ConfigService } from './config.service';
 import { AdminJwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Log } from '../../common/decorators/log.decorator';
 
 @ApiTags('系统配置')
 @Controller('config')
@@ -24,6 +25,7 @@ export class ConfigController {
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '设置配置' })
+  @Log('系统', '更新配置')
   async setConfig(@Body() dto: { key: string; value: any; name?: string }) {
     return this.configService.setConfig(dto.key, dto.value, dto.name);
   }

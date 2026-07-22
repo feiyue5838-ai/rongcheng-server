@@ -7,6 +7,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { StoreJwtAuthGuard } from '../auth/guards/Outlet-jwt-auth.guard';
 import { UploadService } from '../upload/upload.service';
 import { REGION_MAP, provinceToRegion, getProvincesByRegion } from '../../common/region';
+import { Log } from '../../common/decorators/log.decorator';
 
 @ApiTags('交付回执')
 @Controller('delivery-receipts')
@@ -155,6 +156,7 @@ export class DeliveryReceiptController {
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: '提交交付回执（网点端）' })
   @UseInterceptors(FileInterceptor('file'))
+  @Log('快递', '创建快递单')
   async create(
     @UploadedFile() file: Express.Multer.File,
     @Body('orderId') orderId: string,

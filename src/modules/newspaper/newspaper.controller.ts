@@ -2,6 +2,7 @@ import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards } fro
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { NewspaperService } from './newspaper.service';
 import { AdminJwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Log } from '../../common/decorators/log.decorator';
 
 @ApiTags('登报')
 @Controller('newspapers')
@@ -15,6 +16,7 @@ export class NewspaperController {
   }
 
   @Post('categories')
+  @Log("报纸", "分类", "categories")
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '创建登报分类' })
@@ -23,6 +25,7 @@ export class NewspaperController {
   }
 
   @Put('categories/:id')
+  @Log("报纸", "分类", "categories/:id")
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '更新登报分类' })
@@ -31,6 +34,7 @@ export class NewspaperController {
   }
 
   @Delete('categories/:id')
+  @Log("报纸", "分类", "categories/:id")
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '删除登报分类' })
@@ -85,6 +89,7 @@ export class NewspaperController {
   }
 
   @Put(':id')
+  @Log("报纸", ":id", ":id")
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '更新报纸' })
@@ -93,6 +98,7 @@ export class NewspaperController {
   }
 
   @Delete(':id')
+  @Log("报纸", ":id", ":id")
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '删除报纸' })
@@ -101,6 +107,7 @@ export class NewspaperController {
   }
 
   @Post('templates')
+  @Log("报纸", "模板", "templates")
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '创建模板' })
@@ -109,6 +116,7 @@ export class NewspaperController {
   }
 
   @Put('templates/:id')
+  @Log("报纸", "模板", "templates/:id")
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '更新模板' })
@@ -117,6 +125,7 @@ export class NewspaperController {
   }
 
   @Delete('templates/:id')
+  @Log("报纸", "模板", "templates/:id")
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '删除模板' })
@@ -150,6 +159,7 @@ export class NewspaperController {
 
   // 管理端 - 分类 CRUD
   @Post('personal-docs/categories')
+  @Log("报纸", "分类", "personal-docs/categories")
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '创建个人证件大类' })
@@ -158,6 +168,7 @@ export class NewspaperController {
   }
 
   @Put('personal-docs/categories/:id')
+  @Log("报纸", "分类", "personal-docs/categories/:id")
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '更新个人证件大类' })
@@ -166,6 +177,7 @@ export class NewspaperController {
   }
 
   @Delete('personal-docs/categories/:id')
+  @Log("报纸", "分类", "personal-docs/categories/:id")
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '删除个人证件大类' })
@@ -175,6 +187,7 @@ export class NewspaperController {
 
   // 管理端 - 证件细项 CRUD
   @Post('personal-docs/items')
+  @Log("报纸", "个人证件", "personal-docs/items")
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '创建个人证件细项' })
@@ -183,6 +196,7 @@ export class NewspaperController {
   }
 
   @Put('personal-docs/items/:id')
+  @Log("报纸", "个人证件", "personal-docs/items/:id")
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '更新个人证件细项' })
@@ -191,6 +205,7 @@ export class NewspaperController {
   }
 
   @Delete('personal-docs/items/:id')
+  @Log("报纸", "个人证件", "personal-docs/items/:id")
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '删除个人证件细项' })

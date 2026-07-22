@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { StoreService } from './Outlet.service';
 import { AdminJwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { StoreJwtAuthGuard } from '../auth/guards/Outlet-jwt-auth.guard';
+import { Log } from '../../common/decorators/log.decorator';
 
 class CreateStoreDto {
   name: string;
@@ -73,6 +74,7 @@ export class StoreController {
   }
 
   @Put(':id')
+  @Log("网点", ":id", ":id")
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '编辑网点' })
@@ -81,6 +83,7 @@ export class StoreController {
   }
 
   @Delete(':id')
+  @Log("网点", ":id", ":id")
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '删除网点' })
@@ -89,6 +92,7 @@ export class StoreController {
   }
 
   @Post(':id/reset-password')
+  @Log("网点", "密码重置", ":id/reset-password")
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '重置网点密码' })
@@ -116,6 +120,7 @@ export class StoreController {
 
   // 网点端：接单
   @Put('me/orders/:id/accept')
+  @Log("网点", "订单", "me/orders/:id/accept")
   @UseGuards(StoreJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '网点接单' })
@@ -125,6 +130,7 @@ export class StoreController {
 
   // 网点端：完成制作
   @Put('me/orders/:id/complete')
+  @Log("网点", "订单", "me/orders/:id/complete")
   @UseGuards(StoreJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '网点完成制作' })
@@ -134,6 +140,7 @@ export class StoreController {
 
   // 网点端：发货
   @Put('me/orders/:id/ship')
+  @Log("网点", "订单", "me/orders/:id/ship")
   @UseGuards(StoreJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '网点发货' })
@@ -142,6 +149,7 @@ export class StoreController {
   }
 
   @Put('me/bind-openid')
+  @Log("网点", "绑定OpenID", "me/bind-openid")
   @UseGuards(StoreJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '网点端：绑定微信 openid（接收订阅消息）' })
@@ -150,6 +158,7 @@ export class StoreController {
   }
 
   @Put('me/subscribe-toggle')
+  @Log("网点", "订阅设置", "me/subscribe-toggle")
   @UseGuards(StoreJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '网点端：开关订阅消息' })
