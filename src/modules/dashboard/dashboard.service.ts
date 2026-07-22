@@ -93,4 +93,71 @@ export class DashboardService {
       },
     };
   }
+
+  // 近N天趋势数据（订单量或金额）
+  async getTrend(type: 'order' | 'amount' = 'order', days: number = 7) {
+    const now = new Date();
+    const dates: string[] = [];
+    const sealData: number[] = [];
+    const newspaperData: number[] = [];
+
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+      const dateStr = `${d.getMonth() + 1}/${d.getDate()}`;
+      dates.push(dateStr);
+
+      const dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      const dayEnd = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
+
+      if (type === 'order') {
+        // 订单量统计
+        const [sealCount, newspaperCount] = await Promise.all([
+          this.prisma.sealOrder.count({
+            where: {
+              module: 'seal',
+              createdAt: { gte: dayStart, lt: dayEnd },
+            },
+          }),
+          this.prisma.sealOrder.count({
+            where: {
+              module: 'newspaper',
+              createdAt: { gte: dayStart, lt: dayEnd },
+            },
+          }),
+        ]);
+        sealData.push(sealCount);
+        newspaperData.push(newspaperCount);
+      } else {
+        // 金额统计（已支付订单，按创建时间统计）
+        const [sealSum, newspaperSum] = await Promise.all([
+          this.prisma.sealOrder.aggregate({
+            where: {
+              module: 'seal',
+              status: { gte: 2 },
+              createdAt: { gte: dayStart, lt: dayEnd },
+            },
+            _sum: { payPrice: true },
+          }),
+          this.prisma.sealOrder.aggregate({
+            where: {
+              module: 'newspaper',
+              status: { gte: 2 },
+              createdAt: { gte: dayStart, lt: dayEnd },
+            },
+            _sum: { totalPrice: true },
+          }),
+        ]);
+        const sealVal = Number(sealSum._sum?.payPrice ?? 0);
+        const newspaperVal = Number(newspaperSum._sum?.totalPrice ?? 0);
+        sealData.push(Math.round(sealVal * 100) / 100);
+        newspaperData.push(Math.round(newspaperVal * 100) / 100);
+      }
+    }
+
+    return {
+      dates,
+      seal: sealData,
+      newspaper: newspaperData,
+    };
+  }
 }
