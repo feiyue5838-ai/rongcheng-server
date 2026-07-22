@@ -581,6 +581,43 @@ export class OrderService {
     };
   }
 
+  // ==================== 管理端：材料审核 ====================
+
+  async auditMaterial(materialId: string, status: number, remark: string | undefined, adminId: string) {
+    if (![1, 2].includes(status)) throw new BadRequestException('审核状态仅支持 1=通过 2=驳回');
+    const m = await this.prisma.material.findUnique({ where: { id: materialId } });
+    if (!m) throw new NotFoundException('材料不存在');
+    if (m.status !== 0) throw new BadRequestException('该材料已审核，无需重复操作');
+
+    const updated = await this.prisma.material.update({
+      where: { id: materialId },
+      data: { status, remark: remark || null },
+    });
+
+    // 全部审核完毕后,推送通知
+    const order = await this.prisma.sealOrder.findUnique({
+      where: { id: m.orderId },
+      include: { materials: true, assignment: true },
+    });
+    if (order) {
+      const allDone = order.materials.every(x => x.id === materialId ? status !== 0 : x.status !== 0);
+      if (allDone && order.assignment?.outletId) {
+        await this.prisma.outletNotification.create({
+          data: {
+            outletId: order.assignment.outletId,
+            title: '材料审核完成',
+            content: `订单 ${order.orderNo} 材料审核完成，请确认后开始制作`,
+            type: 'material',
+            orderId: order.id,
+            orderNo: order.orderNo,
+            isRead: false,
+          },
+        });
+      }
+    }
+    return updated;
+  }
+
   // ==================== 管理端：更新订单状态 ====================
 
   async adminUpdateOrder(orderId: string, dto: any, adminId: string) {
@@ -595,6 +632,13 @@ export class OrderService {
     const updateData: any = { ...dto };
     if (dto.status !== undefined) {
       updateData.statusText = statusMap[dto.status] || '未知状态';
+      // 状态变更为已支付及以上时,补齐 payTime/payPrice,避免影响营收统计与趋势图
+      if (dto.status >= 2 && order.status < 2) {
+        if (!order.payTime) updateData.payTime = new Date();
+        if (order.payPrice == null || Number(order.payPrice) === 0) {
+          updateData.payPrice = order.totalPrice;
+        }
+      }
     }
 
     // Fix: 管理员改状态为"已支付"时，自动触发网点分配（与 completePayment 逻辑对齐）

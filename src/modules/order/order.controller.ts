@@ -83,6 +83,14 @@ export class OrderController {
     return this.orderService.adminUpdateOrder(id, dto, req.user.id);
   }
 
+  @Put('admin/materials/:id/audit')
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '管理端：审核材料（通过/驳回）' })
+  async auditMaterial(@Param('id') id: string, @Body() body: { status: number; remark?: string }, @Request() req) {
+    return this.orderService.auditMaterial(id, body.status, body.remark, req.user.id);
+  }
+
   @Get('admin/statistics')
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
