@@ -399,6 +399,8 @@ model Admin {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
+  operationLogs OperationLog[]
+
   @@map("admins")
 }
 
@@ -413,6 +415,8 @@ model OperationLog {
   ip          String?                                 // IP 地址
   userAgent   String?  @map("user_agent")              // User-Agent
   createdAt   DateTime @default(now()) @map("created_at")
+
+  admin       Admin?   @relation(fields: [adminId], references: [id])
 
   @@map("operation_logs")
 }

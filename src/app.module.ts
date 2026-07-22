@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { AuthModule } from './modules/auth/auth.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { OrderModule } from './modules/order/order.module';
@@ -15,6 +16,7 @@ import { NotificationModule } from './modules/notification/notification.module';
 import { DeliveryModule } from './modules/delivery/delivery.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { QuestionModule } from './modules/question/question.module';
+import { OperationLogInterceptor } from './common/interceptors/operation-log.interceptor';
 
 @Module({
   imports: [
@@ -34,6 +36,12 @@ import { QuestionModule } from './modules/question/question.module';
     DeliveryModule,
     DashboardModule,
     QuestionModule,
+  ],
+  providers: [
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: OperationLogInterceptor,
+    },
   ],
 })
 export class AppModule {}

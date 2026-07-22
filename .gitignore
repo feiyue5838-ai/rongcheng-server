@@ -47,3 +47,4 @@ _*.js
 
 # 防止编译产物误入 src (tsconfig outDir=dist)
 src/**/*.js
+_trash_2026-07-22/

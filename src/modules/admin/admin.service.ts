@@ -48,9 +48,17 @@ export class AdminService {
   }
 
   /** 操作日志 */
-  async createLog(adminId: string, module: string, action: string, target: string, detail?: string) {
+  async createLog(
+    adminId: string | null,
+    module: string,
+    action: string,
+    target: string,
+    detail?: string,
+    ip?: string,
+    userAgent?: string,
+  ) {
     return this.prisma.operationLog.create({
-      data: { adminId, module, action, target, detail },
+      data: { adminId: adminId || null, module, action, target, detail, ip: ip || null, userAgent: userAgent || null },
     });
   }
 
@@ -68,7 +76,7 @@ export class AdminService {
     const [logs, total] = await Promise.all([
       this.prisma.operationLog.findMany({
         where,
-        // include: { admin: { select: { nickname: true } } },
+        include: { admin: { select: { id: true, username: true, nickname: true } } },
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * pageSize,
         take: Number(pageSize),
