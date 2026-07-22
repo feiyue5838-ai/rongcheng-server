@@ -8,6 +8,9 @@ import { JwtAuthGuard, AdminJwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 export class ReviewController {
   constructor(private readonly reviewService: ReviewService) {}
 
+  // ===== 小程序端 =====
+
+  /** 提交评价（需登录） */
   @Post()
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
@@ -16,6 +19,7 @@ export class ReviewController {
     return this.reviewService.submitReview(req.user.id, dto);
   }
 
+  /** 我的评价列表 */
   @Get('my')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
@@ -24,13 +28,29 @@ export class ReviewController {
     return this.reviewService.getMyReviews(req.user.id, query);
   }
 
-  // 管理端
+  /** 公开评价列表（已审核通过） */
+  @Get('list')
+  @ApiOperation({ summary: '已审核评价列表（小程序端）' })
+  async getApprovedReviews(@Query() query: any) {
+    return this.reviewService.getApprovedReviews(query);
+  }
+
+  // ===== 管理端 =====
+
   @Get('admin/list')
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '评价列表（管理端）' })
   async adminGetReviews(@Query() query: any) {
     return this.reviewService.adminGetReviews(query);
+  }
+
+  @Put(':id/status')
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '审核评价' })
+  async updateStatus(@Param('id') id: string, @Body() dto: { status: string }) {
+    return this.reviewService.adminUpdateStatus(id, dto.status);
   }
 
   @Put(':id/reply')
