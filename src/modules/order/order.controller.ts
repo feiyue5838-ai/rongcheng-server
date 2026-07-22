@@ -188,7 +188,7 @@ export class OrderController {
   @Post(':id/cancel')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: '用户取消订单 / 申请退款（未支付→已取消；已支付→退款中）' })
+  @ApiOperation({ summary: '用户取消订单（仅限未支付订单）已支付订单退款请联系管理员' })
   async cancelOrder(@Param('id') id: string, @Request() req) {
     const userId = req.user?.id || '00000000-0000-0000-0000-000000000000';
     return this.orderService.cancelOrder(id, userId);

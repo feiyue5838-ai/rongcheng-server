@@ -283,24 +283,15 @@ export class OrderService {
     return order;
   }
 
-  /** 用户取消订单 / 申请退款：未支付→已取消(6)，已支付→退款中(7) */
+  /** 用户取消订单（仅未支付）已支付订单的退款须由管理员在后台操作 */
   async cancelOrder(orderId: string, userId: string) {
     const order = await this.prisma.sealOrder.findFirst({ where: { id: orderId, userId } });
     if (!order) throw new NotFoundException('订单不存在');
-    if (order.status === 1) {
-      return this.prisma.sealOrder.update({
-        where: { id: orderId },
-        data: { status: 6, statusText: '已取消' },
-      });
-    }
-    if (order.status === 2) {
-      // 已支付：进入退款中，由管理端处理实际微信退款
-      return this.prisma.sealOrder.update({
-        where: { id: orderId },
-        data: { status: 7, statusText: '退款中' },
-      });
-    }
-    throw new BadRequestException('当前订单状态不可取消');
+    if (order.status !== 1) throw new BadRequestException('当前订单状态不可取消');
+    return this.prisma.sealOrder.update({
+      where: { id: orderId },
+      data: { status: 6, statusText: '已取消' },
+    });
   }
 
   // ==================== 订单列表（用户端） ====================
