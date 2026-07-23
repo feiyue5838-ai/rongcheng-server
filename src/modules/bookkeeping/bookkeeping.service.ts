@@ -52,8 +52,7 @@ export class BookkeepingService {
       fundFee = 300;
     }
 
-    const cycleMultiplier = params.cycle === 'year' ? 1 : params.cycle === 'half' ? 0.6 : 1;
-    const total = (base + invoiceFee + socialFee + fundFee) * cycleMultiplier;
+    const total = base + invoiceFee + socialFee + fundFee;
 
     return Number(total.toFixed(2));
   }
