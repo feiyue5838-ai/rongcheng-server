@@ -36,7 +36,7 @@ export class BookkeepingController {
         phone: body.phone,
         price: body.price,
       },
-      req.user.userId,
+      req.user.id,
     );
   }
 
@@ -45,6 +45,6 @@ export class BookkeepingController {
   @Log('代理记账', '获取支付参数')
   @ApiOperation({ summary: '获取代理记账订单支付参数' })
   async getPayParams(@Param('id') id: string, @Request() req: any, @Body() body: { openid?: string }) {
-    return this.bookkeepingService.getPayParams(id, req.user.userId, body.openid);
+    return this.bookkeepingService.getPayParams(id, req.user.id, body.openid);
   }
 }
