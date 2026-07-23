@@ -19,6 +19,9 @@ export class AuthService {
    * @param code 微信授权 code
    */
   async wxLogin(code: string) {
+    if (!code) {
+      throw new BadRequestException('微信授权 code 不能为空');
+    }
     // 1. 通过 code 获取 openid
     const openid = await this.wechatService.getOpenidByCode(code);
     if (!openid) {
@@ -56,6 +59,9 @@ export class AuthService {
    * 管理员登录
    */
   async adminLogin(username: string, password: string) {
+    if (!username || !password) {
+      throw new BadRequestException('用户名和密码不能为空');
+    }
     const admin = await this.prisma.admin.findUnique({ where: { username } });
     if (!admin) {
       throw new UnauthorizedException('用户名或密码错误');
@@ -124,6 +130,9 @@ export class AuthService {
    * 创建超级管理员（首次部署时使用）
    */
   async createSuperAdmin(username: string, password: string) {
+    if (!username || !password) {
+      throw new BadRequestException('用户名和密码不能为空');
+    }
     const existing = await this.prisma.admin.findUnique({ where: { username } });
     if (existing) {
       throw new BadRequestException('用户名已存在');
@@ -150,6 +159,9 @@ export class AuthService {
    * 网点登录
    */
   async storeLogin(phone: string, password: string) {
+    if (!phone || !password) {
+      throw new BadRequestException('手机号和密码不能为空');
+    }
     const Outlet = await this.prisma.outlet.findUnique({ where: { phone } });
     if (!Outlet) {
       throw new NotFoundException('网点账号不存在');

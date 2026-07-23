@@ -1,23 +1,32 @@
 import { Controller, Post, Body, HttpCode, HttpStatus } from '@nestjs/common';
+import { IsString, IsNotEmpty } from 'class-validator';
 import { ApiTags, ApiOperation, ApiBody } from '@nestjs/swagger';
+import { Throttle, SkipThrottle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 
 class WxLoginDto {
+  @IsString() @IsNotEmpty()
   code: string;
 }
 
 class AdminLoginDto {
+  @IsString() @IsNotEmpty()
   username: string;
+  @IsString() @IsNotEmpty()
   password: string;
 }
 
 class CreateSuperAdminDto {
+  @IsString() @IsNotEmpty()
   username: string;
+  @IsString() @IsNotEmpty()
   password: string;
 }
 
 class StoreLoginDto {
+  @IsString() @IsNotEmpty()
   phone: string;
+  @IsString() @IsNotEmpty()
   password: string;
 }
 
@@ -35,6 +44,7 @@ export class AuthController {
   }
 
   @Post('admin/login')
+  @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5次/分钟
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: '管理后台登录' })
   @ApiBody({
@@ -50,6 +60,7 @@ export class AuthController {
   }
 
   @Post('admin/init')
+  @Throttle({ default: { limit: 3, ttl: 3600000 } }) // 3次/小时
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: '初始化超级管理员（仅首次部署使用）' })
   async createSuperAdmin(@Body() dto: CreateSuperAdminDto) {
@@ -58,6 +69,7 @@ export class AuthController {
 
   // 小程序网点端登录（/api/auth/store-login 兼容旧路径）
   @Post('store-login')
+  @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5次/分钟
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: '网点登录（小程序端）' })
   @ApiBody({
@@ -73,6 +85,7 @@ export class AuthController {
   }
 
   @Post('Outlet/login')
+  @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5次/分钟
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: '网点登录（Web 端）' })
   @ApiBody({

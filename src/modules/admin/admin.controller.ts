@@ -2,6 +2,8 @@ import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Requ
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AdminService } from './admin.service';
 import { AdminJwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 import { Log } from '../../common/decorators/log.decorator';
 
 @ApiTags('管理端')
@@ -24,21 +26,27 @@ export class AdminController {
   }
 
   @Post('admins')
-  @ApiOperation({ summary: '创建管理员' })
+  @UseGuards(RolesGuard)
+  @Roles('superadmin')
+  @ApiOperation({ summary: '创建管理员（仅 superadmin）' })
   @Log('管理员', '创建管理员', '管理员 {id}')
   async createAdmin(@Body() dto: any) {
     return this.adminService.createAdmin(dto);
   }
 
   @Put('admins/:id')
-  @ApiOperation({ summary: '更新管理员' })
+  @UseGuards(RolesGuard)
+  @Roles('superadmin')
+  @ApiOperation({ summary: '更新管理员（仅 superadmin）' })
   @Log('管理员', '更新管理员', '管理员 {id}')
   async updateAdmin(@Param('id') id: string, @Body() dto: any) {
     return this.adminService.updateAdmin(id, dto);
   }
 
   @Delete('admins/:id')
-  @ApiOperation({ summary: '删除管理员' })
+  @UseGuards(RolesGuard)
+  @Roles('superadmin')
+  @ApiOperation({ summary: '删除管理员（仅 superadmin）' })
   @Log('管理员', '删除管理员', '管理员 {id}')
   async deleteAdmin(@Param('id') id: string) {
     return this.adminService.deleteAdmin(id);

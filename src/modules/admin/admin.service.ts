@@ -30,14 +30,26 @@ export class AdminService {
     const existing = await this.prisma.admin.findUnique({ where: { username: dto.username } });
     if (existing) throw new BadRequestException('用户名已存在');
     const hashedPassword = await bcrypt.hash(dto.password, 10);
-    return this.prisma.admin.create({ data: { ...dto, password: hashedPassword } });
+    // ⚠ 白名单字段：拒绝 role / permissions / status 来自客户端
+    return this.prisma.admin.create({
+      data: {
+        username: dto.username,
+        nickname: dto.nickname || null,
+        password: hashedPassword,
+        role: 'admin',         // 默认角色，不允许客户端指定
+        permissions: [],       // 默认空权限
+        status: 1,             // 默认启用
+      },
+    });
   }
 
   /** 更新管理员 */
   async updateAdmin(id: string, dto: any) {
     const admin = await this.prisma.admin.findUnique({ where: { id } });
     if (!admin) throw new NotFoundException('管理员不存在');
-    const data: any = { ...dto };
+    // ⚠ 白名单字段：只允许更新 nickname / password
+    const data: any = {};
+    if (dto.nickname !== undefined) data.nickname = dto.nickname;
     if (dto.password) data.password = await bcrypt.hash(dto.password, 10);
     return this.prisma.admin.update({ where: { id }, data });
   }

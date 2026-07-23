@@ -97,6 +97,29 @@ export class OrderService {
       addressJson,
     } = dto;
 
+    // ── 边界校验 ───────────────────────────────
+    // B1: 价格边界（items.price 必须为正数）
+    if (!items || items.length === 0) {
+      throw new BadRequestException('订单明细不能为空');
+    }
+    for (const item of items) {
+      const price = Number(item.price);
+      if (isNaN(price) || price <= 0) {
+        throw new BadRequestException('商品价格必须大于0');
+      }
+    }
+    // B10: 必填字段
+    if (!contactPhone || !String(contactPhone).trim()) {
+      throw new BadRequestException('手机号不能为空');
+    }
+    // 企业刻章模式必须填公司名
+    if (type === 'company' && (!companyName || !String(companyName).trim())) {
+      throw new BadRequestException('企业刻章必须填写公司名称');
+    }
+    if (!items || items.length === 0) {
+      throw new BadRequestException('订单明细不能为空');
+    }
+
     // 1. 校验地址
     let addressData: any = null;
     if (addressId) {
@@ -340,7 +363,7 @@ export class OrderService {
         orderItems: { include: { seal: true, package: true } },
         materials: true,
         reviews: { include: { user: { select: { nickname: true, avatar: true } } } },
-        assignment: { include: { outlet: { select: { id: true, name: true, phone: true } } } },
+        assignment: { include: { outlet: { select: { id: true, name: true, phone: true, serviceArea: true } } } },
         receipts: true,
       },
     });
@@ -432,7 +455,7 @@ export class OrderService {
             status: 1,
             statusText: '待接单',
             assignedBy: 'system',
-            remark: `系统自动分配 [${assignResult.matchType}] → ${assignResult.storeName}`,
+            remark: `系统自动分配 → ${assignResult.storeName}`,
           },
         });
         await this.prisma.sealOrder.update({
@@ -624,6 +647,12 @@ export class OrderService {
     const order = await this.prisma.sealOrder.findUnique({ where: { id: orderId } });
     if (!order) throw new NotFoundException('订单不存在');
 
+    // B5: 状态值范围校验
+    const VALID_STATUSES = [1, 2, 3, 4, 5, 6, 7, 8];
+    if (dto.status !== undefined && !VALID_STATUSES.includes(Number(dto.status))) {
+      throw new BadRequestException('无效的订单状态，合法值：1-待支付 2-已支付 3-制作中 4-已发货 5-已完成 6-已取消 7-退款中 8-已退款');
+    }
+
     const statusMap: Record<number, string> = {
       1: '待支付', 2: '已支付', 3: '制作中', 4: '已发货',
       5: '已完成', 6: '已取消', 7: '退款中', 8: '已退款',
@@ -655,7 +684,7 @@ export class OrderService {
             status: 1,
             statusText: '待接单',
             assignedBy: adminId,
-            remark: `管理员改状态时自动分配 [${assignResult.matchType}] → ${assignResult.storeName}`,
+            remark: `管理员改状态时自动分配 → ${assignResult.storeName}`,
           },
         });
         updateData.assignmentStatus = 1;

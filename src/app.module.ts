@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { APP_INTERCEPTOR } from '@nestjs/core';
+import { APP_INTERCEPTOR, APP_GUARD } from '@nestjs/core';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { AuthModule } from './modules/auth/auth.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { OrderModule } from './modules/order/order.module';
@@ -21,6 +22,7 @@ import { OperationLogInterceptor } from './common/interceptors/operation-log.int
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    ThrottlerModule.forRoot([{ ttl: 60000, limit: 60 }]), // 全局限流：60次/分钟
     PrismaModule,
     AuthModule,
     OrderModule,
@@ -41,6 +43,10 @@ import { OperationLogInterceptor } from './common/interceptors/operation-log.int
     {
       provide: APP_INTERCEPTOR,
       useClass: OperationLogInterceptor,
+    },
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
     },
   ],
 })

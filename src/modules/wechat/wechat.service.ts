@@ -29,7 +29,6 @@ export class WechatService {
    */
   async getOpenidByCode(code: string): Promise<string | null> {
     if (!this.appId || !this.appSecret) {
-      console.warn('⚠️ 微信配置未设置，返回模拟 openid（开发环境）');
       return `mock_openid_${code}`;
     }
 
@@ -50,7 +49,6 @@ export class WechatService {
    */
   async getPhoneNumber(code: string): Promise<string | null> {
     if (!this.appId || !this.appSecret) {
-      console.warn('⚠️ 微信配置未设置，返回模拟手机号');
       return '13800138000';
     }
 
@@ -111,14 +109,8 @@ export class WechatService {
     outletName: string,
   ): Promise<void> {
     const templateId = this.config.get<string>('WECHAT_SUBSCRIBE_TEMPLATE_ID');
-    if (!openid || !templateId) {
-      console.warn('⚠️ 订阅消息未配置（openid 或 template_id 缺失），跳过发送');
-      return;
-    }
-    if (!this.appId || !this.appSecret) {
-      console.warn('⚠️ 微信配置未设置，跳过订阅消息发送');
-      return;
-    }
+    if (!openid || !templateId) return;
+    if (!this.appId || !this.appSecret) return;
 
     try {
       const accessToken = await this.getAccessToken();
@@ -136,8 +128,6 @@ export class WechatService {
       });
       if (response.data.errcode !== 0) {
         console.error('订阅消息发送失败:', response.data);
-      } else {
-        console.log('✅ 订阅消息已发送:', openid, orderNo);
       }
     } catch (error) {
       console.error('订阅消息发送异常:', error.message);
@@ -157,7 +147,6 @@ export class WechatService {
     notifyUrl: string;
   }): Promise<any> {
     if (!this.mchId || !this.mchKey) {
-      console.warn('⚠️ 微信支付配置未设置，返回模拟支付参数');
       return {
         timeStamp: Math.floor(Date.now() / 1000).toString(),
         nonceStr: crypto.randomBytes(16).toString('hex'),
@@ -203,7 +192,6 @@ export class WechatService {
     // V3 格式：{ resource: { ciphertext, ... } }
     if (notifyData?.resource?.ciphertext) {
       if (!this.isPayConfigured()) {
-        console.warn('⚠️ 未配置微信支付商户，开发环境跳过回调验签（上线前需补全 V3 验签+解密）');
         return null;
       }
       // TODO(生产): 用 WECHAT_API_V3_KEY 解密 resource.ciphertext 并校验签名，例如：

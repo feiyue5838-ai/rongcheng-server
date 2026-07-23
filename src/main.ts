@@ -23,6 +23,9 @@ async function bootstrap() {
     credentials: true,
   });
 
+  // 移除 X-Powered-By: Express 头（信息泄露防护）
+  app.disable('x-powered-by');
+
   app.useGlobalPipes(new ValidationPipe());
 
   // 禁止 API 响应被浏览器/代理缓存，确保管理后台总能拿到最新排序数据（解决排序刷新无效问题）

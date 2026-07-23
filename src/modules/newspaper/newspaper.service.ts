@@ -39,14 +39,67 @@ export class NewspaperService {
   }
 
   // --- admin ---
-  async adminCreateCategory(dto: any) { return this.prisma.newspaperCategory.create({ data: dto }); }
-  async adminUpdateCategory(id: string, dto: any) { return this.prisma.newspaperCategory.update({ where: { id }, data: dto }); }
+  async adminCreateCategory(dto: any) {
+    // ⚠ 白名单字段
+    return this.prisma.newspaperCategory.create({
+      data: { name: dto.name, icon: dto.icon || null, sort: dto.sort ?? 0, status: dto.status ?? 1 },
+    });
+  }
+  async adminUpdateCategory(id: string, dto: any) {
+    // ⚠ 白名单字段
+    const data: any = {};
+    if (dto.name !== undefined) data.name = dto.name;
+    if (dto.icon !== undefined) data.icon = dto.icon;
+    if (dto.sort !== undefined) data.sort = dto.sort;
+    if (dto.status !== undefined) data.status = dto.status;
+    return this.prisma.newspaperCategory.update({ where: { id }, data });
+  }
   async adminDeleteCategory(id: string) { return this.prisma.newspaperCategory.delete({ where: { id } }); }
-  async adminCreateNewspaper(dto: any) { return this.prisma.newspaper.create({ data: dto }); }
-  async adminUpdateNewspaper(id: string, dto: any) { return this.prisma.newspaper.update({ where: { id }, data: dto }); }
+  async adminCreateNewspaper(dto: any) {
+    // ⚠ 白名单字段
+    return this.prisma.newspaper.create({
+      data: {
+        name: dto.name, alias: dto.alias, publisher: dto.publisher,
+        province: dto.province, region: dto.region, city: dto.city,
+        provinceCode: dto.provinceCode, cityCode: dto.cityCode,
+        pricePerWord: dto.pricePerWord, minWords: dto.minWords,
+        coverage: dto.coverage, level: dto.level,
+        image: dto.image, description: dto.description,
+        status: dto.status ?? 1, sort: dto.sort ?? 0, categoryId: dto.categoryId,
+      },
+    });
+  }
+  async adminUpdateNewspaper(id: string, dto: any) {
+    // ⚠ 白名单字段
+    const fields = ['name','alias','publisher','province','region','city','provinceCode','cityCode','pricePerWord','minWords','coverage','level','image','description','status','sort','categoryId'];
+    const data: any = {};
+    for (const f of fields) {
+      if (dto[f] !== undefined) data[f] = dto[f];
+    }
+    return this.prisma.newspaper.update({ where: { id }, data });
+  }
   async adminDeleteNewspaper(id: string) { return this.prisma.newspaper.delete({ where: { id } }); }
-  async adminCreateTemplate(dto: any) { return this.prisma.newspaperTemplate.create({ data: dto }); }
-  async adminUpdateTemplate(id: string, dto: any) { return this.prisma.newspaperTemplate.update({ where: { id }, data: dto }); }
+  async adminCreateTemplate(dto: any) {
+    // ⚠ 白名单字段
+    return this.prisma.newspaperTemplate.create({
+      data: {
+        name: dto.name, content: dto.content, categoryId: dto.categoryId,
+        newspaperId: dto.newspaperId, templateType: dto.templateType,
+        businessType: dto.businessType, sampleData: dto.sampleData,
+        desc: dto.desc, color: dto.color,
+        sort: dto.sort ?? 0, status: dto.status ?? 1,
+      },
+    });
+  }
+  async adminUpdateTemplate(id: string, dto: any) {
+    // ⚠ 白名单字段
+    const fields = ['name','content','categoryId','newspaperId','templateType','businessType','sampleData','desc','color','sort','status'];
+    const data: any = {};
+    for (const f of fields) {
+      if (dto[f] !== undefined) data[f] = dto[f];
+    }
+    return this.prisma.newspaperTemplate.update({ where: { id }, data });
+  }
   async adminDeleteTemplate(id: string) { return this.prisma.newspaperTemplate.delete({ where: { id } }); }
 
   // ========== 个人证件 ==========
@@ -56,21 +109,31 @@ export class NewspaperService {
       include: { items: { where: { status: 1 }, orderBy: { sort: 'asc' } } },
     });
     return categories.map(cat => ({
-      name: cat.name, desc: cat.desc, color: cat.color, iconSvg: cat.icon, total: cat.items.length,
-      docs: cat.items.map(i => ({ name: i.name, content: i.content, desc: i.desc })),
+      id: cat.id, name: cat.name, desc: cat.desc, color: cat.color, iconSvg: cat.icon, total: cat.items.length,
+      docs: cat.items.map(i => ({ id: i.id, name: i.name, content: i.content, desc: i.desc })),
     }));
   }
-  async getPersonalDocCategories() { return this.prisma.personalDocCategory.findMany({ where: { status: 1 }, orderBy: { sort: 'asc' } }); }
+  async getPersonalDocCategories() {
+    return this.prisma.personalDocCategory.findMany({ where: { status: 1 }, orderBy: { sort: 'asc' } });
+  }
   async getPersonalDocItems(categoryId?: string) {
     const where: any = { status: 1 };
     if (categoryId) where.categoryId = categoryId;
     return this.prisma.personalDocItem.findMany({ where, orderBy: { sort: 'asc' } });
   }
-  async adminCreatePersonalDocCategory(dto: any) { return this.prisma.personalDocCategory.create({ data: dto }); }
-  async adminUpdatePersonalDocCategory(id: string, dto: any) { return this.prisma.personalDocCategory.update({ where: { id }, data: dto }); }
+  async adminCreatePersonalDocCategory(dto: any) {
+    return this.prisma.personalDocCategory.create({ data: dto });
+  }
+  async adminUpdatePersonalDocCategory(id: string, dto: any) {
+    return this.prisma.personalDocCategory.update({ where: { id }, data: dto });
+  }
   async adminDeletePersonalDocCategory(id: string) { return this.prisma.personalDocCategory.delete({ where: { id } }); }
-  async adminCreatePersonalDocItem(dto: any) { return this.prisma.personalDocItem.create({ data: dto }); }
-  async adminUpdatePersonalDocItem(id: string, dto: any) { return this.prisma.personalDocItem.update({ where: { id }, data: dto }); }
+  async adminCreatePersonalDocItem(dto: any) {
+    return this.prisma.personalDocItem.create({ data: dto });
+  }
+  async adminUpdatePersonalDocItem(id: string, dto: any) {
+    return this.prisma.personalDocItem.update({ where: { id }, data: dto });
+  }
   async adminDeletePersonalDocItem(id: string) { return this.prisma.personalDocItem.delete({ where: { id } }); }
 
   // ========== 发票收据（全部无 templateType，合为一组） ==========
