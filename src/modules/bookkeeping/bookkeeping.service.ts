@@ -24,14 +24,98 @@ export class BookkeepingService {
     private wechatService: WechatService,
   ) {}
 
+  // ==================== 套餐管理 ====================
+
+  /**
+   * 获取套餐列表
+   */
+  async getPackageList(params: { taxpayerType?: string; status?: number }) {
+    const where: any = {};
+    if (params.taxpayerType) where.taxpayerType = params.taxpayerType;
+    if (params.status !== undefined) where.status = params.status;
+
+    const packages = await this.prisma.bookkeepingPackage.findMany({
+      where,
+      orderBy: [{ sort: 'asc' }, { createdAt: 'desc' }],
+    });
+
+    return packages.map(pkg => ({
+      ...pkg,
+      basePrice: Number(pkg.basePrice),
+      invoicePrice: Number(pkg.invoicePrice),
+      socialPrice: Number(pkg.socialPrice),
+      fundPrice: Number(pkg.fundPrice),
+    }));
+  }
+
+  /**
+   * 获取套餐详情
+   */
+  async getPackageDetail(id: string) {
+    const pkg = await this.prisma.bookkeepingPackage.findUnique({ where: { id } });
+    if (!pkg) throw new NotFoundException('套餐不存在');
+    return {
+      ...pkg,
+      basePrice: Number(pkg.basePrice),
+      invoicePrice: Number(pkg.invoicePrice),
+      socialPrice: Number(pkg.socialPrice),
+      fundPrice: Number(pkg.fundPrice),
+    };
+  }
+
+  /**
+   * 创建套餐
+   */
+  async createPackage(data: any) {
+    const pkg = await this.prisma.bookkeepingPackage.create({
+      data: {
+        name: data.name,
+        taxpayerType: data.taxpayerType,
+        cycle: data.cycle,
+        basePrice: data.basePrice,
+        invoicePrice: data.invoicePrice || 0,
+        socialPrice: data.socialPrice || 0,
+        fundPrice: data.fundPrice || 0,
+        description: data.description,
+        features: data.features,
+        sort: data.sort || 0,
+        status: data.status ?? 1,
+      },
+    });
+    return this.getPackageDetail(pkg.id);
+  }
+
+  /**
+   * 更新套餐
+   */
+  async updatePackage(id: string, data: any) {
+    const updateData: any = {};
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.basePrice !== undefined) updateData.basePrice = data.basePrice;
+    if (data.invoicePrice !== undefined) updateData.invoicePrice = data.invoicePrice;
+    if (data.socialPrice !== undefined) updateData.socialPrice = data.socialPrice;
+    if (data.fundPrice !== undefined) updateData.fundPrice = data.fundPrice;
+    if (data.description !== undefined) updateData.description = data.description;
+    if (data.features !== undefined) updateData.features = data.features;
+    if (data.sort !== undefined) updateData.sort = data.sort;
+    if (data.status !== undefined) updateData.status = data.status;
+
+    await this.prisma.bookkeepingPackage.update({ where: { id }, data: updateData });
+    return this.getPackageDetail(id);
+  }
+
+  /**
+   * 删除套餐
+   */
+  async deletePackage(id: string) {
+    await this.prisma.bookkeepingPackage.delete({ where: { id } });
+    return { success: true };
+  }
+
+  // ==================== 价格计算 ====================
+
   /**
    * 计算代理记账价格
-   * 定价规则（从 WXML 分析）：
-   * - 小规模纳税人：全年 1999，半年 1199
-   * - 一般纳税人：全年 3999，半年 2299，9.9 预定
-   * - 开票附加：不开票 +0，5张内 +200，正常开票 +500
-   * - 社保附加：不缴 +0，缴 +300
-   * - 公积金附加（仅一般纳税人）：不开户 +0，开户 +300
    */
   calculatePrice(params: PriceParams): number {
     let base = 0;
@@ -53,16 +137,17 @@ export class BookkeepingService {
     }
 
     const total = base + invoiceFee + socialFee + fundFee;
-
     return Number(total.toFixed(2));
   }
 
   /**
-   * 获取价格（返回给前端展示）
+   * 获取价格
    */
   async getPrice(params: PriceParams): Promise<{ price: number }> {
     return { price: this.calculatePrice(params) };
   }
+
+  // ==================== 订单管理 ====================
 
   /**
    * 创建代理记账订单
@@ -71,7 +156,6 @@ export class BookkeepingService {
     const calculatedPrice = this.calculatePrice(params);
     const price = Number(params.price);
 
-    // 允许前端传入价格与计算价格有±0.01误差（浮点精度问题）
     if (Math.abs(price - calculatedPrice) > 0.02) {
       throw new BadRequestException(`价格不匹配：前端传入 ${price}，计算结果 ${calculatedPrice}`);
     }
@@ -91,7 +175,6 @@ export class BookkeepingService {
         totalPrice: price,
         status: 1,
         statusText: '待支付',
-        // 存附加选项到 remark 字段
         remark: JSON.stringify({
           taxpayerType: params.taxpayerType,
           cycle: params.cycle,
@@ -120,7 +203,6 @@ export class BookkeepingService {
     if (order.module !== 'bookkeeping') throw new BadRequestException('非代理记账订单');
     if (order.userId !== userId) throw new BadRequestException('无权访问此订单');
 
-    // 未支付订单才需要拉起支付
     if (order.status !== 1) {
       return {
         timeStamp: Math.floor(Date.now() / 1000).toString(),
@@ -131,17 +213,17 @@ export class BookkeepingService {
       };
     }
 
-    if (!openid) {
-      // 从 user 表查 openid
+    let userOpenid = openid;
+    if (!userOpenid) {
       const user = await this.prisma.user.findUnique({ where: { id: userId } });
-      openid = user?.openid || '';
+      userOpenid = user?.openid || '';
     }
 
     const payResult = await this.wechatService.createUnifiedOrder({
       outTradeNo: order.orderNo,
       totalFee: Math.round(Number(order.totalPrice) * 100),
       body: `蓉城企服-代理记账(${order.orderNo})`,
-      openid: openid || '',
+      openid: userOpenid || '',
       notifyUrl: process.env.WECHAT_PAY_NOTIFY_URL || 'https://your-domain.com/api/wechat/pay-notify',
     });
 

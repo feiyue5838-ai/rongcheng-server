@@ -607,3 +607,24 @@ model QuestionReply {
   @@map("question_replies")
 }
 
+/// 代理记账套餐配置表
+model BookkeepingPackage {
+  id            String   @id @default(uuid())
+  name          String                            // 套餐名称（小规模全年/一般纳税人半年等）
+  taxpayerType  String   @map("taxpayer_type")      // 纳税人类型：small=小规模 general=一般纳税人
+  cycle         String                             // 服务周期：year=全年 half=半年
+  basePrice     Decimal  @db.Decimal(10, 2) @map("base_price") // 基础价格
+  invoicePrice  Decimal  @db.Decimal(10, 2) @default(0) @map("invoice_price") // 开票附加费
+  socialPrice   Decimal  @db.Decimal(10, 2) @default(0) @map("social_price") // 社保附加费
+  fundPrice     Decimal  @db.Decimal(10, 2) @default(0) @map("fund_price") // 公积金附加费
+  description   String?  @db.Text @map("description") // 套餐描述
+  features      String?  @db.Text @map("features") // 套餐特色（JSON数组）
+  sort          Int      @default(0) @map("sort") // 排序
+  status        Int      @default(1) @map("status") // 状态：0=下架 1=上架
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@unique([taxpayerType, cycle])
+  @@map("bookkeeping_packages")
+}
+
