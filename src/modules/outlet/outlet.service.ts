@@ -420,6 +420,12 @@ export class StoreService {
       data: { statusText: '制作完成待发货', remark },
     });
 
+    // 同步更新分配记录状态（管理后台按 assignment 统计，避免状态不一致）
+    await this.prisma.orderAssignment.update({
+      where: { orderId },
+      data: { statusText: '制作完成待发货' },
+    });
+
     return { success: true, message: '制作完成' };
   }
 
