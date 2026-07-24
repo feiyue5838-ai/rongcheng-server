@@ -41,9 +41,11 @@ export class AfterSalesService {
     // mock 退款 ID（真实环境替换为微信退款调用）
     const refundId = `mock_refund_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
+    const existingRemark = (() => { try { return JSON.parse(order.remark || '{}'); } catch { return {}; } })();
+    const afterSalesReason = existingRemark.afterSales?.reason;
     const remark = JSON.stringify({
-      ...JSON.parse(order.remark || '{}'),
-      refund: { refundId, refundFee: totalFee, operatorId, refundedAt: new Date().toISOString() },
+      ...existingRemark,
+      refund: { refundId, refundFee: totalFee, operatorId, refundedAt: new Date().toISOString(), reason: afterSalesReason },
     });
 
     return this.prisma.sealOrder.update({

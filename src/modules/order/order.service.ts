@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Inject, forwardRef } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { WechatService } from '../wechat/wechat.service';
 import { v4 as uuidv4 } from 'uuid';
@@ -7,7 +7,7 @@ import { v4 as uuidv4 } from 'uuid';
 export class OrderService {
   constructor(
     private prisma: PrismaService,
-    private wechatService: WechatService,
+    @Inject(forwardRef(() => WechatService)) private wechatService: WechatService,
   ) {}
 
   // ==================== 全国网点自动分配 ====================
@@ -328,7 +328,7 @@ export class OrderService {
    * - 状态 7：售后审核通过后发起退款（服务已完成）
    * 发起后置 status=8「退款中」，真实退款以微信异步回调通知更新为 status=9「已退款」。
    */
-  async refundOrder(orderId: string, operatorId?: string, amount?: number) {
+  async refundOrder(orderId: string, operatorId?: string, amount?: number, reason?: string) {
     const order = await this.prisma.sealOrder.findUnique({ where: { id: orderId } });
     if (!order) throw new NotFoundException('订单不存在');
     if (![2, 3, 4, 7].includes(order.status)) {
@@ -366,6 +366,7 @@ export class OrderService {
           refundFee,
           operatorId,
           refundedAt: new Date().toISOString(),
+          reason,
         }),
       },
     });

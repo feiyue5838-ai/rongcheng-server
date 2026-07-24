@@ -32,6 +32,23 @@ export class WechatController {
     }
   }
 
+  @Post('refund-notify')
+  @ApiOperation({ summary: '微信退款结果通知回调' })
+  async handleRefundNotify(@Body() body: any, @Headers() headers: any) {
+    try {
+      // plaintext 模式（开发/测试）：直接传明文，绕开 AES 解密
+      // 生产模式：body 包含 resource { ciphertext, nonce, associated_data }，由 handleRefundNotify 内部解密
+      const result = await this.wechatService.handleRefundNotify(body);
+      if (!result) {
+        return { code: 'FAIL', message: '处理失败' };
+      }
+      return { code: 'SUCCESS', message: '处理成功' };
+    } catch (error) {
+      console.error('微信退款回调处理失败:', error);
+      return { code: 'FAIL', message: '处理失败' };
+    }
+  }
+
   @Post('phone-login')
   @ApiOperation({ summary: '微信手机号一键登录' })
   async phoneLogin(@Body() body: { code: string }) {

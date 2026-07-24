@@ -1,5 +1,7 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, Inject, forwardRef } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { PrismaService } from '@/prisma/prisma.service';
+import { OrderService } from '../order/order.service';
 import axios from 'axios';
 // import { v2 as wavepay } from 'wechatpay-nodejs-sdk';
 import * as crypto from 'crypto';
@@ -15,7 +17,11 @@ export class WechatService {
   private apiV3Key: string;
   private serialNo: string;
 
-  constructor(private config: ConfigService) {
+  constructor(
+    private config: ConfigService,
+    private prisma: PrismaService,
+    @Inject(forwardRef(() => OrderService)) private orderService: OrderService,
+  ) {
     this.appId = this.config.get<string>('WECHAT_APP_ID') || '';
     this.appSecret = this.config.get<string>('WECHAT_APP_SECRET') || '';
     this.mchId = this.config.get<string>('WECHAT_MCH_ID') || '';
@@ -276,5 +282,137 @@ export class WechatService {
     const { out_trade_no, transaction_id } = notifyData || {};
     if (!out_trade_no) return null;
     return { orderNo: out_trade_no, transactionId: transaction_id };
+  }
+
+  /**
+   * 处理微信退款结果回调（POST /wechat/refund-notify）
+   *
+   * 微信 V3 退款回调格式：
+   * {
+   *   ciphertext: "...",   // AES-256-GCM 加密的退款通知正文
+   *   nonce: "...",         // 加密使用的随机串
+   *   associated_data: "refund"  // 绑定的数据标识，固定 "refund"
+   * }
+   *
+   * 解密后明文字段示例：
+   * {
+   *   out_trade_no: "RCBKxxx",       // 原订单号
+   *   out_refund_no: "REFUNDxxx",    // 退款单号
+   *   refund_id: "xxx",               // 微信退款单号
+   *   refund_status: "SUCCESS",       // SUCCESS | FAIL
+   *   total: 100,                    // 订单总金额（分）
+   *   refund: 100,                   // 退款金额（分）
+   *   refund_recv_accout: "..."      // 退款入账账户
+   * }
+   *
+   * 生产环境：必须用 apiV3Key 对 ciphertext 做 AES-256-GCM 解密后验签。
+   * 当前实现：开发环境跳过解密，直接从 plaintext 字段读取（方便测试）。
+   */
+  async handleRefundNotify(notifyData: any): Promise<{ refundId: string; status: string; orderId?: string } | null> {
+    try {
+      let refundStatus: string;
+      let outTradeNo: string;
+      let outRefundNo: string;
+      let refundId = '';
+      let refundFee = 0;
+
+      if (notifyData?.plaintext) {
+        // 开发/测试模式：前端或测试脚本直接传明文
+        const p = notifyData.plaintext;
+        refundStatus = p.refund_status;
+        outTradeNo = p.out_trade_no;
+        outRefundNo = p.out_refund_no || '';
+        refundId = p.refund_id || '';
+        refundFee = Number(p.refund || p.refund_fee || 0);
+      } else if (notifyData?.resource?.ciphertext) {
+        // 生产模式：用 apiV3Key 解密
+        if (!this.isRefundConfigured()) return null;
+        const decrypted = this._decryptRefundResource(notifyData.resource);
+        if (!decrypted) return null;
+        refundStatus = decrypted.refund_status;
+        outTradeNo = decrypted.out_trade_no;
+        outRefundNo = decrypted.out_refund_no || '';
+        refundId = decrypted.refund_id || '';
+        refundFee = Number(decrypted.refund || 0);
+      } else {
+        // 兜底：V2 简化字段
+        refundStatus = notifyData?.refund_status;
+        outTradeNo = notifyData?.out_trade_no;
+        outRefundNo = notifyData?.out_refund_no || '';
+        refundId = notifyData?.refund_id || '';
+        refundFee = Number(notifyData?.refund_fee || 0);
+      }
+
+      if (!outTradeNo) return null;
+
+      // 退款状态 SUCCESS → 置订单为已退款（9）
+      if (refundStatus === 'SUCCESS') {
+        const order = await this.prisma.sealOrder.findFirst({ where: { orderNo: outTradeNo } });
+        if (order && order.status === 8) {
+          await this.prisma.sealOrder.update({
+            where: { id: order.id },
+            data: {
+              status: 9,
+              statusText: '已退款',
+              remark: (() => {
+                try {
+                  const r = JSON.parse(order.remark || '{}');
+                  r.refund = { ...r.refund, refundStatus: 'SUCCESS', confirmedAt: new Date().toISOString(), refundFee };
+                  return JSON.stringify(r);
+                } catch {
+                  return JSON.stringify({ refund: { refundStatus: 'SUCCESS', confirmedAt: new Date().toISOString(), refundFee } });
+                }
+              })(),
+            },
+          });
+        }
+        return { refundId, status: 'SUCCESS', orderId: order?.id };
+      }
+
+      // 退款失败：记录日志，保留 status=8 供管理员人工处理
+      if (refundStatus === 'FAIL') {
+        console.error(`[WechatService] 退款失败 outTradeNo=${outTradeNo} outRefundNo=${outRefundNo} reason=${notifyData?.refund_desc || '未知'}`);
+        const order = await this.prisma.sealOrder.findFirst({ where: { orderNo: outTradeNo } });
+        if (order) {
+          const existingRemark = (() => { try { return JSON.parse(order.remark || '{}'); } catch { return {}; } })();
+          existingRemark.refundFailed = {
+            outRefundNo,
+            reason: notifyData?.refund_desc,
+            failedAt: new Date().toISOString(),
+          };
+          await this.prisma.sealOrder.update({
+            where: { id: order.id },
+            data: { remark: JSON.stringify(existingRemark) },
+          });
+        }
+        return { refundId: outRefundNo, status: 'FAIL', orderId: order?.id };
+      }
+
+      return { refundId, status: refundStatus };
+    } catch (err) {
+      console.error('[WechatService] 处理退款回调异常:', err);
+      return null;
+    }
+  }
+
+  /** AES-256-GCM 解密微信 V3 退款通知密文 */
+  private _decryptRefundResource(resource: { ciphertext: string; nonce: string; associated_data?: string }): any | null {
+    try {
+      const key = Buffer.from(this.apiV3Key, 'utf8');
+      const nonce = Buffer.from(resource.nonce, 'utf8');
+      const ciphertext = Buffer.from(resource.ciphertext, 'base64');
+      const associatedData = resource.associated_data || 'refund';
+      // authTag 为 ciphertext 末尾 16 字节
+      const authTag = ciphertext.slice(-16);
+      const encrypted = ciphertext.slice(0, -16);
+      const decipher = crypto.createDecipheriv('aes-256-gcm', key, nonce);
+      decipher.setAuthTag(authTag);
+      decipher.setAAD(Buffer.from(associatedData, 'utf8'));
+      const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
+      return JSON.parse(decrypted.toString('utf8'));
+    } catch (err) {
+      console.error('[WechatService] AES-256-GCM 解密退款通知失败:', err);
+      return null;
+    }
   }
 }

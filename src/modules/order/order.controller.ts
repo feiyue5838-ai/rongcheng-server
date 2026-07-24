@@ -220,6 +220,6 @@ export class OrderController {
   @ApiBearerAuth()
   @ApiOperation({ summary: '管理员退款（已支付订单）' })
   async refundOrder(@Param('id') id: string, @Body() body: any, @Request() req) {
-    return this.orderService.refundOrder(id, req.user?.id, body?.amount);
+    return this.orderService.refundOrder(id, req.user?.id, body?.amount, body?.reason);
   }
 }
