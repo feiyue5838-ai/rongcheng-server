@@ -7,546 +7,468 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-/// 用户表
-model User {
-  id          String      @id @default(uuid())
-  openid      String?     @unique @map("openid")
-  unionid     String?     @unique @map("unionid")
-  nickname    String?     @map("nickname")
-  avatar      String?     @map("avatar")
-  phone       String?     @unique @map("phone")
-  realname    String?     @map("realname")
-  idCard      String?     @map("id_card")
-  status      Int         @default(1) @map("status")
-  lastLoginAt DateTime?   @map("last_login_at")
-  lastLoginIp String?     @map("last_login_ip")
-  createdAt   DateTime    @default(now()) @map("created_at")
-  updatedAt   DateTime    @updatedAt @map("updated_at")
-  addresses   Address[]
-  invoices    Invoice[]
-  questions   Question[]
-  reviews     Review[]
-  orders      SealOrder[]
-
-  @@map("users")
+model addresses {
+  id         String   @id
+  user_id    String
+  contact    String
+  phone      String
+  province   String
+  city       String
+  district   String
+  detail     String
+  is_default Boolean  @default(false)
+  created_at DateTime @default(now())
+  updated_at DateTime
+  users      users    @relation(fields: [user_id], references: [id], onDelete: Cascade)
 }
 
-/// 收货地址表
-model Address {
-  id        String   @id @default(uuid())
-  userId    String   @map("user_id")
-  contact   String
-  phone     String
-  province  String
-  city      String
-  district  String
-  detail    String
-  isDefault Boolean  @default(false) @map("is_default")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("addresses")
+model admins {
+  id            String    @id
+  username      String    @unique
+  password      String
+  nickname      String?
+  role          String    @default("operator")
+  permissions   String[]
+  status        Int       @default(1)
+  last_login_at DateTime?
+  last_login_ip String?
+  created_at    DateTime  @default(now())
+  updated_at    DateTime
 }
 
-/// 发票表
-model Invoice {
-  id          String   @id @default(uuid())
-  userId      String   @map("user_id")
-  type        Int      @default(1)
-  title       String
-  taxNo       String?  @map("tax_no")
-  bank        String?  @map("bank")
-  bankAccount String?  @map("bank_account")
-  address     String?  @map("address")
-  phone       String?  @map("phone")
-  email       String?  @map("email")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("invoices")
-}
-
-/// 印章业务场景表（首页 4 大类 + 自选 8 场景）
-model SealScene {
-  id                String             @id @default(uuid())
-  name              String
-  description       String?
-  icon              String?
-  bgColor           String?
-  route             String?
-  sort              Int                @default(0)
-  status            Int                @default(1)
-  sceneType         String             @default("scene")
-  createdAt         DateTime           @default(now()) @map("created_at")
-  updatedAt         DateTime           @updatedAt @map("updated_at")
-  sealScenePackages SealScenePackage[]
-  sealSceneSeals    SealSceneSeal[]
-
-  @@map("seal_scenes")
-}
-
-/// 印章场景-产品关联表
-model SealSceneSeal {
-  sceneId   String    @map("scene_id")
-  sealId    String    @map("seal_id")
-  sort      Int       @default(0)
-  createdAt DateTime  @default(now()) @map("created_at")
-  scene     SealScene @relation(fields: [sceneId], references: [id])
-  seal      Seal      @relation(fields: [sealId], references: [id])
-
-  @@id([sceneId, sealId])
-  @@map("seal_scene_seals")
-}
-
-/// 印章场景-套餐关联表
-model SealScenePackage {
-  sceneId   String      @map("scene_id")
-  packageId String      @map("package_id")
-  sort      Int         @default(0)
-  createdAt DateTime    @default(now()) @map("created_at")
-  package   SealPackage @relation(fields: [packageId], references: [id])
-  scene     SealScene   @relation(fields: [sceneId], references: [id])
-
-  @@id([sceneId, packageId])
-  @@map("seal_scene_packages")
-}
-
-/// 印章分类表
-model SealCategory {
-  id        String   @id @default(uuid())
-  name      String
-  icon      String?
-  sort      Int      @default(0)
-  status    Int      @default(1)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-  seals     Seal[]
-
-  @@map("seal_categories")
-}
-
-/// 印章产品表
-model Seal {
-  id          String          @id @default(uuid())
-  categoryId  String?         @map("category_id")
-  name        String
-  description String?         @map("description")
-  image       String?
-  price       Decimal         @db.Decimal(10, 2)
-  status      Int             @default(1)
-  sort        Int             @default(0)
-  createdAt   DateTime        @default(now()) @map("created_at")
-  updatedAt   DateTime        @updatedAt @map("updated_at")
-  orderItems  OrderItem[]
-  sceneSeals  SealSceneSeal[]
-  category    SealCategory?   @relation(fields: [categoryId], references: [id])
-
-  @@map("seals")
-}
-
-/// 印章套餐表
-model SealPackage {
-  id            String             @id @default(uuid())
+model bookkeeping_packages {
+  id            String   @id
   name          String
-  description   String?            @map("description")
-  badge         String?
-  price         Decimal            @db.Decimal(10, 2)
-  sealIds       String[]           @map("seal_ids")
-  status        Int                @default(1)
-  sort          Int                @default(0)
-  createdAt     DateTime           @default(now()) @map("created_at")
-  updatedAt     DateTime           @updatedAt @map("updated_at")
-  images        String[]           @map("images")
-  orderItems    OrderItem[]
-  scenePackages SealScenePackage[]
+  taxpayer_type String
+  cycle         String
+  base_price    Decimal  @db.Decimal(10, 2)
+  invoice_price Decimal  @default(0) @db.Decimal(10, 2)
+  social_price  Decimal  @default(0) @db.Decimal(10, 2)
+  fund_price    Decimal  @default(0) @db.Decimal(10, 2)
+  description   String?
+  features      String?
+  sort          Int      @default(0)
+  status        Int      @default(1)
+  created_at    DateTime @default(now())
+  updated_at    DateTime
 
-  @@map("seal_packages")
+  @@unique([taxpayer_type, cycle])
 }
 
-/// 刻章订单表
-model SealOrder {
-  id                  String            @id @default(uuid())
-  orderNo             String            @unique @map("order_no")
-  userId              String            @map("user_id")
-  module              String            @default("seal") @map("module")
-  type                String            @default("在线刻章") @map("type")
-  companyName         String?           @map("company_name")
-  legalPerson         String?           @map("legal_person")
-  licenseRegion       String?           @map("license_region")
-  sealReason          String?           @map("seal_reason")
-  contactPhone        String?           @map("contact_phone")
-  legalPhone          String?           @map("legal_phone")
-  totalPrice          Decimal           @map("total_price") @db.Decimal(10, 2)
-  payPrice            Decimal?          @map("pay_price") @db.Decimal(10, 2)
-  addressId           String?           @map("address_id")
-  addressJson         String?           @map("address_json")
-  needInvoice         Boolean           @default(false) @map("need_invoice")
-  invoiceId           String?           @map("invoice_id")
-  status              Int               @default(1)
-  statusText          String            @default("待支付") @map("status_text")
-  remark              String?
-  payTime             DateTime?         @map("pay_time")
-  payMethod           String?           @map("pay_method")
-  transactionId       String?           @map("transaction_id")
-  expressCompany      String?           @map("express_company")
-  expressNo           String?           @map("express_no")
-  adminRemark         String?           @map("admin_remark")
-  processedBy         String?           @map("processed_by")
-  processedAt         DateTime?         @map("processed_at")
-  createdAt           DateTime          @default(now()) @map("created_at")
-  updatedAt           DateTime          @updatedAt @map("updated_at")
-  assignmentStatus    Int               @default(0) @map("assignment_status")
-  deliveredAt         DateTime?         @map("delivered_at")
-  deliveryStatus      Int               @default(0) @map("delivery_status")
-  signedAt            DateTime?         @map("signed_at")
-  newspaperContent    String?           @map("newspaper_content")
-  newspaperIssueCount Int?              @map("newspaper_issue_count")
-  invoiceJson         String?           @map("invoice_json")
-  newspaperCopyCount  Int?              @map("newspaper_copy_count")
-  newspaperImages     String?           @map("newspaper_images")
-  receipts            DeliveryReceipt[]
-  materials           Material[]
-  assignment          OrderAssignment?
-  orderItems          OrderItem[]
-  reviews             Review[]
-  user                User              @relation(fields: [userId], references: [id])
-
-  @@map("seal_orders")
-}
-
-/// 订单明细表（印章+登报通用）
-model OrderItem {
-  id        String       @id @default(uuid())
-  orderId   String       @map("order_id")
-  itemType  String       @map("item_type")
-  sealId    String?      @map("seal_id")
-  packageId String?      @map("package_id")
-  name      String
-  price     Decimal      @db.Decimal(10, 2)
-  quantity  Int          @default(1)
-  image     String?
-  createdAt DateTime     @default(now()) @map("created_at")
-  order     SealOrder    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  package   SealPackage? @relation(fields: [packageId], references: [id])
-  seal      Seal?        @relation(fields: [sealId], references: [id])
-
-  @@map("order_items")
-}
-
-/// 材料表
-model Material {
-  id        String    @id @default(uuid())
-  orderId   String    @map("order_id")
-  type      String
-  url       String
-  status    Int       @default(0)
-  remark    String?
-  createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime  @updatedAt @map("updated_at")
-  order     SealOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
-
-  @@map("materials")
-}
-
-/// 报纸表
-model Newspaper {
-  id           String              @id @default(uuid())
-  name         String
-  alias        String?             @map("alias")
-  publisher    String?             @map("publisher")
-  province     String?
-  city         String?
-  pricePerWord Decimal             @map("price_per_word") @db.Decimal(10, 2)
-  minWords     Int                 @default(50) @map("min_words")
-  coverage     Int                 @default(1)
-  level        Int                 @default(1)
-  image        String?
-  description  String?             @map("description")
-  status       Int                 @default(1)
-  sort         Int                 @default(0)
-  createdAt    DateTime            @default(now()) @map("created_at")
-  updatedAt    DateTime            @updatedAt @map("updated_at")
-  categoryId   String?             @map("category_id")
-  cityCode     String?             @map("city_code")
-  provinceCode String?             @map("province_code")
-  region       String?
-  templates    NewspaperTemplate[]
-  category     NewspaperCategory?  @relation(fields: [categoryId], references: [id])
-
-  @@map("newspapers")
-}
-
-/// 登报模板表
-model NewspaperTemplate {
-  id           String            @id @default(uuid())
-  newspaperId  String?           @map("newspaper_id")
-  categoryId   String            @map("category_id")
-  name         String
-  content      String
-  sampleData   String?           @map("sample_data")
-  sort         Int               @default(0)
-  status       Int               @default(1)
-  createdAt    DateTime          @default(now()) @map("created_at")
-  updatedAt    DateTime          @updatedAt @map("updated_at")
-  businessType String?
-  color        String?
-  desc         String?
-  templateType String?
-  category     NewspaperCategory @relation(fields: [categoryId], references: [id])
-  newspaper    Newspaper?        @relation(fields: [newspaperId], references: [id])
-
-  @@map("newspaper_templates")
-}
-
-/// 登报分类表
-model NewspaperCategory {
-  id         String              @id @default(uuid())
-  name       String
-  icon       String?
-  sort       Int                 @default(0)
-  status     Int                 @default(1)
-  createdAt  DateTime            @default(now()) @map("created_at")
-  updatedAt  DateTime            @updatedAt @map("updated_at")
-  templates  NewspaperTemplate[]
-  newspapers Newspaper[]
-
-  @@map("newspaper_categories")
-}
-
-/// 评价表
-model Review {
-  id        String    @id @default(uuid())
-  orderId   String    @map("order_id")
-  userId    String    @map("user_id")
-  module    String    @default("seal") @map("module")
-  rating    Int
-  content   String
-  images    String[]  @map("images")
-  reply     String?
-  replyAt   DateTime? @map("reply_at")
-  createdAt DateTime  @default(now()) @map("created_at")
-  updatedAt DateTime  @updatedAt @map("updated_at")
-  status    String    @default("pending") @map("status")
-  order     SealOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  user      User      @relation(fields: [userId], references: [id])
-
-  @@map("reviews")
-}
-
-/// 管理员表
-model Admin {
-  id          String    @id @default(uuid())
-  username    String    @unique
-  password    String    @map("password")
-  nickname    String?
-  role        String    @default("operator") @map("role")
-  permissions String[]  @map("permissions")
-  status      Int       @default(1)
-  lastLoginAt DateTime? @map("last_login_at")
-  lastLoginIp String?   @map("last_login_ip")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
-
-  @@map("admins")
-}
-
-/// 操作日志表
-model OperationLog {
-  id        String   @id @default(uuid())
-  adminId   String?  @map("admin_id")
-  module    String?
-  action    String?
-  target    String?
-  detail    String?
-  ip        String?
-  userAgent String?  @map("user_agent")
-  createdAt DateTime @default(now()) @map("created_at")
-
-  @@map("operation_logs")
-}
-
-/// 系统配置表
-model SystemConfig {
-  id          String   @id @default(uuid())
-  key         String   @unique
-  value       String
-  type        String   @default("string") @map("value_type")
-  group       String   @default("default")
-  name        String?
-  description String?  @map("description")
-  sort        Int      @default(0)
-  status      Int      @default(1)
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  @@map("system_configs")
-}
-
-/// 合作网点表
-model Outlet {
-  id              String               @id @default(uuid())
-  name            String
-  contact         String
-  phone           String               @unique
-  password        String               @map("password")
-  province        String?
-  city            String?
-  address         String?
-  status          Int                  @default(1)
-  totalOrders     Int                  @default(0) @map("total_orders")
-  lastLoginAt     DateTime?            @map("last_login_at")
-  lastLoginIp     String?              @map("last_login_ip")
-  createdAt       DateTime             @default(now()) @map("created_at")
-  updatedAt       DateTime             @updatedAt @map("updated_at")
-  serviceArea     String               @default("[]") @map("service_area")
-  businessLicense String?              @map("business_license")
-  specialPermits  String               @default("[]") @map("special_permits")
-  outletOpenid    String?              @map("outlet_openid")
-  subscribeMsg    Int                  @default(1) @map("subscribe_msg")
-  receipts        DeliveryReceipt[]
-  assignments     OrderAssignment[]
-  notifications   OutletNotification[]
-
-  @@map("outlets")
-}
-
-/// 网点通知表
-model OutletNotification {
-  id        String   @id @default(uuid())
-  outletId  String   @map("outlet_id")
-  title     String
-  content   String
-  type      String   @default("order") @map("type")
-  orderId   String?  @map("order_id")
-  orderNo   String?  @map("order_no")
-  isRead    Boolean  @default(false) @map("is_read")
-  createdAt DateTime @default(now()) @map("created_at")
-  outlet    Outlet   @relation(fields: [outletId], references: [id])
-
-  @@index([outletId, isRead])
-  @@index([outletId, createdAt])
-  @@map("outlet_notifications")
-}
-
-/// 订单分配表（总部→网点，一对一）
-model OrderAssignment {
-  id          String    @id @default(uuid())
-  orderId     String    @unique @map("order_id")
-  outletId    String    @map("outlet_id")
-  status      Int       @default(1)
-  statusText  String    @default("待接单") @map("status_text")
-  assignedBy  String?   @map("assigned_by")
-  assignedAt  DateTime  @default(now()) @map("assigned_at")
-  acceptedAt  DateTime? @map("accepted_at")
-  completedAt DateTime? @map("completed_at")
+model delivery_receipts {
+  id          String      @id
+  order_id    String
+  outlet_id   String
+  type        String
+  url         String
   remark      String?
-  order       SealOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  outlet      Outlet    @relation(fields: [outletId], references: [id])
-
-  @@map("order_assignments")
+  created_at  DateTime    @default(now())
+  seal_orders seal_orders @relation(fields: [order_id], references: [id], onDelete: Cascade)
+  outlets     outlets     @relation(fields: [outlet_id], references: [id])
 }
 
-/// 交付回执表
-model DeliveryReceipt {
-  id        String    @id @default(uuid())
-  orderId   String    @map("order_id")
-  outletId  String    @map("outlet_id")
-  type      String
-  url       String
-  remark    String?
-  createdAt DateTime  @default(now()) @map("created_at")
-  order     SealOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  outlet    Outlet    @relation(fields: [outletId], references: [id])
-
-  @@map("delivery_receipts")
+model invoices {
+  id           String   @id
+  user_id      String
+  type         Int      @default(1)
+  title        String
+  tax_no       String?
+  bank         String?
+  bank_account String?
+  address      String?
+  phone        String?
+  email        String?
+  created_at   DateTime @default(now())
+  updated_at   DateTime
+  users        users    @relation(fields: [user_id], references: [id], onDelete: Cascade)
 }
 
-/// 个人证件大类表
-model PersonalDocCategory {
-  id        String            @id @default(uuid())
-  name      String
-  desc      String?
-  color     String?
-  icon      String?
-  sort      Int               @default(0)
-  status    Int               @default(1)
-  createdAt DateTime          @default(now()) @map("created_at")
-  updatedAt DateTime          @updatedAt @map("updated_at")
-  items     PersonalDocItem[]
-
-  @@map("personal_doc_categories")
+model materials {
+  id          String      @id
+  order_id    String
+  type        String
+  url         String
+  status      Int         @default(0)
+  remark      String?
+  created_at  DateTime    @default(now())
+  updated_at  DateTime
+  seal_orders seal_orders @relation(fields: [order_id], references: [id], onDelete: Cascade)
 }
 
-/// 个人证件细项表
-model PersonalDocItem {
-  id         String              @id @default(uuid())
-  categoryId String              @map("category_id")
-  name       String
-  content    String?
-  desc       String?
-  sort       Int                 @default(0)
-  status     Int                 @default(1)
-  createdAt  DateTime            @default(now()) @map("created_at")
-  updatedAt  DateTime            @updatedAt @map("updated_at")
-  category   PersonalDocCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-
-  @@map("personal_doc_items")
+model newspaper_categories {
+  id                  String                @id
+  name                String
+  icon                String?
+  sort                Int                   @default(0)
+  status              Int                   @default(1)
+  created_at          DateTime              @default(now())
+  updated_at          DateTime
+  newspaper_templates newspaper_templates[]
+  newspapers          newspapers[]
 }
 
-/// 问答表
-model Question {
-  id         String          @id @default(uuid())
-  userId     String?         @map("user_id")
-  userName   String          @default("热心用户") @map("user_name")
+model newspaper_templates {
+  id                   String               @id
+  newspaper_id         String?
+  category_id          String
+  name                 String
+  content              String
+  sample_data          String?
+  sort                 Int                  @default(0)
+  status               Int                  @default(1)
+  created_at           DateTime             @default(now())
+  updated_at           DateTime
+  businessType         String?
+  color                String?
+  desc                 String?
+  templateType         String?
+  newspaper_categories newspaper_categories @relation(fields: [category_id], references: [id])
+  newspapers           newspapers?          @relation(fields: [newspaper_id], references: [id])
+}
+
+model newspapers {
+  id                   String                @id
+  name                 String
+  alias                String?
+  publisher            String?
+  province             String?
+  city                 String?
+  price_per_word       Decimal               @db.Decimal(10, 2)
+  min_words            Int                   @default(50)
+  coverage             Int                   @default(1)
+  level                Int                   @default(1)
+  image                String?
+  description          String?
+  status               Int                   @default(1)
+  sort                 Int                   @default(0)
+  created_at           DateTime              @default(now())
+  updated_at           DateTime
+  category_id          String?
+  city_code            String?
+  province_code        String?
+  region               String?
+  newspaper_templates  newspaper_templates[]
+  newspaper_categories newspaper_categories? @relation(fields: [category_id], references: [id])
+}
+
+model operation_logs {
+  id         String   @id
+  admin_id   String?
+  module     String?
+  action     String?
+  target     String?
+  detail     String?
+  ip         String?
+  user_agent String?
+  created_at DateTime @default(now())
+}
+
+model order_assignments {
+  id           String      @id
+  order_id     String      @unique
+  outlet_id    String
+  status       Int         @default(1)
+  status_text  String      @default("待接单")
+  assigned_by  String?
+  assigned_at  DateTime    @default(now())
+  accepted_at  DateTime?
+  completed_at DateTime?
+  remark       String?
+  seal_orders  seal_orders @relation(fields: [order_id], references: [id], onDelete: Cascade)
+  outlets      outlets     @relation(fields: [outlet_id], references: [id])
+}
+
+model order_items {
+  id            String         @id
+  order_id      String
+  item_type     String
+  seal_id       String?
+  package_id    String?
+  name          String
+  price         Decimal        @db.Decimal(10, 2)
+  quantity      Int            @default(1)
+  image         String?
+  created_at    DateTime       @default(now())
+  seal_orders   seal_orders    @relation(fields: [order_id], references: [id], onDelete: Cascade)
+  seal_packages seal_packages? @relation(fields: [package_id], references: [id])
+  seals         seals?         @relation(fields: [seal_id], references: [id])
+}
+
+model outlet_notifications {
+  id         String   @id
+  outlet_id  String
+  title      String
   content    String
-  images     String[]        @map("images")
-  module     String          @default("seal_biz") @map("module")
-  status     String          @default("pending") @map("status")
-  replyCount Int             @default(0) @map("reply_count")
-  createdAt  DateTime        @default(now()) @map("created_at")
-  updatedAt  DateTime        @updatedAt @map("updated_at")
-  replies    QuestionReply[]
-  user       User?           @relation(fields: [userId], references: [id])
+  type       String   @default("order")
+  order_id   String?
+  order_no   String?
+  is_read    Boolean  @default(false)
+  created_at DateTime @default(now())
+  outlets    outlets  @relation(fields: [outlet_id], references: [id])
+
+  @@index([outlet_id, created_at])
+  @@index([outlet_id, is_read])
+}
+
+model outlets {
+  id                   String                 @id
+  name                 String
+  contact              String
+  phone                String                 @unique
+  password             String
+  province             String?
+  city                 String?
+  address              String?
+  status               Int                    @default(1)
+  total_orders         Int                    @default(0)
+  last_login_at        DateTime?
+  last_login_ip        String?
+  created_at           DateTime               @default(now())
+  updated_at           DateTime
+  service_area         String                 @default("[]")
+  business_license     String?
+  special_permits      String                 @default("[]")
+  outlet_openid        String?
+  subscribe_msg        Int                    @default(1)
+  delivery_receipts    delivery_receipts[]
+  order_assignments    order_assignments[]
+  outlet_notifications outlet_notifications[]
+}
+
+model personal_doc_categories {
+  id                 String               @id
+  name               String
+  desc               String?
+  color              String?
+  icon               String?
+  sort               Int                  @default(0)
+  status             Int                  @default(1)
+  created_at         DateTime             @default(now())
+  updated_at         DateTime
+  personal_doc_items personal_doc_items[]
+}
+
+model personal_doc_items {
+  id                      String                  @id
+  category_id             String
+  name                    String
+  content                 String?
+  desc                    String?
+  sort                    Int                     @default(0)
+  status                  Int                     @default(1)
+  created_at              DateTime                @default(now())
+  updated_at              DateTime
+  personal_doc_categories personal_doc_categories @relation(fields: [category_id], references: [id], onDelete: Cascade)
+}
+
+model question_replies {
+  id          String    @id
+  question_id String
+  author_type String
+  author_id   String
+  author_name String
+  content     String
+  created_at  DateTime  @default(now())
+  questions   questions @relation(fields: [question_id], references: [id], onDelete: Cascade)
+
+  @@index([question_id])
+}
+
+model questions {
+  id               String             @id
+  user_id          String?
+  user_name        String             @default("热心用户")
+  content          String
+  images           String[]
+  module           String             @default("seal_biz")
+  status           String             @default("pending")
+  reply_count      Int                @default(0)
+  created_at       DateTime           @default(now())
+  updated_at       DateTime
+  question_replies question_replies[]
+  users            users?             @relation(fields: [user_id], references: [id])
 
   @@index([module, status])
-  @@index([status, createdAt])
-  @@map("questions")
+  @@index([status, created_at])
 }
 
-/// 问答回复表
-model QuestionReply {
-  id         String   @id @default(uuid())
-  questionId String   @map("question_id")
-  authorType String   @map("author_type")
-  authorId   String   @map("author_id")
-  authorName String   @map("author_name")
-  content    String
-  createdAt  DateTime @default(now()) @map("created_at")
-  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
-
-  @@index([questionId])
-  @@map("question_replies")
+model reviews {
+  id          String      @id
+  order_id    String
+  user_id     String
+  module      String      @default("seal")
+  rating      Int
+  content     String
+  images      String[]
+  reply       String?
+  reply_at    DateTime?
+  created_at  DateTime    @default(now())
+  updated_at  DateTime
+  status      String      @default("pending")
+  seal_orders seal_orders @relation(fields: [order_id], references: [id], onDelete: Cascade)
+  users       users       @relation(fields: [user_id], references: [id])
 }
 
-/// 代理记账套餐配置表
-model BookkeepingPackage {
-  id           String   @id @default(uuid())
-  name         String
-  taxpayerType String   @map("taxpayer_type")
-  cycle        String
-  basePrice    Decimal  @map("base_price") @db.Decimal(10, 2)
-  invoicePrice Decimal  @default(0) @map("invoice_price") @db.Decimal(10, 2)
-  socialPrice  Decimal  @default(0) @map("social_price") @db.Decimal(10, 2)
-  fundPrice    Decimal  @default(0) @map("fund_price") @db.Decimal(10, 2)
-  description  String?  @map("description")
-  features     String?  @map("features")
-  sort         Int      @default(0) @map("sort")
-  status       Int      @default(1) @map("status")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+model seal_categories {
+  id         String   @id
+  name       String
+  icon       String?
+  sort       Int      @default(0)
+  status     Int      @default(1)
+  created_at DateTime @default(now())
+  updated_at DateTime
+  seals      seals[]
+}
 
-  @@unique([taxpayerType, cycle])
-  @@map("bookkeeping_packages")
+model seal_orders {
+  id                    String              @id
+  order_no              String              @unique
+  user_id               String
+  module                String              @default("seal")
+  type                  String              @default("在线刻章")
+  company_name          String?
+  legal_person          String?
+  license_region        String?
+  seal_reason           String?
+  contact_phone         String?
+  legal_phone           String?
+  total_price           Decimal             @db.Decimal(10, 2)
+  pay_price             Decimal?            @db.Decimal(10, 2)
+  address_id            String?
+  address_json          String?
+  need_invoice          Boolean             @default(false)
+  invoice_id            String?
+  status                Int                 @default(1)
+  status_text           String              @default("待支付")
+  remark                String?
+  pay_time              DateTime?
+  pay_method            String?
+  transaction_id        String?
+  express_company       String?
+  express_no            String?
+  admin_remark          String?
+  processed_by          String?
+  processed_at          DateTime?
+  created_at            DateTime            @default(now())
+  updated_at            DateTime
+  assignment_status     Int                 @default(0)
+  delivered_at          DateTime?
+  delivery_status       Int                 @default(0)
+  signed_at             DateTime?
+  newspaper_content     String?
+  newspaper_issue_count Int?
+  invoice_json          String?
+  newspaper_copy_count  Int?
+  newspaper_images      String?
+  delivery_receipts     delivery_receipts[]
+  materials             materials[]
+  order_assignments     order_assignments?
+  order_items           order_items[]
+  reviews               reviews[]
+  users                 users               @relation(fields: [user_id], references: [id])
+}
+
+model seal_packages {
+  id                  String                @id
+  name                String
+  description         String?
+  badge               String?
+  price               Decimal               @db.Decimal(10, 2)
+  seal_ids            String[]
+  status              Int                   @default(1)
+  sort                Int                   @default(0)
+  created_at          DateTime              @default(now())
+  updated_at          DateTime
+  images              String[]
+  order_items         order_items[]
+  seal_scene_packages seal_scene_packages[]
+}
+
+model seal_scene_packages {
+  scene_id      String
+  package_id    String
+  sort          Int           @default(0)
+  created_at    DateTime      @default(now())
+  seal_packages seal_packages @relation(fields: [package_id], references: [id])
+  seal_scenes   seal_scenes   @relation(fields: [scene_id], references: [id])
+
+  @@id([scene_id, package_id])
+}
+
+model seal_scene_seals {
+  scene_id    String
+  seal_id     String
+  sort        Int         @default(0)
+  created_at  DateTime    @default(now())
+  seal_scenes seal_scenes @relation(fields: [scene_id], references: [id])
+  seals       seals       @relation(fields: [seal_id], references: [id])
+
+  @@id([scene_id, seal_id])
+}
+
+model seal_scenes {
+  id                  String                @id
+  name                String
+  description         String?
+  icon                String?
+  bgColor             String?
+  route               String?
+  sort                Int                   @default(0)
+  status              Int                   @default(1)
+  sceneType           String                @default("scene")
+  created_at          DateTime              @default(now())
+  updated_at          DateTime
+  seal_scene_packages seal_scene_packages[]
+  seal_scene_seals    seal_scene_seals[]
+}
+
+model seals {
+  id               String             @id
+  category_id      String?
+  name             String
+  description      String?
+  image            String?
+  price            Decimal            @db.Decimal(10, 2)
+  status           Int                @default(1)
+  sort             Int                @default(0)
+  created_at       DateTime           @default(now())
+  updated_at       DateTime
+  order_items      order_items[]
+  seal_scene_seals seal_scene_seals[]
+  seal_categories  seal_categories?   @relation(fields: [category_id], references: [id])
+}
+
+model system_configs {
+  id          String   @id
+  key         String   @unique
+  value       String
+  value_type  String   @default("string")
+  group       String   @default("default")
+  name        String?
+  description String?
+  sort        Int      @default(0)
+  status      Int      @default(1)
+  created_at  DateTime @default(now())
+  updated_at  DateTime
+}
+
+model users {
+  id            String        @id
+  openid        String?       @unique
+  unionid       String?       @unique
+  nickname      String?
+  avatar        String?
+  phone         String?       @unique
+  realname      String?
+  id_card       String?
+  status        Int           @default(1)
+  last_login_at DateTime?
+  last_login_ip String?
+  created_at    DateTime      @default(now())
+  updated_at    DateTime
+  addresses     addresses[]
+  invoices      invoices[]
+  questions     questions[]
+  reviews       reviews[]
+  seal_orders   seal_orders[]
 }

@@ -21,8 +21,11 @@ export class AfterSalesController {
 
   @Post('orders/:id/confirm-refund')
   @ApiOperation({ summary: '确认退款（售后→退款中）' })
-  confirmRefund(@Param('id') id: string) {
-    return this.afterSalesService.confirmRefund(id);
+  confirmRefund(
+    @Param('id') id: string,
+    @Body() body: { amount?: number },
+  ) {
+    return this.afterSalesService.confirmRefund(id, body?.amount);
   }
 
   @Post('orders/:id/reject')

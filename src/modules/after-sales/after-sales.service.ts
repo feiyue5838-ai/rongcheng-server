@@ -1,9 +1,13 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, Inject, forwardRef } from '@nestjs/common';
 import { PrismaService } from '@/prisma/prisma.service';
+import { OrderService } from '../order/order.service';
 
 @Injectable()
 export class AfterSalesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    @Inject(forwardRef(() => OrderService)) private orderService: OrderService,
+  ) {}
 
   /** 售后中订单列表（status=7） */
   async getAfterSalesOrders(query: {
@@ -31,27 +35,21 @@ export class AfterSalesService {
     return { rows, total, page, pageSize };
   }
 
-  /** 确认退款（status=7 → 8 退款中） */
-  async confirmRefund(orderId: string, operatorId?: string) {
+  /** 确认退款（status=7 → 8 退款中）—— 复用 OrderService 微信退款逻辑 */
+  async confirmRefund(orderId: string, amount?: number, operatorId?: string) {
     const order = await this.prisma.sealOrder.findUnique({ where: { id: orderId } });
     if (!order) throw new NotFoundException('订单不存在');
     if (order.status !== 7) throw new BadRequestException('仅「售后中」订单可确认退款');
 
-    const totalFee = Math.round(Number(order.totalPrice) * 100);
-    // mock 退款 ID（真实环境替换为微信退款调用）
-    const refundId = `mock_refund_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    // 从 remark.afterSales.reason 取售后申请时的原因
+    let afterSalesReason = '';
+    try {
+      const r = JSON.parse(order.remark || '{}');
+      afterSalesReason = r.afterSales?.reason || '';
+    } catch { /* ignore */ }
 
-    const existingRemark = (() => { try { return JSON.parse(order.remark || '{}'); } catch { return {}; } })();
-    const afterSalesReason = existingRemark.afterSales?.reason;
-    const remark = JSON.stringify({
-      ...existingRemark,
-      refund: { refundId, refundFee: totalFee, operatorId, refundedAt: new Date().toISOString(), reason: afterSalesReason },
-    });
-
-    return this.prisma.sealOrder.update({
-      where: { id: orderId },
-      data: { status: 8, statusText: '退款中', remark },
-    });
+    // 复用 OrderService.refundOrder（内部调微信退款 + 置 status=8）
+    return this.orderService.refundOrder(orderId, operatorId, amount, afterSalesReason);
   }
 
   /** 拒绝售后（status=7 → 5 已完成，不退款） */
