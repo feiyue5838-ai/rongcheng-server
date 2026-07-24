@@ -317,6 +317,62 @@ export class OrderService {
     });
   }
 
+  /**
+   * 管理员退款（已支付 / 制作中 / 已发货订单）
+   * 调用微信退款，成功后将订单置为「已退款」(status=8)。
+   * 注：微信退款为异步受理，真实环境应经回调置 8；此处 mock/即时模式下直接置 8。
+   */
+  async refundOrder(orderId: string, operatorId?: string, amount?: number) {
+    const order = await this.prisma.sealOrder.findUnique({ where: { id: orderId } });
+    if (!order) throw new NotFoundException('订单不存在');
+    if (![2, 3, 4].includes(order.status)) {
+      throw new BadRequestException('仅「已支付 / 制作中 / 已发货」订单可退款');
+    }
+
+    const totalFee = Math.round(Number(order.totalPrice) * 100);
+    const refundFee = amount ? Math.round(Number(amount) * 100) : totalFee;
+    if (refundFee <= 0 || refundFee > totalFee) {
+      throw new BadRequestException('退款金额不合法');
+    }
+
+    // 取微信交易号（支付成功时由回调写入 remark.transactionId；mock 环境可能为空）
+    let transactionId: string | undefined;
+    try {
+      const r = JSON.parse(order.remark || '{}');
+      transactionId = r.transactionId;
+    } catch { /* ignore */ }
+
+    const wechatRes = await this.wechatService.refundOrder({
+      outTradeNo: order.orderNo,
+      transactionId,
+      totalFee,
+      refundFee,
+      reason: '客户申请退款',
+    });
+
+    const updated = await this.prisma.sealOrder.update({
+      where: { id: orderId },
+      data: {
+        status: 8,
+        statusText: '已退款',
+        remark: this.appendRefundRemark(order.remark, {
+          refundId: wechatRes.refundId,
+          refundFee,
+          operatorId,
+          refundedAt: new Date().toISOString(),
+        }),
+      },
+    });
+    return updated;
+  }
+
+  private appendRefundRemark(remark: string | null, refund: any): string {
+    let obj: any = {};
+    try { obj = JSON.parse(remark || '{}'); } catch { obj = {}; }
+    obj.refund = refund;
+    return JSON.stringify(obj);
+  }
+
   // ==================== 订单列表（用户端） ====================
 
   async getMyOrders(userId: string, query: any) {

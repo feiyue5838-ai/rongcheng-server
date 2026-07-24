@@ -12,6 +12,8 @@ export class WechatService {
   private mchKey: string;
   private privateKey: string;
   private certificate: string;
+  private apiV3Key: string;
+  private serialNo: string;
 
   constructor(private config: ConfigService) {
     this.appId = this.config.get<string>('WECHAT_APP_ID') || '';
@@ -20,6 +22,8 @@ export class WechatService {
     this.mchKey = this.config.get<string>('WECHAT_MCH_KEY') || '';
     this.privateKey = this.config.get<string>('WECHAT_PRIVATE_KEY') || '';
     this.certificate = this.config.get<string>('WECHAT_CERTIFICATE') || '';
+    this.apiV3Key = this.config.get<string>('WECHAT_API_V3_KEY') || '';
+    this.serialNo = this.config.get<string>('WECHAT_MCH_SERIAL_NO') || '';
   }
 
   // ==================== 小程序登录 ====================
@@ -169,6 +173,73 @@ export class WechatService {
       signType: 'RSA',
       paySign: 'mock_sign',
     };
+  }
+
+  /** 微信退款能力是否已配置（商户 APIv3 密钥 + 证书私钥 + 证书序列号） */
+  isRefundConfigured(): boolean {
+    return !!(this.mchId && this.privateKey && this.serialNo && this.apiV3Key);
+  }
+
+  /**
+   * 申请微信退款（V3 退款接口 /v3/refund/domestic/refunds）
+   * 未配置退款能力时降级为模拟成功（与 createUnifiedOrder 的 mock 风格一致），
+   * 商户真实配好 WECHAT_API_V3_KEY / WECHAT_PRIVATE_KEY / WECHAT_MCH_SERIAL_NO 后自动切换真实调用。
+   */
+  async refundOrder(params: {
+    outTradeNo: string;
+    transactionId?: string;
+    totalFee: number;   // 单位：分
+    refundFee: number;  // 单位：分
+    reason?: string;
+  }): Promise<{ refundId: string; status: string }> {
+    if (!this.isRefundConfigured()) {
+      console.warn('[WechatService] 微信退款未配置，使用模拟退款结果（开发环境）');
+      return { refundId: `mock_refund_${Date.now()}`, status: 'SUCCESS' };
+    }
+
+    const url = 'https://api.mch.weixin.qq.com/v3/refund/domestic/refunds';
+    const urlPath = '/v3/refund/domestic/refunds';
+    const bodyObj: any = {
+      out_trade_no: params.outTradeNo,
+      amount: {
+        refund: params.refundFee,
+        total: params.totalFee,
+        currency: 'CNY',
+      },
+      reason: params.reason || '客户申请退款',
+    };
+    if (params.transactionId) bodyObj.transaction_id = params.transactionId;
+
+    const body = JSON.stringify(bodyObj);
+    const authorization = this.buildRefundAuthorization('POST', urlPath, body);
+
+    try {
+      const response = await axios.post(url, body, {
+        headers: {
+          Authorization: authorization,
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          'User-Agent': 'rongcheng-admin/1.0',
+        },
+      });
+      const data = response.data;
+      // 真实环境：data.resource.ciphertext 需用 apiV3Key 做 AES-256-GCM 解密得到 refund_status。
+      // 此处以返回含 out_refund_no 视为受理成功。
+      return { refundId: data.out_refund_no || data.refund_id || '', status: 'SUCCESS' };
+    } catch (err: any) {
+      const resp = err?.response?.data;
+      console.error('[WechatService] 微信退款调用失败:', resp || err.message);
+      throw new BadRequestException(`微信退款失败: ${resp?.message || err.message}`);
+    }
+  }
+
+  /** 构造微信支付 V3 请求签名头（RSA-SHA256） */
+  private buildRefundAuthorization(method: string, urlPath: string, body: string): string {
+    const timestamp = Math.floor(Date.now() / 1000).toString();
+    const nonceStr = crypto.randomBytes(16).toString('hex');
+    const message = `${method}\n${urlPath}\n${timestamp}\n${nonceStr}\n${body}\n`;
+    const signature = crypto.createSign('RSA-SHA256').update(message).sign(this.privateKey, 'base64');
+    return `WECHATPAY2-SHA256-RSA2048 mchid="${this.mchId}",nonce_str="${nonceStr}",signature="${signature}",timestamp="${timestamp}",serial_no="${this.serialNo}"`;
   }
 
   /**

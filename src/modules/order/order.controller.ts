@@ -213,4 +213,13 @@ export class OrderController {
     const userId = req.user?.id || '00000000-0000-0000-0000-000000000000';
     return this.orderService.cancelOrder(id, userId);
   }
+
+  @Post(':id/refund')
+  @Log("订单", "退款", ":id/refund")
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '管理员退款（已支付订单）' })
+  async refundOrder(@Param('id') id: string, @Body() body: any, @Request() req) {
+    return this.orderService.refundOrder(id, req.user?.id, body?.amount);
+  }
 }
