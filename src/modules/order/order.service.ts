@@ -721,7 +721,9 @@ export class OrderService {
       5: '已完成', 6: '已取消', 7: '退款中', 8: '已退款',
     };
 
-    const updateData: any = { ...dto };
+    // Fix: 使用 { ...order, ...dto } 而非 { ...dto }
+    // 避免 dto 未传入 remark 时，{ ...dto } 会产生 remark: undefined，Prisma 将 DB remark 覆盖为 null
+    const updateData: any = { ...order, ...dto };
     if (dto.status !== undefined) {
       updateData.statusText = statusMap[dto.status] || '未知状态';
       // 状态变更为已支付及以上时,补齐 payTime/payPrice,避免影响营收统计与趋势图
