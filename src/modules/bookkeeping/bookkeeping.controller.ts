@@ -40,7 +40,7 @@ export class BookkeepingController {
     );
   }
 
-  @Get('orders/:id/pay-params')
+  @Post('orders/:id/pay-params')
   @UseGuards(JwtAuthGuard)
   @Log('代理记账', '获取支付参数')
   @ApiOperation({ summary: '获取代理记账订单支付参数' })

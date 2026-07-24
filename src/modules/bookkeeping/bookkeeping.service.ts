@@ -117,7 +117,49 @@ export class BookkeepingService {
   /**
    * 计算代理记账价格
    */
-  calculatePrice(params: PriceParams): number {
+  async calculatePriceFromDb(params: PriceParams): Promise<number> {
+    // 从数据库读取套餐基础价格
+    const pkg = await this.prisma.bookkeepingPackage.findFirst({
+      where: {
+        taxpayerType: params.taxpayerType,
+        cycle: params.cycle,
+        status: 1,
+      },
+      orderBy: { sort: 'asc' },
+    });
+
+    if (!pkg) {
+      // 兜底：无匹配套餐时使用硬编码
+      return this.calculatePriceFallback(params);
+    }
+
+    let total = Number(pkg.basePrice);
+
+    // 开票附加
+    if (params.invoice === 'within5') {
+      total += Number(pkg.invoicePrice) || 0;
+    } else if (params.invoice === 'normal') {
+      // 正常开票：套餐预设的 invoicePrice 即为全年开票附加费
+      total += Number(pkg.invoicePrice) || 0;
+    }
+
+    // 社保附加
+    if (params.social === 'with') {
+      total += Number(pkg.socialPrice) || 300;
+    }
+
+    // 公积金附加（仅一般纳税人）
+    if (params.taxpayerType === 'general' && params.fund === 'with') {
+      total += Number(pkg.fundPrice) || 300;
+    }
+
+    return Number(total.toFixed(2));
+  }
+
+  /**
+   * 硬编码兜底价格（数据库无套餐时使用）
+   */
+  calculatePriceFallback(params: PriceParams): number {
     let base = 0;
     if (params.taxpayerType === 'small') {
       base = params.cycle === 'year' ? 1999 : params.cycle === 'half' ? 1199 : 1999;
@@ -141,10 +183,18 @@ export class BookkeepingService {
   }
 
   /**
+   * 计算代理记账价格（同步版本，保留兼容）
+   */
+  calculatePrice(params: PriceParams): number {
+    return this.calculatePriceFallback(params);
+  }
+
+  /**
    * 获取价格
    */
   async getPrice(params: PriceParams): Promise<{ price: number }> {
-    return { price: this.calculatePrice(params) };
+    const price = await this.calculatePriceFromDb(params);
+    return { price };
   }
 
   // ==================== 订单管理 ====================
@@ -153,7 +203,7 @@ export class BookkeepingService {
    * 创建代理记账订单
    */
   async createOrder(params: OrderParams, userId: string): Promise<any> {
-    const calculatedPrice = this.calculatePrice(params);
+    const calculatedPrice = await this.calculatePriceFromDb(params);
     const price = Number(params.price);
 
     if (Math.abs(price - calculatedPrice) > 0.02) {
@@ -173,6 +223,7 @@ export class BookkeepingService {
         module: 'bookkeeping',
         type: '代理记账',
         totalPrice: price,
+        payPrice: price,
         status: 1,
         statusText: '待支付',
         remark: JSON.stringify({

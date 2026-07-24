@@ -1,6 +1,3 @@
-// Prisma Schema - 蓉城企服后端数据库
-// 数据库：PostgreSQL
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,51 +7,44 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ============================================================
-// 公共模块
-// ============================================================
-
 /// 用户表
 model User {
-  id            String    @id @default(uuid())
-  openid        String?   @unique @map("openid")           // 微信 openid
-  unionid       String?   @unique @map("unionid")          // 微信 unionid
-  nickname      String?   @map("nickname")                  // 昵称
-  avatar        String?   @map("avatar")                    // 头像 URL
-  phone         String?   @unique @map("phone")             // 手机号
-  realname      String?   @map("realname")                  // 真实姓名
-  idCard        String?   @map("id_card")                  // 身份证号（加密存储）
-  status        Int       @default(1) @map("status")        // 状态：0=禁用 1=正常
-  lastLoginAt   DateTime? @map("last_login_at")             // 最后登录时间
-  lastLoginIp   String?   @map("last_login_ip")             // 最后登录 IP
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
-
-  // 关系
-  addresses     Address[]                                      // 收货地址
-  orders        SealOrder[]                                    // 订单
-  reviews       Review[]                                       // 评价
-  invoices      Invoice[]                                      // 发票
-  questions     Question[]                                     // 问答
+  id          String      @id @default(uuid())
+  openid      String?     @unique @map("openid")
+  unionid     String?     @unique @map("unionid")
+  nickname    String?     @map("nickname")
+  avatar      String?     @map("avatar")
+  phone       String?     @unique @map("phone")
+  realname    String?     @map("realname")
+  idCard      String?     @map("id_card")
+  status      Int         @default(1) @map("status")
+  lastLoginAt DateTime?   @map("last_login_at")
+  lastLoginIp String?     @map("last_login_ip")
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+  addresses   Address[]
+  invoices    Invoice[]
+  questions   Question[]
+  reviews     Review[]
+  orders      SealOrder[]
 
   @@map("users")
 }
 
 /// 收货地址表
 model Address {
-  id         String   @id @default(uuid())
-  userId     String   @map("user_id")
-  contact    String                                  // 联系人
-  phone      String                                  // 手机号
-  province   String                                  // 省份
-  city       String                                  // 城市
-  district   String                                  // 区县
-  detail     String                                  // 详细地址
-  isDefault  Boolean  @default(false) @map("is_default") // 是否默认
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
-
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  contact   String
+  phone     String
+  province  String
+  city      String
+  district  String
+  detail    String
+  isDefault Boolean  @default(false) @map("is_default")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("addresses")
 }
@@ -63,55 +53,48 @@ model Address {
 model Invoice {
   id          String   @id @default(uuid())
   userId      String   @map("user_id")
-  type        Int      @default(1)                        // 类型：1=个人 2=企业
-  title       String                                  // 发票抬头
-  taxNo       String?  @map("tax_no")                    // 税号（企业）
-  bank        String?  @map("bank")                      // 开户银行
-  bankAccount String?  @map("bank_account")              // 银行账号
-  address     String?  @map("address")                   // 注册地址
-  phone       String?  @map("phone")                     // 注册电话
-  email       String?  @map("email")                    // 接收邮箱
+  type        Int      @default(1)
+  title       String
+  taxNo       String?  @map("tax_no")
+  bank        String?  @map("bank")
+  bankAccount String?  @map("bank_account")
+  address     String?  @map("address")
+  phone       String?  @map("phone")
+  email       String?  @map("email")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
-
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("invoices")
 }
 
-// ============================================================
-// 刻章模块
-// ============================================================
-
 /// 印章业务场景表（首页 4 大类 + 自选 8 场景）
 model SealScene {
-  id          String   @id @default(uuid())
-  name        String                                  // 场景名称
-  description String?                                 // 描述
-  icon        String?                                 // 图标 key
-  bgColor     String?                                 // 背景色
-  route       String?                                 // 跳转路由
-  sort        Int      @default(0)                    // 排序
-  status      Int      @default(1)                    // 状态：0=禁用 1=启用
-  sceneType   String   @default("scene")             // scene=自选场景 home=首页入口
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  sealSceneSeals    SealSceneSeal[]
+  id                String             @id @default(uuid())
+  name              String
+  description       String?
+  icon              String?
+  bgColor           String?
+  route             String?
+  sort              Int                @default(0)
+  status            Int                @default(1)
+  sceneType         String             @default("scene")
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
   sealScenePackages SealScenePackage[]
+  sealSceneSeals    SealSceneSeal[]
 
   @@map("seal_scenes")
 }
 
 /// 印章场景-产品关联表
 model SealSceneSeal {
-  sceneId     String   @map("scene_id")
-  sealId      String   @map("seal_id")
-  sort        Int      @default(0)                    // 在该场景内的排序
-  createdAt   DateTime @default(now()) @map("created_at")
-
-  scene       SealScene @relation(fields: [sceneId], references: [id])
-  seal        Seal      @relation(fields: [sealId], references: [id])
+  sceneId   String    @map("scene_id")
+  sealId    String    @map("seal_id")
+  sort      Int       @default(0)
+  createdAt DateTime  @default(now()) @map("created_at")
+  scene     SealScene @relation(fields: [sceneId], references: [id])
+  seal      Seal      @relation(fields: [sealId], references: [id])
 
   @@id([sceneId, sealId])
   @@map("seal_scene_seals")
@@ -119,13 +102,12 @@ model SealSceneSeal {
 
 /// 印章场景-套餐关联表
 model SealScenePackage {
-  sceneId     String   @map("scene_id")
-  packageId   String   @map("package_id")
-  sort        Int      @default(0)
-  createdAt   DateTime @default(now()) @map("created_at")
-
-  scene       SealScene @relation(fields: [sceneId], references: [id])
-  package     SealPackage @relation(fields: [packageId], references: [id])
+  sceneId   String      @map("scene_id")
+  packageId String      @map("package_id")
+  sort      Int         @default(0)
+  createdAt DateTime    @default(now()) @map("created_at")
+  package   SealPackage @relation(fields: [packageId], references: [id])
+  scene     SealScene   @relation(fields: [sceneId], references: [id])
 
   @@id([sceneId, packageId])
   @@map("seal_scene_packages")
@@ -133,290 +115,254 @@ model SealScenePackage {
 
 /// 印章分类表
 model SealCategory {
-  id          String   @id @default(uuid())
-  name        String                                  // 分类名称
-  icon        String?                                 // 图标
-  sort        Int      @default(0)                    // 排序
-  status      Int      @default(1)                    // 状态：0=禁用 1=启用
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  seals       Seal[]
+  id        String   @id @default(uuid())
+  name      String
+  icon      String?
+  sort      Int      @default(0)
+  status    Int      @default(1)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  seals     Seal[]
 
   @@map("seal_categories")
 }
 
 /// 印章产品表
 model Seal {
-  id          String   @id @default(uuid())
-  categoryId  String?  @map("category_id")             // 分类 ID（已弃用，使用 sceneSeals）
-  name        String                                  // 印章名称
-  description String?  @map("description")              // 描述
-  image       String?                                 // 图片 URL
-  price       Decimal  @db.Decimal(10, 2)              // 单价（元）
-  status      Int      @default(1)                    // 状态：0=下架 1=上架
-  sort        Int      @default(0)                    // 排序
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  category    SealCategory? @relation(fields: [categoryId], references: [id])
+  id          String          @id @default(uuid())
+  categoryId  String?         @map("category_id")
+  name        String
+  description String?         @map("description")
+  image       String?
+  price       Decimal         @db.Decimal(10, 2)
+  status      Int             @default(1)
+  sort        Int             @default(0)
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
   orderItems  OrderItem[]
   sceneSeals  SealSceneSeal[]
+  category    SealCategory?   @relation(fields: [categoryId], references: [id])
 
   @@map("seals")
 }
 
 /// 印章套餐表
 model SealPackage {
-  id          String   @id @default(uuid())
-  name        String                                  // 套餐名称
-  description String?  @map("description")              // 描述
-  badge       String?                                 // 标签（如"特惠"）
-  price       Decimal  @db.Decimal(10, 2)              // 套餐价格
-  sealIds     String[]  @map("seal_ids")               // 包含的印章 ID 列表
-  images      String[]  @map("images")                 // 套餐图片列表
-  status      Int      @default(1)                    // 状态：0=下架 1=上架
-  sort        Int      @default(0)                    // 排序
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  orderItems  OrderItem[]
-  scenePackages  SealScenePackage[]
+  id            String             @id @default(uuid())
+  name          String
+  description   String?            @map("description")
+  badge         String?
+  price         Decimal            @db.Decimal(10, 2)
+  sealIds       String[]           @map("seal_ids")
+  status        Int                @default(1)
+  sort          Int                @default(0)
+  createdAt     DateTime           @default(now()) @map("created_at")
+  updatedAt     DateTime           @updatedAt @map("updated_at")
+  images        String[]           @map("images")
+  orderItems    OrderItem[]
+  scenePackages SealScenePackage[]
 
   @@map("seal_packages")
 }
 
 /// 刻章订单表
 model SealOrder {
-  id              String   @id @default(uuid())
-  orderNo         String   @unique @map("order_no")    // 订单编号
-  userId          String   @map("user_id")             // 用户 ID
-  module          String   @default("seal") @map("module") // 模块：seal/newspaper
-  type            String   @default("在线刻章") @map("type") // 订单类型
-  // 刻章相关字段
-  companyName     String?  @map("company_name")         // 公司名称
-  legalPerson     String?  @map("legal_person")        // 法人姓名
-  licenseRegion    String?  @map("license_region")      // 执照地区
-  sealReason      String?  @map("seal_reason")         // 刻章原因
-  contactPhone    String?  @map("contact_phone")        // 联系电话
-  legalPhone      String?  @map("legal_phone")         // 法人电话
-  // 金额
-  totalPrice      Decimal  @db.Decimal(10, 2) @map("total_price") // 订单总价
-  payPrice        Decimal? @db.Decimal(10, 2) @map("pay_price")   // 实付金额
-  // 地址
-  addressId       String?  @map("address_id")           // 收货地址 ID
-  addressJson     String?  @map("address_json")         // 收货地址快照（JSON）
-  newspaperContent  String? @map("newspaper_content")   // 登报正文内容
-  newspaperIssueCount Int? @map("newspaper_issue_count") // 登报期数
-  newspaperImages   String? @map("newspaper_images")    // 登报证件图片（JSON 数组，存访问 URL）
-  newspaperCopyCount Int? @map("newspaper_copy_count") // 报纸份数
-  invoiceJson      String? @map("invoice_json")        // 发票信息快照（JSON）
-  // 发票
-  needInvoice     Boolean  @default(false) @map("need_invoice")
-  invoiceId       String?  @map("invoice_id")           // 发票 ID
-  // 状态
-  status          Int      @default(1)                  // 订单状态：1=待支付 2=已支付 3=制作中 4=已发货 5=已完成 6=已取消 7=退款中 8=已退款
-  statusText      String   @default("待支付") @map("status_text")
-  remark          String?                                 // 用户备注
-  // 支付信息
-  payTime         DateTime? @map("pay_time")            // 支付时间
-  payMethod       String?  @map("pay_method")           // 支付方式
-  transactionId   String?  @map("transaction_id")       // 微信支付单号
-  // 物流
-  expressCompany  String?  @map("express_company")     // 快递公司
-  expressNo       String?  @map("express_no")          // 快递单号
-  // 管理
-  adminRemark     String?  @map("admin_remark")        // 管理员备注
-  processedBy     String?  @map("processed_by")         // 处理人
-  processedAt     DateTime? @map("processed_at")       // 处理时间
-  // 分配与交付
-  assignmentStatus Int     @default(0) @map("assignment_status")  // 分配状态：0=未分配 1=已分配 2=制作中 3=已完成
-  deliveryStatus  Int     @default(0) @map("delivery_status")     // 交付状态：0=待交付 1=已交付 2=已签收
-  deliveredAt    DateTime? @map("delivered_at")      // 交付时间
-  signedAt       DateTime? @map("signed_at")         // 客户签收时间
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
-
-  user            User      @relation(fields: [userId], references: [id])
-  orderItems      OrderItem[]
-  materials       Material[]
-  reviews         Review[]
-  assignment      OrderAssignment?                     // 订单分配（一对一）
-  receipts        DeliveryReceipt[]                    // 交付回执
+  id                  String            @id @default(uuid())
+  orderNo             String            @unique @map("order_no")
+  userId              String            @map("user_id")
+  module              String            @default("seal") @map("module")
+  type                String            @default("在线刻章") @map("type")
+  companyName         String?           @map("company_name")
+  legalPerson         String?           @map("legal_person")
+  licenseRegion       String?           @map("license_region")
+  sealReason          String?           @map("seal_reason")
+  contactPhone        String?           @map("contact_phone")
+  legalPhone          String?           @map("legal_phone")
+  totalPrice          Decimal           @map("total_price") @db.Decimal(10, 2)
+  payPrice            Decimal?          @map("pay_price") @db.Decimal(10, 2)
+  addressId           String?           @map("address_id")
+  addressJson         String?           @map("address_json")
+  needInvoice         Boolean           @default(false) @map("need_invoice")
+  invoiceId           String?           @map("invoice_id")
+  status              Int               @default(1)
+  statusText          String            @default("待支付") @map("status_text")
+  remark              String?
+  payTime             DateTime?         @map("pay_time")
+  payMethod           String?           @map("pay_method")
+  transactionId       String?           @map("transaction_id")
+  expressCompany      String?           @map("express_company")
+  expressNo           String?           @map("express_no")
+  adminRemark         String?           @map("admin_remark")
+  processedBy         String?           @map("processed_by")
+  processedAt         DateTime?         @map("processed_at")
+  createdAt           DateTime          @default(now()) @map("created_at")
+  updatedAt           DateTime          @updatedAt @map("updated_at")
+  assignmentStatus    Int               @default(0) @map("assignment_status")
+  deliveredAt         DateTime?         @map("delivered_at")
+  deliveryStatus      Int               @default(0) @map("delivery_status")
+  signedAt            DateTime?         @map("signed_at")
+  newspaperContent    String?           @map("newspaper_content")
+  newspaperIssueCount Int?              @map("newspaper_issue_count")
+  invoiceJson         String?           @map("invoice_json")
+  newspaperCopyCount  Int?              @map("newspaper_copy_count")
+  newspaperImages     String?           @map("newspaper_images")
+  receipts            DeliveryReceipt[]
+  materials           Material[]
+  assignment          OrderAssignment?
+  orderItems          OrderItem[]
+  reviews             Review[]
+  user                User              @relation(fields: [userId], references: [id])
 
   @@map("seal_orders")
 }
 
 /// 订单明细表（印章+登报通用）
 model OrderItem {
-  id          String   @id @default(uuid())
-  orderId     String   @map("order_id")
-  itemType    String   @map("item_type")               // 类型：seal/package/newspaper/template
-  sealId      String?  @map("seal_id")                 // 印章 ID
-  packageId   String?  @map("package_id")             // 套餐 ID
-  name        String                                  // 商品名称（快照）
-  price       Decimal  @db.Decimal(10, 2)              // 单价（快照）
-  quantity    Int      @default(1)                    // 数量
-  image       String?                                 // 图片（快照）
-  createdAt   DateTime @default(now()) @map("created_at")
-
-  order       SealOrder  @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  seal        Seal?      @relation(fields: [sealId], references: [id])
-  package     SealPackage? @relation(fields: [packageId], references: [id])
+  id        String       @id @default(uuid())
+  orderId   String       @map("order_id")
+  itemType  String       @map("item_type")
+  sealId    String?      @map("seal_id")
+  packageId String?      @map("package_id")
+  name      String
+  price     Decimal      @db.Decimal(10, 2)
+  quantity  Int          @default(1)
+  image     String?
+  createdAt DateTime     @default(now()) @map("created_at")
+  order     SealOrder    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  package   SealPackage? @relation(fields: [packageId], references: [id])
+  seal      Seal?        @relation(fields: [sealId], references: [id])
 
   @@map("order_items")
 }
 
 /// 材料表
 model Material {
-  id          String   @id @default(uuid())
-  orderId     String   @map("order_id")
-  type        String                                  // 材料类型：license/id_card_front/id_card_back/photo/professional_cert/signature/handheld_id/additional
-  url         String                                  // 文件 URL
-  status      Int      @default(0)                    // 审核状态：0=待审核 1=通过 2=驳回
-  remark      String?                                 // 审核备注
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  order       SealOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  id        String    @id @default(uuid())
+  orderId   String    @map("order_id")
+  type      String
+  url       String
+  status    Int       @default(0)
+  remark    String?
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  order     SealOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
   @@map("materials")
 }
 
-// ============================================================
-// 登报模块
-// ============================================================
-
 /// 报纸表
 model Newspaper {
-  id          String   @id @default(uuid())
-  name        String                                  // 报纸名称
-  alias       String?  @map("alias")                   // 别名
-  publisher   String?  @map("publisher")               // 出版社
-  province    String?                                 // 省份（展示用）
-  region     String?                                 // 大区：华北/东北/华东/华中/华南/西南/西北/全国
-  city        String?                                 // 城市（展示用）
-  provinceCode String?  @map("province_code")          // 省份代码（标准行政区划）
-  cityCode    String?  @map("city_code")               // 城市代码（标准行政区划）
-  pricePerWord Decimal @db.Decimal(10, 2) @map("price_per_word") // 每字价格（元）
-  minWords    Int      @default(50) @map("min_words")  // 最少字数
-  coverage    Int      @default(1)                     // 发行覆盖：1=市级 2=省级 3=全国
-  level       Int      @default(1)                     // 级别：1=普通 2=省级 3=国家级
-  image       String?                                 // 报纸封面图
-  description String?  @map("description")              // 描述
-  status      Int      @default(1)                    // 状态：0=停用 1=启用
-  sort        Int      @default(0)                    // 排序
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  categoryId String?   @map("category_id")             // 分类 ID（公告类型）
-  category   NewspaperCategory? @relation(fields: [categoryId], references: [id])
-
-  templates   NewspaperTemplate[]
+  id           String              @id @default(uuid())
+  name         String
+  alias        String?             @map("alias")
+  publisher    String?             @map("publisher")
+  province     String?
+  city         String?
+  pricePerWord Decimal             @map("price_per_word") @db.Decimal(10, 2)
+  minWords     Int                 @default(50) @map("min_words")
+  coverage     Int                 @default(1)
+  level        Int                 @default(1)
+  image        String?
+  description  String?             @map("description")
+  status       Int                 @default(1)
+  sort         Int                 @default(0)
+  createdAt    DateTime            @default(now()) @map("created_at")
+  updatedAt    DateTime            @updatedAt @map("updated_at")
+  categoryId   String?             @map("category_id")
+  cityCode     String?             @map("city_code")
+  provinceCode String?             @map("province_code")
+  region       String?
+  templates    NewspaperTemplate[]
+  category     NewspaperCategory?  @relation(fields: [categoryId], references: [id])
 
   @@map("newspapers")
 }
 
 /// 登报模板表
 model NewspaperTemplate {
-  id          String   @id @default(uuid())
-  newspaperId String?  @map("newspaper_id")            // 报纸 ID（可选，通用模板不绑定具体报纸）
-  categoryId  String   @map("category_id")             // 分类 ID
-  name        String                                  // 模板名称
-  content     String   @db.Text                        // 模板内容（MD 格式）
-  sampleData  String?  @map("sample_data")              // 示例数据（JSON）
-  templateType String?                               // 公告分类标识（对应前端 17 分类：company/estate/seal/debt 等）
-  businessType String?                               // 业务类型（用于前端分类导航，如"身份证挂失"）
-  desc        String?                                // 模板简短描述（如"基础个人信息"）
-  color       String?                                // 模板配色（如"#5B6FE8"）
-  sort        Int      @default(0)                    // 排序
-  status      Int      @default(1)                    // 状态
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  newspaper   Newspaper?      @relation(fields: [newspaperId], references: [id])
-  category    NewspaperCategory @relation(fields: [categoryId], references: [id])
+  id           String            @id @default(uuid())
+  newspaperId  String?           @map("newspaper_id")
+  categoryId   String            @map("category_id")
+  name         String
+  content      String
+  sampleData   String?           @map("sample_data")
+  sort         Int               @default(0)
+  status       Int               @default(1)
+  createdAt    DateTime          @default(now()) @map("created_at")
+  updatedAt    DateTime          @updatedAt @map("updated_at")
+  businessType String?
+  color        String?
+  desc         String?
+  templateType String?
+  category     NewspaperCategory @relation(fields: [categoryId], references: [id])
+  newspaper    Newspaper?        @relation(fields: [newspaperId], references: [id])
 
   @@map("newspaper_templates")
 }
 
 /// 登报分类表
 model NewspaperCategory {
-  id          String   @id @default(uuid())
-  name        String                                  // 分类名称
-  icon        String?                                 // 图标
-  sort        Int      @default(0)                    // 排序
-  status      Int      @default(1)                    // 状态
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  templates   NewspaperTemplate[]
-  newspapers  Newspaper[]
+  id         String              @id @default(uuid())
+  name       String
+  icon       String?
+  sort       Int                 @default(0)
+  status     Int                 @default(1)
+  createdAt  DateTime            @default(now()) @map("created_at")
+  updatedAt  DateTime            @updatedAt @map("updated_at")
+  templates  NewspaperTemplate[]
+  newspapers Newspaper[]
 
   @@map("newspaper_categories")
 }
 
-// ============================================================
-// 评价模块
-// ============================================================
-
 /// 评价表
 model Review {
-  id          String   @id @default(uuid())
-  orderId     String   @map("order_id")               // 订单 ID
-  userId      String   @map("user_id")                 // 用户 ID
-  module      String   @default("seal") @map("module")  // 模块：seal/newspaper
-  rating      Int                                      // 评分：1-5
-  content     String   @db.Text                        // 评价内容
-  images      String[] @map("images")                  // 评价图片列表
-  status      String   @default("pending") @map("status") // 状态：pending=待审核 approved=已通过 rejected=已驳回
-  reply       String?  @db.Text                        // 商家回复
-  replyAt     DateTime? @map("reply_at")              // 回复时间
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  order       SealOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  user        User      @relation(fields: [userId], references: [id])
+  id        String    @id @default(uuid())
+  orderId   String    @map("order_id")
+  userId    String    @map("user_id")
+  module    String    @default("seal") @map("module")
+  rating    Int
+  content   String
+  images    String[]  @map("images")
+  reply     String?
+  replyAt   DateTime? @map("reply_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  status    String    @default("pending") @map("status")
+  order     SealOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id])
 
   @@map("reviews")
 }
 
-// ============================================================
-// 系统管理模块
-// ============================================================
-
 /// 管理员表
 model Admin {
-  id          String   @id @default(uuid())
-  username    String   @unique                         // 登录用户名
-  password    String   @map("password")                 // 密码（bcrypt 加密）
-  nickname    String?                                 // 昵称
-  role        String   @default("operator") @map("role") // 角色：admin/superadmin/operator/finance
-  permissions String[] @map("permissions")             // 权限列表
-  status      Int      @default(1)                    // 状态：0=禁用 1=正常
-  lastLoginAt DateTime? @map("last_login_at")          // 最后登录时间
-  lastLoginIp String?  @map("last_login_ip")           // 最后登录 IP
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  operationLogs OperationLog[]
+  id          String    @id @default(uuid())
+  username    String    @unique
+  password    String    @map("password")
+  nickname    String?
+  role        String    @default("operator") @map("role")
+  permissions String[]  @map("permissions")
+  status      Int       @default(1)
+  lastLoginAt DateTime? @map("last_login_at")
+  lastLoginIp String?   @map("last_login_ip")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
 
   @@map("admins")
 }
 
 /// 操作日志表
 model OperationLog {
-  id          String   @id @default(uuid())
-  adminId     String?  @map("admin_id")                 // 管理员 ID
-  module      String?                                 // 操作模块
-  action      String?                                 // 操作动作
-  target      String?                                 // 操作对象
-  detail      String?  @db.Text                        // 详情
-  ip          String?                                 // IP 地址
-  userAgent   String?  @map("user_agent")              // User-Agent
-  createdAt   DateTime @default(now()) @map("created_at")
-
-  admin       Admin?   @relation(fields: [adminId], references: [id])
+  id        String   @id @default(uuid())
+  adminId   String?  @map("admin_id")
+  module    String?
+  action    String?
+  target    String?
+  detail    String?
+  ip        String?
+  userAgent String?  @map("user_agent")
+  createdAt DateTime @default(now()) @map("created_at")
 
   @@map("operation_logs")
 }
@@ -424,52 +370,44 @@ model OperationLog {
 /// 系统配置表
 model SystemConfig {
   id          String   @id @default(uuid())
-  key         String   @unique                          // 配置键
-  value       String   @db.Text                         // 配置值
-  type        String   @default("string") @map("value_type") // 值类型
-  group       String   @default("default")              // 配置分组
-  name        String?                                 // 配置名称
-  description String?  @map("description")              // 配置描述
-  sort        Int      @default(0)                    // 排序
-  status      Int      @default(1)                    // 状态
+  key         String   @unique
+  value       String
+  type        String   @default("string") @map("value_type")
+  group       String   @default("default")
+  name        String?
+  description String?  @map("description")
+  sort        Int      @default(0)
+  status      Int      @default(1)
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   @@map("system_configs")
 }
-// ============================================================
-// 合作网点模块
-// ============================================================
 
 /// 合作网点表
 model Outlet {
-  id          String   @id @default(uuid())
-  name        String                                  // 网点名称
-  contact     String                                  // 联系人姓名
-  phone       String   @unique                       // 联系电话（同时作为登录账号）
-  password    String   @map("password")              // 登录密码（bcrypt 加密）
-  province    String?                                 // 所在省份
-  city        String?                                 // 所在城市
-  address     String?                                 // 详细地址
-  // 服务区域：JSON 数组，支持多省/多市
-  // 格式：[{"province":"四川省","city":"成都市"},{"province":"四川省","city":"绵阳市"}]
-  // 空数组表示服务全国（默认成都网点兜底）
-  serviceArea String   @default("[]") @map("service_area")
-  businessLicense String? @map("business_license")     // 营业执照 URL
-  specialPermits  String  @default("[]") @map("special_permits") // 特种证件 URL 数组（JSON）
-  // 微信订阅消息用
-  outletOpenid String?  @map("outlet_openid")             // 网点负责人微信 openid（用于接收订阅消息通知）
-  subscribeMsg Int      @default(1)  @map("subscribe_msg")  // 订阅消息开关：0=关闭 1=开启
-  status      Int      @default(1)                   // 状态：0=停用 1=正常
-  totalOrders Int      @default(0)  @map("total_orders") // 累计处理订单数
-  lastLoginAt DateTime? @map("last_login_at")       // 最后登录时间
-  lastLoginIp String?  @map("last_login_ip")        // 最后登录 IP
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  assignments OrderAssignment[]                        // 分配的订单
-  receipts   DeliveryReceipt[]                        // 交付回执
-  notifications OutletNotification[]               // 网点通知
+  id              String               @id @default(uuid())
+  name            String
+  contact         String
+  phone           String               @unique
+  password        String               @map("password")
+  province        String?
+  city            String?
+  address         String?
+  status          Int                  @default(1)
+  totalOrders     Int                  @default(0) @map("total_orders")
+  lastLoginAt     DateTime?            @map("last_login_at")
+  lastLoginIp     String?              @map("last_login_ip")
+  createdAt       DateTime             @default(now()) @map("created_at")
+  updatedAt       DateTime             @updatedAt @map("updated_at")
+  serviceArea     String               @default("[]") @map("service_area")
+  businessLicense String?              @map("business_license")
+  specialPermits  String               @default("[]") @map("special_permits")
+  outletOpenid    String?              @map("outlet_openid")
+  subscribeMsg    Int                  @default(1) @map("subscribe_msg")
+  receipts        DeliveryReceipt[]
+  assignments     OrderAssignment[]
+  notifications   OutletNotification[]
 
   @@map("outlets")
 }
@@ -478,15 +416,14 @@ model Outlet {
 model OutletNotification {
   id        String   @id @default(uuid())
   outletId  String   @map("outlet_id")
-  title     String                                 // 通知标题
-  content   String                                 // 通知内容
-  type      String   @default("order") @map("type") // 类型：order=新订单 notification=系统通知
-  orderId   String?  @map("order_id")              // 关联订单ID
-  orderNo   String?  @map("order_no")              // 关联订单号
+  title     String
+  content   String
+  type      String   @default("order") @map("type")
+  orderId   String?  @map("order_id")
+  orderNo   String?  @map("order_no")
   isRead    Boolean  @default(false) @map("is_read")
   createdAt DateTime @default(now()) @map("created_at")
-
-  outlet    Outlet    @relation(fields: [outletId], references: [id])
+  outlet    Outlet   @relation(fields: [outletId], references: [id])
 
   @@index([outletId, isRead])
   @@index([outletId, createdAt])
@@ -496,16 +433,15 @@ model OutletNotification {
 /// 订单分配表（总部→网点，一对一）
 model OrderAssignment {
   id          String    @id @default(uuid())
-  orderId     String    @unique @map("order_id")    // 订单 ID（唯一）
-  outletId    String    @map("outlet_id")            // 网点 ID
-  status      Int       @default(1)                   // 状态：1=待接单 2=制作中 3=已完成
+  orderId     String    @unique @map("order_id")
+  outletId    String    @map("outlet_id")
+  status      Int       @default(1)
   statusText  String    @default("待接单") @map("status_text")
-  assignedBy  String?   @map("assigned_by")         // 分配的管理员 ID
-  assignedAt  DateTime  @default(now()) @map("assigned_at") // 分配时间
-  acceptedAt DateTime? @map("accepted_at")         // 网点接单时间
-  completedAt DateTime? @map("completed_at")       // 网点完成时间
-  remark      String?                                 // 分配备注
-
+  assignedBy  String?   @map("assigned_by")
+  assignedAt  DateTime  @default(now()) @map("assigned_at")
+  acceptedAt  DateTime? @map("accepted_at")
+  completedAt DateTime? @map("completed_at")
+  remark      String?
   order       SealOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
   outlet      Outlet    @relation(fields: [outletId], references: [id])
 
@@ -514,77 +450,65 @@ model OrderAssignment {
 
 /// 交付回执表
 model DeliveryReceipt {
-  id          String   @id @default(uuid())
-  orderId     String   @map("order_id")             // 订单 ID
-  outletId    String   @map("outlet_id")            // 上传的网点 ID
-  type        String                                  // 回执类型：certificate=备案证明 / signature=盖章文件 / other=其他
-  url         String                                  // 文件 URL
-  remark      String?                                 // 备注
-  createdAt   DateTime @default(now()) @map("created_at")
-
-  order       SealOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  outlet      Outlet    @relation(fields: [outletId], references: [id])
+  id        String    @id @default(uuid())
+  orderId   String    @map("order_id")
+  outletId  String    @map("outlet_id")
+  type      String
+  url       String
+  remark    String?
+  createdAt DateTime  @default(now()) @map("created_at")
+  order     SealOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  outlet    Outlet    @relation(fields: [outletId], references: [id])
 
   @@map("delivery_receipts")
 }
 
-// ============================================================
-// 个人证件模块
-// ============================================================
-
 /// 个人证件大类表
 model PersonalDocCategory {
-  id        String   @id @default(uuid())
-  name      String                                // 大类名称
-  desc      String?                               // 大类描述
-  color     String?                               // 颜色
-  icon      String?                               // 图标路径
-  sort      Int      @default(0)                 // 排序
-  status    Int      @default(1)                 // 状态
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  items PersonalDocItem[]
+  id        String            @id @default(uuid())
+  name      String
+  desc      String?
+  color     String?
+  icon      String?
+  sort      Int               @default(0)
+  status    Int               @default(1)
+  createdAt DateTime          @default(now()) @map("created_at")
+  updatedAt DateTime          @updatedAt @map("updated_at")
+  items     PersonalDocItem[]
 
   @@map("personal_doc_categories")
 }
 
 /// 个人证件细项表
 model PersonalDocItem {
-  id         String   @id @default(uuid())
-  categoryId String   @map("category_id")
-  name       String                                // 证件名称
-  content    String?  @db.Text                    // 模板内容（占位符 {{name}}、{{date}} 等）
-  desc       String?                               // 描述
-  sort       Int      @default(0)                 // 排序
-  status     Int      @default(1)                 // 状态
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
-
-  category PersonalDocCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  id         String              @id @default(uuid())
+  categoryId String              @map("category_id")
+  name       String
+  content    String?
+  desc       String?
+  sort       Int                 @default(0)
+  status     Int                 @default(1)
+  createdAt  DateTime            @default(now()) @map("created_at")
+  updatedAt  DateTime            @updatedAt @map("updated_at")
+  category   PersonalDocCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
 
   @@map("personal_doc_items")
 }
 
-// ============================================================
-// 问答模块
-// ============================================================
-
 /// 问答表
 model Question {
-  id          String   @id @default(uuid())
-  userId      String?  @map("user_id")                 // 提问用户 ID
-  userName    String   @default("热心用户") @map("user_name") // 显示名称
-  content     String   @db.Text                        // 问题内容
-  images      String[] @map("images")                  // 图片列表
-  module      String   @default("seal_biz") @map("module") // 模块：seal_biz=企业刻章 seal_personal=个人刻章 newspaper=登报
-  status      String   @default("pending") @map("status") // 状态：pending=待审核 approved=已发布 rejected=已驳回
-  replyCount  Int      @default(0) @map("reply_count") // 回复数
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  user        User?    @relation(fields: [userId], references: [id])
-  replies     QuestionReply[]
+  id         String          @id @default(uuid())
+  userId     String?         @map("user_id")
+  userName   String          @default("热心用户") @map("user_name")
+  content    String
+  images     String[]        @map("images")
+  module     String          @default("seal_biz") @map("module")
+  status     String          @default("pending") @map("status")
+  replyCount Int             @default(0) @map("reply_count")
+  createdAt  DateTime        @default(now()) @map("created_at")
+  updatedAt  DateTime        @updatedAt @map("updated_at")
+  replies    QuestionReply[]
+  user       User?           @relation(fields: [userId], references: [id])
 
   @@index([module, status])
   @@index([status, createdAt])
@@ -593,15 +517,14 @@ model Question {
 
 /// 问答回复表
 model QuestionReply {
-  id          String   @id @default(uuid())
-  questionId  String   @map("question_id")              // 关联问题 ID
-  authorType  String   @map("author_type")             // 回复者类型：admin=管理员 outlet=网点 user=用户
-  authorId    String   @map("author_id")                // 回复者 ID
-  authorName  String   @map("author_name")              // 回复者显示名
-  content     String   @db.Text                        // 回复内容
-  createdAt   DateTime @default(now()) @map("created_at")
-
-  question    Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  id         String   @id @default(uuid())
+  questionId String   @map("question_id")
+  authorType String   @map("author_type")
+  authorId   String   @map("author_id")
+  authorName String   @map("author_name")
+  content    String
+  createdAt  DateTime @default(now()) @map("created_at")
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
 
   @@index([questionId])
   @@map("question_replies")
@@ -609,22 +532,21 @@ model QuestionReply {
 
 /// 代理记账套餐配置表
 model BookkeepingPackage {
-  id            String   @id @default(uuid())
-  name          String                            // 套餐名称（小规模全年/一般纳税人半年等）
-  taxpayerType  String   @map("taxpayer_type")      // 纳税人类型：small=小规模 general=一般纳税人
-  cycle         String                             // 服务周期：year=全年 half=半年
-  basePrice     Decimal  @db.Decimal(10, 2) @map("base_price") // 基础价格
-  invoicePrice  Decimal  @db.Decimal(10, 2) @default(0) @map("invoice_price") // 开票附加费
-  socialPrice   Decimal  @db.Decimal(10, 2) @default(0) @map("social_price") // 社保附加费
-  fundPrice     Decimal  @db.Decimal(10, 2) @default(0) @map("fund_price") // 公积金附加费
-  description   String?  @db.Text @map("description") // 套餐描述
-  features      String?  @db.Text @map("features") // 套餐特色（JSON数组）
-  sort          Int      @default(0) @map("sort") // 排序
-  status        Int      @default(1) @map("status") // 状态：0=下架 1=上架
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
+  id           String   @id @default(uuid())
+  name         String
+  taxpayerType String   @map("taxpayer_type")
+  cycle        String
+  basePrice    Decimal  @map("base_price") @db.Decimal(10, 2)
+  invoicePrice Decimal  @default(0) @map("invoice_price") @db.Decimal(10, 2)
+  socialPrice  Decimal  @default(0) @map("social_price") @db.Decimal(10, 2)
+  fundPrice    Decimal  @default(0) @map("fund_price") @db.Decimal(10, 2)
+  description  String?  @map("description")
+  features     String?  @map("features")
+  sort         Int      @default(0) @map("sort")
+  status       Int      @default(1) @map("status")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
 
   @@unique([taxpayerType, cycle])
   @@map("bookkeeping_packages")
 }
-
