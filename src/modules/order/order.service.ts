@@ -1045,6 +1045,7 @@ export class OrderService {
           include: {
             user: { select: { id: true, nickname: true, phone: true } },
             orderItems: true,
+            materials: true,
           },
         },
         outlet: { select: { id: true, name: true, contact: true, phone: true, address: true } },
