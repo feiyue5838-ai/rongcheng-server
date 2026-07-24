@@ -283,4 +283,35 @@ export class BookkeepingService {
       orderId: order.id,
     };
   }
+
+  // ==================== 管理端订单列表 ====================
+
+  /** 代理记账订单列表（管理端） */
+  async getOrders(params: { page: number; pageSize: number; status?: number }) {
+    const { page, pageSize, status } = params;
+    const where: any = { module: 'bookkeeping' };
+    if (status !== undefined) where.status = status;
+
+    const [rows, total] = await Promise.all([
+      this.prisma.sealOrder.findMany({
+        where,
+        include: {
+          user: { select: { id: true, nickname: true, phone: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      this.prisma.sealOrder.count({ where }),
+    ]);
+
+    // 解析 remark 里的参数
+    const list = rows.map(o => {
+      let extra: any = {};
+      try { extra = JSON.parse(o.remark || '{}'); } catch { /* ignore */ }
+      return { ...o, extra };
+    });
+
+    return { rows: list, total, page, pageSize };
+  }
 }

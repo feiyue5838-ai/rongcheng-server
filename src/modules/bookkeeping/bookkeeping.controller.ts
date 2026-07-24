@@ -47,4 +47,20 @@ export class BookkeepingController {
   async getPayParams(@Param('id') id: string, @Request() req: any, @Body() body: { openid?: string }) {
     return this.bookkeepingService.getPayParams(id, req.user.id, body.openid);
   }
+
+  // ==================== 管理端 ====================
+
+  @Get('orders')
+  @ApiOperation({ summary: '代理记账订单列表（管理端）' })
+  async getOrders(
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('status') status?: string,
+  ) {
+    return this.bookkeepingService.getOrders({
+      page: page ? Number(page) : 1,
+      pageSize: pageSize ? Number(pageSize) : 10,
+      status: status !== undefined ? Number(status) : undefined,
+    });
+  }
 }
