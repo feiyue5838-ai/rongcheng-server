@@ -17,6 +17,7 @@ import { NotificationModule } from './modules/notification/notification.module';
 import { DeliveryModule } from './modules/delivery/delivery.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { QuestionModule } from './modules/question/question.module';
+import { AfterSalesModule } from './modules/after-sales/after-sales.module';
 import { BookkeepingModule } from './modules/bookkeeping/bookkeeping.module';
 import { OperationLogInterceptor } from './common/interceptors/operation-log.interceptor';
 
@@ -39,6 +40,7 @@ import { OperationLogInterceptor } from './common/interceptors/operation-log.int
     DeliveryModule,
     DashboardModule,
     QuestionModule,
+    AfterSalesModule,
     BookkeepingModule,
   ],
   providers: [
