@@ -42,8 +42,9 @@ model bookkeeping_packages {
   taxpayer_type String
   cycle         String
   base_price    Decimal  @db.Decimal(10, 2)
-  invoice_price Decimal  @default(0) @db.Decimal(10, 2)
-  social_price  Decimal  @default(0) @db.Decimal(10, 2)
+  invoice_price       Decimal  @default(0) @db.Decimal(10, 2)
+  invoice_price_normal Decimal @default(0) @db.Decimal(10, 2)
+  social_price        Decimal  @default(0) @db.Decimal(10, 2)
   fund_price    Decimal  @default(0) @db.Decimal(10, 2)
   description   String?
   features      String?
