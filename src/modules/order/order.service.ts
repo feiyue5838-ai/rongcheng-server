@@ -939,7 +939,7 @@ export class OrderService {
   async deliverOrder(order_id: string, dto: { express_company: string; express_no: string; receipts: Array<{ type: string; url: string; remark?: string }>; sealImages?: Array<{ url: string; remark?: string }>; remark?: string }, outlet_id: string) {
     const assignment = await this.prisma.order_assignments.findUnique({
       where: { order_id },
-      include: { order: true },
+      include: { seal_orders: true },
     });
     if (!assignment) throw new NotFoundException('订单分配记录不存在');
     if (assignment.outlet_id !== outlet_id) throw new BadRequestException('无权操作此订单');
@@ -1042,7 +1042,7 @@ export class OrderService {
     const assignment = await this.prisma.order_assignments.findUnique({
       where: { order_id },
       include: {
-        order: {
+        seal_orders: {
           include: {
             user: { select: { id: true, nickname: true, phone: true } },
             order_items: true,

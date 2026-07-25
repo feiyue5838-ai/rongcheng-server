@@ -33,7 +33,7 @@ export class QuestionService {
         module: module || 'seal_biz',
         status: 'pending',
       },
-      include: { replies: { orderBy: { created_at: 'asc' } } },
+      include: { question_replies: { orderBy: { created_at: 'asc' } } },
     });
   }
 
@@ -47,7 +47,7 @@ export class QuestionService {
       this.prisma.questions.findMany({
         where,
         include: {
-          replies: { orderBy: { created_at: 'asc' } },
+          question_replies: { orderBy: { created_at: 'asc' } },
         },
         orderBy: { created_at: 'desc' },
         skip: (page - 1) * pageSize,
@@ -66,7 +66,7 @@ export class QuestionService {
   async getDetail(id: string) {
     const question = await this.prisma.questions.findUnique({
       where: { id },
-      include: { replies: { orderBy: { created_at: 'asc' } } },
+      include: { question_replies: { orderBy: { created_at: 'asc' } } },
     });
     if (!question) throw new NotFoundException('问题不存在');
     return question;
@@ -90,7 +90,7 @@ export class QuestionService {
     const [questions, total] = await Promise.all([
       this.prisma.questions.findMany({
         where,
-        include: { replies: { orderBy: { created_at: 'asc' } } },
+        include: { question_replies: { orderBy: { created_at: 'asc' } } },
         orderBy: { created_at: 'desc' },
         skip: (page - 1) * pageSize,
         take: Number(pageSize),

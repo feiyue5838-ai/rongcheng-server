@@ -7,6 +7,7 @@ export class ConfigService {
   constructor(private prisma: PrismaService) {}
 
   async getConfig(key: string) {
+    if (!key) return null;
     const config = await this.prisma.system_configs.findUnique({ where: { key } });
     return config ? JSON.parse(config.value) : null;
   }

@@ -89,14 +89,24 @@ export class AdminService {
     const [logs, total] = await Promise.all([
       this.prisma.operation_logs.findMany({
         where,
-        include: { admin: { select: { id: true, username: true, nickname: true } } },
         orderBy: { created_at: 'desc' },
         skip: (page - 1) * pageSize,
         take: Number(pageSize),
       }),
       this.prisma.operation_logs.count({ where }),
     ]);
-    return { list: logs, pagination: { page: Number(page), pageSize: Number(pageSize), total, totalPages: Math.ceil(total / Number(pageSize)) } };
+    // 单独查 admins 补回 admin 信息（operation_logs.admin_id 无 Prisma 关系）
+    const adminIds = [...new Set(logs.map((l: any) => l.admin_id).filter(Boolean))];
+    let adminMap: Record<string, any> = {};
+    if (adminIds.length) {
+      const admins = await this.prisma.admins.findMany({
+        where: { id: { in: adminIds } },
+        select: { id: true, username: true, nickname: true },
+      });
+      adminMap = Object.fromEntries(admins.map(a => [a.id, a]));
+    }
+    const list = logs.map((l: any) => ({ ...l, admin: adminMap[l.admin_id] || null }));
+    return { list, pagination: { page: Number(page), pageSize: Number(pageSize), total, totalPages: Math.ceil(total / Number(pageSize)) } };
   }
 
   /** 系统总览数据 */

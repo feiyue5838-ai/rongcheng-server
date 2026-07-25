@@ -41,7 +41,7 @@ export class SealService {
 
     return this.prisma.seals.findMany({
       where,
-      include: { category: true },
+      include: { seal_categories: true },
       orderBy: { sort: 'asc' },
     });
   }
@@ -81,7 +81,7 @@ export class SealService {
     const sceneSeals = await this.prisma.seal_scene_seals.findMany({
       where: { scene_id },
       orderBy: { sort: 'asc' },
-      include: { seal: { include: { category: true } } },
+      include: { seal: { include: { seal_categories: true } } },
     });
 
     // 获取该场景关联的套餐（按 sort 排序）
@@ -98,7 +98,7 @@ export class SealService {
       scenePackages.map(async (sp) => {
         const seals = await this.prisma.seals.findMany({
           where: { id: { in: sp.package.seal_ids } },
-          include: { category: true },
+          include: { seal_categories: true },
         });
         // 显示排序优先用关联表 sp.sort；未设置时回退到套餐自身 package.sort
         return { ...sp.package, seals, sort: sp.sort || sp.package.sort };
@@ -108,7 +108,7 @@ export class SealService {
     return {
       scene,
       // 显示排序优先用关联表 sf.sort；未设置（默认 0）时回退到印章自身 seal.sort，使管理端排序字段生效
-      seals: sceneSeals.map((sf) => ({ ...sf.seal, category: sf.seal.category, sort: sf.sort || sf.seal.sort })),
+      seals: sceneSeals.map((sf) => ({ ...sf.seal, seal_categories: sf.seal.seal_categories, sort: sf.sort || sf.seal.sort })),
       packages,
     };
   }

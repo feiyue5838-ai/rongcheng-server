@@ -39,7 +39,7 @@ export class ReviewService {
       },
       include: {
         user: { select: { nickname: true, avatar: true } },
-        order: { select: { order_no: true, type: true } },
+        seal_orders: { select: { order_no: true, type: true } },
       },
     });
   }
@@ -52,7 +52,7 @@ export class ReviewService {
         where: { user_id },
         include: {
           user: { select: { nickname: true, avatar: true } },
-          order: { select: { order_no: true, type: true } },
+          seal_orders: { select: { order_no: true, type: true } },
         },
         orderBy: { created_at: 'desc' },
         skip: (page - 1) * pageSize,
@@ -77,7 +77,7 @@ export class ReviewService {
         where,
         include: {
           user: { select: { nickname: true, avatar: true } },
-          order: { select: { order_no: true, type: true } },
+          seal_orders: { select: { order_no: true, type: true } },
         },
         orderBy: { created_at: 'desc' },
         skip: (page - 1) * pageSize,
@@ -111,7 +111,7 @@ export class ReviewService {
     if (keyword) {
       where.OR = [
         { content: { contains: keyword } },
-        { order: { order_no: { contains: keyword } } },
+        { seal_orders: { order_no: { contains: keyword } } },
       ];
     }
 
@@ -120,7 +120,7 @@ export class ReviewService {
         where,
         include: {
           user: { select: { nickname: true, phone: true, avatar: true } },
-          order: { select: { order_no: true, type: true } },
+          seal_orders: { select: { order_no: true, type: true } },
         },
         orderBy: { created_at: 'desc' },
         skip: (page - 1) * pageSize,

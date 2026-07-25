@@ -20,7 +20,7 @@ export class NewspaperService {
     else if (city) where.city = city;
     if (level) where.level = Number(level);
     if (category_id) where.category_id = category_id;
-    return this.prisma.newspapers.findMany({ where, include: { category: true }, orderBy: { sort: 'asc' } });
+    return this.prisma.newspapers.findMany({ where, include: { newspaper_categories: true }, orderBy: { sort: 'asc' } });
   }
 
   async getTemplates(newspaper_id?: string, category_id?: string, businessType?: string) {
@@ -28,10 +28,11 @@ export class NewspaperService {
     if (newspaper_id) where.newspaper_id = newspaper_id;
     if (category_id) where.category_id = category_id;
     if (businessType) where.businessType = businessType;
-    return this.prisma.newspaper_templates.findMany({ where, include: { newspaper: true, category: true }, orderBy: { sort: 'asc' } });
+    return this.prisma.newspaper_templates.findMany({ where, include: { newspaper: true, newspaper_categories: true }, orderBy: { sort: 'asc' } });
   }
 
   async calculatePrice(newspaper_id: string, contentLength: number, issueCount = 1, copyCount = 1) {
+    if (!newspaper_id) return null;
     const newspaper = await this.prisma.newspapers.findUnique({ where: { id: newspaper_id } });
     if (!newspaper) return null;
     const words = Math.max(contentLength, newspaper.min_words);
@@ -107,11 +108,11 @@ export class NewspaperService {
   async getPersonalDocs() {
     const categories = await this.prisma.personal_doc_categories.findMany({
       where: { status: 1 }, orderBy: { sort: 'asc' },
-      include: { items: { where: { status: 1 }, orderBy: { sort: 'asc' } } },
+      include: { personal_doc_items: { where: { status: 1 }, orderBy: { sort: 'asc' } } },
     });
     return categories.map(cat => ({
-      id: cat.id, name: cat.name, desc: cat.desc, color: cat.color, iconSvg: cat.icon, total: cat.items.length,
-      docs: cat.items.map(i => ({ id: i.id, name: i.name, content: i.content, desc: i.desc })),
+      id: cat.id, name: cat.name, desc: cat.desc, color: cat.color, iconSvg: cat.icon, total: cat.personal_doc_items.length,
+      docs: cat.personal_doc_items.map(i => ({ id: i.id, name: i.name, content: i.content, desc: i.desc })),
     }));
   }
   async getPersonalDocCategories() {
