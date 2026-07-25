@@ -8,7 +8,7 @@ datasource db {
 }
 
 model addresses {
-  id         String   @id
+  id         String   @id @default(uuid())
   user_id    String
   contact    String
   phone      String
@@ -18,12 +18,12 @@ model addresses {
   detail     String
   is_default Boolean  @default(false)
   created_at DateTime @default(now())
-  updated_at DateTime
+  updated_at DateTime @updatedAt
   user      users    @relation(fields: [user_id], references: [id], onDelete: Cascade)
 }
 
 model admins {
-  id            String    @id
+  id            String    @id @default(uuid())
   username      String    @unique
   password      String
   nickname      String?
@@ -33,11 +33,11 @@ model admins {
   last_login_at DateTime?
   last_login_ip String?
   created_at    DateTime  @default(now())
-  updated_at    DateTime
+  updated_at    DateTime @updatedAt
 }
 
 model bookkeeping_packages {
-  id            String   @id
+  id            String   @id @default(uuid())
   name          String
   taxpayer_type String
   cycle         String
@@ -51,13 +51,13 @@ model bookkeeping_packages {
   sort          Int      @default(0)
   status        Int      @default(1)
   created_at    DateTime @default(now())
-  updated_at    DateTime
+  updated_at    DateTime @updatedAt
 
   @@unique([taxpayer_type, cycle])
 }
 
 model delivery_receipts {
-  id          String      @id
+  id          String      @id @default(uuid())
   order_id    String
   outlet_id   String
   type        String
@@ -69,7 +69,7 @@ model delivery_receipts {
 }
 
 model invoices {
-  id           String   @id
+  id           String   @id @default(uuid())
   user_id      String
   type         Int      @default(1)
   title        String
@@ -80,36 +80,36 @@ model invoices {
   phone        String?
   email        String?
   created_at   DateTime @default(now())
-  updated_at   DateTime
+  updated_at   DateTime @updatedAt
   user        users    @relation(fields: [user_id], references: [id], onDelete: Cascade)
 }
 
 model materials {
-  id          String      @id
+  id          String      @id @default(uuid())
   order_id    String
   type        String
   url         String
   status      Int         @default(0)
   remark      String?
   created_at  DateTime    @default(now())
-  updated_at  DateTime
+  updated_at  DateTime @updatedAt
   seal_orders seal_orders @relation(fields: [order_id], references: [id], onDelete: Cascade)
 }
 
 model newspaper_categories {
-  id                  String                @id
+  id                  String                @id @default(uuid())
   name                String
   icon                String?
   sort                Int                   @default(0)
   status              Int                   @default(1)
   created_at          DateTime              @default(now())
-  updated_at          DateTime
+  updated_at          DateTime @updatedAt
   newspaper_templates newspaper_templates[]
   newspapers          newspapers[]
 }
 
 model newspaper_templates {
-  id                   String               @id
+  id                   String               @id @default(uuid())
   newspaper_id         String?
   category_id          String
   name                 String
@@ -118,7 +118,7 @@ model newspaper_templates {
   sort                 Int                  @default(0)
   status               Int                  @default(1)
   created_at           DateTime             @default(now())
-  updated_at           DateTime
+  updated_at           DateTime @updatedAt
   businessType         String?
   color                String?
   desc                 String?
@@ -128,7 +128,7 @@ model newspaper_templates {
 }
 
 model newspapers {
-  id                   String                @id
+  id                   String                @id @default(uuid())
   name                 String
   alias                String?
   publisher            String?
@@ -143,7 +143,7 @@ model newspapers {
   status               Int                   @default(1)
   sort                 Int                   @default(0)
   created_at           DateTime              @default(now())
-  updated_at           DateTime
+  updated_at           DateTime @updatedAt
   category_id          String?
   city_code            String?
   province_code        String?
@@ -153,7 +153,7 @@ model newspapers {
 }
 
 model operation_logs {
-  id         String   @id
+  id         String   @id @default(uuid())
   admin_id   String?
   module     String?
   action     String?
@@ -165,7 +165,7 @@ model operation_logs {
 }
 
 model order_assignments {
-  id           String      @id
+  id           String      @id @default(uuid())
   order_id     String      @unique
   outlet_id    String
   status       Int         @default(1)
@@ -180,7 +180,7 @@ model order_assignments {
 }
 
 model order_items {
-  id            String         @id
+  id            String         @id @default(uuid())
   order_id      String
   item_type     String
   seal_id       String?
@@ -196,7 +196,7 @@ model order_items {
 }
 
 model outlet_notifications {
-  id         String   @id
+  id         String   @id @default(uuid())
   outlet_id  String
   title      String
   content    String
@@ -212,7 +212,7 @@ model outlet_notifications {
 }
 
 model outlets {
-  id                   String                 @id
+  id                   String                 @id @default(uuid())
   name                 String
   contact              String
   phone                String                 @unique
@@ -225,7 +225,7 @@ model outlets {
   last_login_at        DateTime?
   last_login_ip        String?
   created_at           DateTime               @default(now())
-  updated_at           DateTime
+  updated_at           DateTime @updatedAt
   service_area         String                 @default("[]")
   business_license     String?
   special_permits      String                 @default("[]")
@@ -237,7 +237,7 @@ model outlets {
 }
 
 model personal_doc_categories {
-  id                 String               @id
+  id                 String               @id @default(uuid())
   name               String
   desc               String?
   color              String?
@@ -245,12 +245,12 @@ model personal_doc_categories {
   sort               Int                  @default(0)
   status             Int                  @default(1)
   created_at         DateTime             @default(now())
-  updated_at         DateTime
+  updated_at         DateTime @updatedAt
   personal_doc_items personal_doc_items[]
 }
 
 model personal_doc_items {
-  id                      String                  @id
+  id                      String                  @id @default(uuid())
   category_id             String
   name                    String
   content                 String?
@@ -258,12 +258,12 @@ model personal_doc_items {
   sort                    Int                     @default(0)
   status                  Int                     @default(1)
   created_at              DateTime                @default(now())
-  updated_at              DateTime
+  updated_at              DateTime @updatedAt
   personal_doc_categories personal_doc_categories @relation(fields: [category_id], references: [id], onDelete: Cascade)
 }
 
 model question_replies {
-  id          String    @id
+  id          String    @id @default(uuid())
   question_id String
   author_type String
   author_id   String
@@ -276,7 +276,7 @@ model question_replies {
 }
 
 model questions {
-  id               String             @id
+  id               String             @id @default(uuid())
   user_id          String?
   user_name        String             @default("热心用户")
   content          String
@@ -285,7 +285,7 @@ model questions {
   status           String             @default("pending")
   reply_count      Int                @default(0)
   created_at       DateTime           @default(now())
-  updated_at       DateTime
+  updated_at       DateTime @updatedAt
   question_replies question_replies[]
   user            users?             @relation(fields: [user_id], references: [id])
 
@@ -294,7 +294,7 @@ model questions {
 }
 
 model reviews {
-  id          String      @id
+  id          String      @id @default(uuid())
   order_id    String
   user_id     String
   module      String      @default("seal")
@@ -304,25 +304,25 @@ model reviews {
   reply       String?
   reply_at    DateTime?
   created_at  DateTime    @default(now())
-  updated_at  DateTime
+  updated_at  DateTime @updatedAt
   status      String      @default("pending")
   seal_orders seal_orders @relation(fields: [order_id], references: [id], onDelete: Cascade)
   user       users       @relation(fields: [user_id], references: [id])
 }
 
 model seal_categories {
-  id         String   @id
+  id         String   @id @default(uuid())
   name       String
   icon       String?
   sort       Int      @default(0)
   status     Int      @default(1)
   created_at DateTime @default(now())
-  updated_at DateTime
+  updated_at DateTime @updatedAt
   seals      seals[]
 }
 
 model seal_orders {
-  id                    String              @id
+  id                    String              @id @default(uuid())
   order_no              String              @unique
   user_id               String
   module                String              @default("seal")
@@ -351,7 +351,7 @@ model seal_orders {
   processed_by          String?
   processed_at          DateTime?
   created_at            DateTime            @default(now())
-  updated_at            DateTime
+  updated_at            DateTime @updatedAt
   assignment_status     Int                 @default(0)
   delivered_at          DateTime?
   delivery_status       Int                 @default(0)
@@ -370,7 +370,7 @@ model seal_orders {
 }
 
 model seal_packages {
-  id                  String                @id
+  id                  String                @id @default(uuid())
   name                String
   description         String?
   badge               String?
@@ -379,7 +379,7 @@ model seal_packages {
   status              Int                   @default(1)
   sort                Int                   @default(0)
   created_at          DateTime              @default(now())
-  updated_at          DateTime
+  updated_at          DateTime @updatedAt
   images              String[]
   order_items         order_items[]
   seal_scene_packages seal_scene_packages[]
@@ -408,7 +408,7 @@ model seal_scene_seals {
 }
 
 model seal_scenes {
-  id                  String                @id
+  id                  String                @id @default(uuid())
   name                String
   description         String?
   icon                String?
@@ -418,13 +418,13 @@ model seal_scenes {
   status              Int                   @default(1)
   sceneType           String                @default("scene")
   created_at          DateTime              @default(now())
-  updated_at          DateTime
+  updated_at          DateTime @updatedAt
   seal_scene_packages seal_scene_packages[]
   seal_scene_seals    seal_scene_seals[]
 }
 
 model seals {
-  id               String             @id
+  id               String             @id @default(uuid())
   category_id      String?
   name             String
   description      String?
@@ -433,14 +433,14 @@ model seals {
   status           Int                @default(1)
   sort             Int                @default(0)
   created_at       DateTime           @default(now())
-  updated_at       DateTime
+  updated_at       DateTime @updatedAt
   order_items      order_items[]
   seal_scene_seals seal_scene_seals[]
   seal_categories  seal_categories?   @relation(fields: [category_id], references: [id])
 }
 
 model system_configs {
-  id          String   @id
+  id          String   @id @default(uuid())
   key         String   @unique
   value       String
   value_type  String   @default("string")
@@ -450,11 +450,11 @@ model system_configs {
   sort        Int      @default(0)
   status      Int      @default(1)
   created_at  DateTime @default(now())
-  updated_at  DateTime
+  updated_at  DateTime @updatedAt
 }
 
 model users {
-  id            String        @id
+  id            String        @id @default(uuid())
   openid        String?       @unique
   unionid       String?       @unique
   nickname      String?
@@ -466,7 +466,7 @@ model users {
   last_login_at DateTime?
   last_login_ip String?
   created_at    DateTime      @default(now())
-  updated_at    DateTime
+  updated_at    DateTime @updatedAt
   addresses     addresses[]
   invoices      invoices[]
   questions     questions[]

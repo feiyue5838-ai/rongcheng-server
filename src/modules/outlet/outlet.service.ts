@@ -2,7 +2,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import * as bcrypt from 'bcryptjs';
-import { randomUUID } from 'crypto';
 import { REGION_MAP, provinceToRegion } from '../../common/region';
 
 @Injectable()
@@ -93,9 +92,7 @@ export class StoreService {
 
     const Outlet = await this.prisma.outlets.create({
       data: {
-        id: randomUUID(),
-        updated_at: new Date(),
-        ...data,
+                ...data,
         business_license: data.business_license || null,
         special_permits: JSON.stringify(data.special_permits || []),
         password: hashed,
