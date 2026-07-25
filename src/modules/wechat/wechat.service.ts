@@ -109,13 +109,13 @@ export class WechatService {
   /**
    * 发送订阅消息给网点负责人
    * @param openid 网点负责人微信 openid
-   * @param orderNo 订单号
+   * @param order_no 订单号
    * @param orderType 订单类型描述（如 "刻章-公司印章"）
    * @param outletName 分配到的网点名称
    */
   async sendNewOrderSubscribeMessage(
     openid: string,
-    orderNo: string,
+    order_no: string,
     orderType: string,
     outletName: string,
   ): Promise<void> {
@@ -132,7 +132,7 @@ export class WechatService {
         page: 'pages/notification/index',
         data: {
           thing1: { value: '您有一笔新订单待处理' },
-          character_string2: { value: orderNo },
+          character_string2: { value: order_no },
           thing3: { value: orderType.slice(0, 20) },
           thing4: { value: outletName.slice(0, 20) },
         },
@@ -194,7 +194,7 @@ export class WechatService {
    */
   async refundOrder(params: {
     outTradeNo: string;
-    transactionId?: string;
+    transaction_id?: string;
     totalFee: number;   // 单位：分
     refundFee: number;  // 单位：分
     reason?: string;
@@ -215,7 +215,7 @@ export class WechatService {
       },
       reason: params.reason || '客户申请退款',
     };
-    if (params.transactionId) bodyObj.transaction_id = params.transactionId;
+    if (params.transaction_id) bodyObj.transaction_id = params.transaction_id;
 
     const body = JSON.stringify(bodyObj);
     const authorization = this.buildRefundAuthorization('POST', urlPath, body);
@@ -266,7 +266,7 @@ export class WechatService {
    * 以下为兼容开发环境的简化解析（未验签），接入真实商户后务必补全验签，
    * 否则存在伪造回调风险。
    */
-  async handlePayNotify(notifyData: any, headers?: any): Promise<{ orderNo: string; transactionId: string } | null> {
+  async handlePayNotify(notifyData: any, headers?: any): Promise<{ order_no: string; transaction_id: string } | null> {
     // V3 格式：{ resource: { ciphertext, ... } }
     if (notifyData?.resource?.ciphertext) {
       if (!this.isPayConfigured()) {
@@ -275,14 +275,14 @@ export class WechatService {
       // TODO(生产): 用 WECHAT_API_V3_KEY 解密 resource.ciphertext 并校验签名，例如：
       // const plain = this._decryptResource(notifyData.resource);
       // if (plain.trade_state !== 'SUCCESS') return null;
-      // return { orderNo: plain.out_trade_no, transactionId: plain.transaction_id };
+      // return { order_no: plain.out_trade_no, transaction_id: plain.transaction_id };
       return null;
     }
 
     // 兼容 V2 / 简化字段
     const { out_trade_no, transaction_id } = notifyData || {};
     if (!out_trade_no) return null;
-    return { orderNo: out_trade_no, transactionId: transaction_id };
+    return { order_no: out_trade_no, transaction_id: transaction_id };
   }
 
   /**
@@ -309,7 +309,7 @@ export class WechatService {
    * 生产环境：必须用 apiV3Key 对 ciphertext 做 AES-256-GCM 解密后验签。
    * 当前实现：开发环境跳过解密，直接从 plaintext 字段读取（方便测试）。
    */
-  async handleRefundNotify(notifyData: any): Promise<{ refundId: string; status: string; orderId?: string } | null> {
+  async handleRefundNotify(notifyData: any): Promise<{ refundId: string; status: string; order_id?: string } | null> {
     try {
       let refundStatus: string;
       let outTradeNo: string;
@@ -348,13 +348,13 @@ export class WechatService {
 
       // 退款状态 SUCCESS → 置订单为已退款（9）
       if (refundStatus === 'SUCCESS') {
-        const order = await this.prisma.sealOrder.findFirst({ where: { orderNo: outTradeNo } });
+        const order = await this.prisma.seal_orders.findFirst({ where: { order_no: outTradeNo } });
         if (order && order.status === 8) {
-          await this.prisma.sealOrder.update({
+          await this.prisma.seal_orders.update({
             where: { id: order.id },
             data: {
               status: 9,
-              statusText: '已退款',
+              status_text: '已退款',
               remark: (() => {
                 try {
                   const r = JSON.parse(order.remark || '{}');
@@ -367,13 +367,13 @@ export class WechatService {
             },
           });
         }
-        return { refundId, status: 'SUCCESS', orderId: order?.id };
+        return { refundId, status: 'SUCCESS', order_id: order?.id };
       }
 
       // 退款失败：记录日志，保留 status=8 供管理员人工处理
       if (refundStatus === 'FAIL') {
         console.error(`[WechatService] 退款失败 outTradeNo=${outTradeNo} outRefundNo=${outRefundNo} reason=${notifyData?.refund_desc || '未知'}`);
-        const order = await this.prisma.sealOrder.findFirst({ where: { orderNo: outTradeNo } });
+        const order = await this.prisma.seal_orders.findFirst({ where: { order_no: outTradeNo } });
         if (order) {
           const existingRemark = (() => { try { return JSON.parse(order.remark || '{}'); } catch { return {}; } })();
           existingRemark.refundFailed = {
@@ -381,12 +381,12 @@ export class WechatService {
             reason: notifyData?.refund_desc,
             failedAt: new Date().toISOString(),
           };
-          await this.prisma.sealOrder.update({
+          await this.prisma.seal_orders.update({
             where: { id: order.id },
             data: { remark: JSON.stringify(existingRemark) },
           });
         }
-        return { refundId: outRefundNo, status: 'FAIL', orderId: order?.id };
+        return { refundId: outRefundNo, status: 'FAIL', order_id: order?.id };
       }
 
       return { refundId, status: refundStatus };

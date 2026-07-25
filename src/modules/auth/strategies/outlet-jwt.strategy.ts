@@ -23,7 +23,7 @@ export class StoreJwtStrategy extends PassportStrategy(Strategy, 'Outlet-jwt') {
       throw new UnauthorizedException('无效的网点令牌');
     }
 
-    const Outlet = await this.prisma.outlet.findUnique({ where: { id: payload.sub } });
+    const Outlet = await this.prisma.outlets.findUnique({ where: { id: payload.sub } });
     if (!Outlet || Outlet.status === 0) {
       throw new UnauthorizedException('网点不存在或已被禁用');
     }

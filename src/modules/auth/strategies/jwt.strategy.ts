@@ -27,7 +27,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     if (payload.type !== 'user') {
       throw new UnauthorizedException('无效的访问令牌');
     }
-    const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
+    const user = await this.prisma.users.findUnique({ where: { id: payload.sub } });
     if (!user || user.status === 0) {
       throw new UnauthorizedException('用户不存在或已被禁用');
     }

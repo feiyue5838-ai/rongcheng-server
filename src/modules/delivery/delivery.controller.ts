@@ -23,32 +23,32 @@ export class DeliveryReceiptController {
   @ApiBearerAuth()
   @ApiOperation({ summary: '回执列表（用户端）' })
   async findByUser(
-    @Query('orderId') orderId: string,
+    @Query('order_id') order_id: string,
     @Request() req: any,
   ) {
-    if (!orderId) {
+    if (!order_id) {
       return { list: [] };
     }
 
     // 校验订单归属（确保用户只能查看自己订单的回执）
-    const order = await this.prisma.sealOrder.findFirst({
-      where: { id: orderId, userId: req.user.id },
+    const order = await this.prisma.seal_orders.findFirst({
+      where: { id: order_id, user_id: req.user.id },
       select: { id: true },
     });
     if (!order) {
       return { list: [] };
     }
 
-    const list = await this.prisma.deliveryReceipt.findMany({
-      where: { orderId },
-      orderBy: { createdAt: 'desc' },
+    const list = await this.prisma.delivery_receipts.findMany({
+      where: { order_id },
+      orderBy: { created_at: 'desc' },
       select: {
         id: true,
-        orderId: true,
+        order_id: true,
         type: true,
         url: true,
         remark: true,
-        createdAt: true,
+        created_at: true,
       },
     });
 
@@ -62,8 +62,8 @@ export class DeliveryReceiptController {
   async findAll(
     @Query('page') page?: number,
     @Query('pageSize') pageSize?: number,
-    @Query('outletId') outletId?: string,
-    @Query('orderId') orderId?: string,
+    @Query('outlet_id') outlet_id?: string,
+    @Query('order_id') order_id?: string,
     @Query('keyword') keyword?: string,
     @Query('type') type?: string,
     @Query('region') region?: string,
@@ -75,9 +75,9 @@ export class DeliveryReceiptController {
     const pageNum = Number(page) || 1;
     const pageSizeNum = Number(pageSize) || 20;
 
-    // outlet 筛选：先把满足地域条件的 outletId 找出来
+    // outlet 筛选：先把满足地域条件的 outlet_id 找出来
     const outletWhere: any = {};
-    if (outletId) outletWhere.id = outletId;
+    if (outlet_id) outletWhere.id = outlet_id;
     if (province) outletWhere.province = province;
     if (city) outletWhere.city = city;
     if (region) {
@@ -86,7 +86,7 @@ export class DeliveryReceiptController {
     }
     let outletIds: string[] | undefined;
     if (Object.keys(outletWhere).length > 0) {
-      const ids = await this.prisma.outlet.findMany({ where: outletWhere, select: { id: true } });
+      const ids = await this.prisma.outlets.findMany({ where: outletWhere, select: { id: true } });
       outletIds = ids.map(o => o.id);
       // 地域筛选下没匹配到网点 → 直接返回空
       if (outletIds.length === 0) {
@@ -95,48 +95,48 @@ export class DeliveryReceiptController {
     }
 
     const where: any = {};
-    if (outletIds) where.outletId = { in: outletIds };
-    if (orderId) where.orderId = orderId;
+    if (outletIds) where.outlet_id = { in: outletIds };
+    if (order_id) where.order_id = order_id;
     if (type) where.type = type;
     if (startDate || endDate) {
-      where.createdAt = {};
-      if (startDate) where.createdAt.gte = new Date(`${startDate}T00:00:00.000Z`);
-      if (endDate) where.createdAt.lte = new Date(`${endDate}T23:59:59.999Z`);
+      where.created_at = {};
+      if (startDate) where.created_at.gte = new Date(`${startDate}T00:00:00.000Z`);
+      if (endDate) where.created_at.lte = new Date(`${endDate}T23:59:59.999Z`);
     }
     if (keyword) {
       where.order = {
         OR: [
-          { orderNo: { contains: keyword, mode: 'insensitive' } },
-          { companyName: { contains: keyword, mode: 'insensitive' } },
+          { order_no: { contains: keyword, mode: 'insensitive' } },
+          { company_name: { contains: keyword, mode: 'insensitive' } },
         ],
       };
     }
 
     const [list, total] = await Promise.all([
-      this.prisma.deliveryReceipt.findMany({
+      this.prisma.delivery_receipts.findMany({
         where,
         skip: (pageNum - 1) * pageSizeNum,
         take: pageSizeNum,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { created_at: 'desc' },
         include: { outlet: { select: { id: true, name: true, contact: true, phone: true, province: true, city: true } },
           order: {
             select: {
               id: true,
-              orderNo: true,
-              companyName: true,
+              order_no: true,
+              company_name: true,
               type: true,
               status: true,
-              statusText: true,
-              deliveredAt: true,
-              updatedAt: true,
-              orderItems: {
-                select: { id: true, name: true, itemType: true, image: true },
+              status_text: true,
+              delivered_at: true,
+              updated_at: true,
+              order_items: {
+                select: { id: true, name: true, item_type: true, image: true },
               },
             },
           },
         },
       }),
-      this.prisma.deliveryReceipt.count({ where }),
+      this.prisma.delivery_receipts.count({ where }),
     ]);
 
     // 给每条回执补 outlet.region 派生字段
@@ -160,22 +160,22 @@ export class DeliveryReceiptController {
   @Log('快递', '创建快递单')
   async create(
     @UploadedFile() file: Express.Multer.File,
-    @Body('orderId') orderId: string,
+    @Body('order_id') order_id: string,
     @Body('type') type: string,
     @Body('remark') remark: string,
     @Request() req: any,
   ) {
     if (!file) throw new BadRequestException('请上传回执图片');
-    if (!orderId) throw new BadRequestException('缺少订单 ID');
+    if (!order_id) throw new BadRequestException('缺少订单 ID');
 
-    const outletId = req.user.id;
+    const outlet_id = req.user.id;
 
     // 上传图片
     const url = await this.uploadService.uploadFile(file, 'receipts');
 
     // 查询订单（SealOrder 表存刻章+登报，module 字段区分）
-    const order = await this.prisma.sealOrder.findUnique({
-      where: { id: orderId },
+    const order = await this.prisma.seal_orders.findUnique({
+      where: { id: order_id },
       select: { id: true, module: true },
     });
 
@@ -184,10 +184,10 @@ export class DeliveryReceiptController {
     }
 
     // 创建回执记录
-    const receipt = await this.prisma.deliveryReceipt.create({
+    const receipt = await this.prisma.delivery_receipts.create({
       data: {
-        orderId,
-        outletId,
+        order_id,
+        outlet_id,
         type: type || 'certificate',
         url,
         remark,
@@ -196,16 +196,16 @@ export class DeliveryReceiptController {
     });
 
     // 更新订单状态 → 已发货
-    await this.prisma.sealOrder.update({
-      where: { id: orderId },
-      data: { status: 4, statusText: '已发货' },
+    await this.prisma.seal_orders.update({
+      where: { id: order_id },
+      data: { status: 4, status_text: '已发货' },
     });
 
     // 刻章订单：更新分配状态 → 已完成（登报订单无 orderAssignment）
     if (order.module === 'seal') {
-      await this.prisma.orderAssignment.update({
-        where: { orderId },
-        data: { status: 3, statusText: '已完成', completedAt: new Date() },
+      await this.prisma.order_assignments.update({
+        where: { order_id },
+        data: { status: 3, status_text: '已完成', completed_at: new Date() },
       });
     }
 
@@ -217,24 +217,24 @@ export class DeliveryReceiptController {
   @ApiBearerAuth()
   @ApiOperation({ summary: '回执列表（网点端）' })
   async findAllByOutlet(
-    @Query('orderId') orderId: string,
+    @Query('order_id') order_id: string,
     @Request() req: any,
   ) {
-    const outletId = req.user.id;
-    const where: any = { outletId };
-    if (orderId) where.orderId = orderId;
+    const outlet_id = req.user.id;
+    const where: any = { outlet_id };
+    if (order_id) where.order_id = order_id;
 
-    const list = await this.prisma.deliveryReceipt.findMany({
+    const list = await this.prisma.delivery_receipts.findMany({
       where,
-      orderBy: { createdAt: 'desc' },
+      orderBy: { created_at: 'desc' },
       select: {
         id: true,
-        orderId: true,
-        outletId: true,
+        order_id: true,
+        outlet_id: true,
         type: true,
         url: true,
         remark: true,
-        createdAt: true,
+        created_at: true,
       },
     });
 
@@ -246,7 +246,7 @@ export class DeliveryReceiptController {
   @ApiBearerAuth()
   @ApiOperation({ summary: '回执详情（用户端）' })
   async findOne(@Param('id') id: string) {
-    const receipt = await this.prisma.deliveryReceipt.findUnique({ where: { id } });
+    const receipt = await this.prisma.delivery_receipts.findUnique({ where: { id } });
     return receipt;
   }
 }

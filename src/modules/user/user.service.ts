@@ -7,68 +7,68 @@ export class UserService {
   constructor(private prisma: PrismaService) {}
 
   /** 获取当前用户信息 */
-  async getProfile(userId: string) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+  async getProfile(user_id: string) {
+    const user = await this.prisma.users.findUnique({ where: { id: user_id } });
     if (!user) throw new NotFoundException('用户不存在');
     return user;
   }
 
   /** 更新用户信息 */
-  async updateProfile(userId: string, dto: any) {
-    return this.prisma.user.update({ where: { id: userId }, data: dto });
+  async updateProfile(user_id: string, dto: any) {
+    return this.prisma.users.update({ where: { id: user_id }, data: dto });
   }
 
   /** 获取收货地址列表 */
-  async getAddresses(userId: string) {
-    return this.prisma.address.findMany({
-      where: { userId },
-      orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+  async getAddresses(user_id: string) {
+    return this.prisma.addresses.findMany({
+      where: { user_id },
+      orderBy: [{ is_default: 'desc' }, { created_at: 'asc' }],
     });
   }
 
   /** 添加收货地址 */
-  async addAddress(userId: string, dto: any) {
+  async addAddress(user_id: string, dto: any) {
     // 如果设为默认，先取消其他默认
-    if (dto.isDefault) {
-      await this.prisma.address.updateMany({
-        where: { userId },
-        data: { isDefault: false },
+    if (dto.is_default) {
+      await this.prisma.addresses.updateMany({
+        where: { user_id },
+        data: { is_default: false },
       });
     }
-    return this.prisma.address.create({ data: { ...dto, userId } });
+    return this.prisma.addresses.create({ data: { ...dto, user_id } });
   }
 
   /** 更新收货地址 */
-  async updateAddress(userId: string, addressId: string, dto: any) {
-    const address = await this.prisma.address.findFirst({ where: { id: addressId, userId } });
+  async updateAddress(user_id: string, address_id: string, dto: any) {
+    const address = await this.prisma.addresses.findFirst({ where: { id: address_id, user_id } });
     if (!address) throw new NotFoundException('地址不存在');
 
-    if (dto.isDefault) {
-      await this.prisma.address.updateMany({
-        where: { userId },
-        data: { isDefault: false },
+    if (dto.is_default) {
+      await this.prisma.addresses.updateMany({
+        where: { user_id },
+        data: { is_default: false },
       });
     }
 
-    return this.prisma.address.update({ where: { id: addressId }, data: dto });
+    return this.prisma.addresses.update({ where: { id: address_id }, data: dto });
   }
 
   /** 删除收货地址 */
-  async deleteAddress(userId: string, addressId: string) {
-    return this.prisma.address.delete({ where: { id: addressId } });
+  async deleteAddress(user_id: string, address_id: string) {
+    return this.prisma.addresses.delete({ where: { id: address_id } });
   }
 
   /** 获取发票列表 */
-  async getInvoices(userId: string) {
-    return this.prisma.invoice.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
+  async getInvoices(user_id: string) {
+    return this.prisma.invoices.findMany({
+      where: { user_id },
+      orderBy: { created_at: 'desc' },
     });
   }
 
   /** 添加发票 */
-  async addInvoice(userId: string, dto: any) {
-    return this.prisma.invoice.create({ data: { ...dto, userId } });
+  async addInvoice(user_id: string, dto: any) {
+    return this.prisma.invoices.create({ data: { ...dto, user_id } });
   }
 
   /** 管理端：用户列表 */
@@ -84,13 +84,13 @@ export class UserService {
     }
 
     const [users, total] = await Promise.all([
-      this.prisma.user.findMany({
+      this.prisma.users.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { created_at: 'desc' },
         skip: (page - 1) * pageSize,
         take: Number(pageSize),
       }),
-      this.prisma.user.count({ where }),
+      this.prisma.users.count({ where }),
     ]);
 
     return {

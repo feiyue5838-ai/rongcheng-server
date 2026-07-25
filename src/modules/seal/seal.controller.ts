@@ -25,8 +25,8 @@ export class SealController {
 
   @Get()
   @ApiOperation({ summary: '获取印章列表' })
-  async getSeals(@Query('categoryId') categoryId?: string) {
-    return this.sealService.getSeals(categoryId);
+  async getSeals(@Query('category_id') category_id?: string) {
+    return this.sealService.getSeals(category_id);
   }
 
   @Get('packages')
@@ -97,8 +97,8 @@ export class SealController {
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '管理端：设置场景印章（整体替换）' })
-  async adminSetSceneSeals(@Param('id') id: string, @Body() dto: { sealIds: string[] }) {
-    return this.sealService.adminSetSceneSeals(id, dto.sealIds || []);
+  async adminSetSceneSeals(@Param('id') id: string, @Body() dto: { seal_ids: string[] }) {
+    return this.sealService.adminSetSceneSeals(id, dto.seal_ids || []);
   }
 
   @Put('admin/scenes/:id/packages')

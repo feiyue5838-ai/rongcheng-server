@@ -7,42 +7,42 @@ export class NewspaperService {
   constructor(private prisma: PrismaService) {}
 
   async getCategories() {
-    return this.prisma.newspaperCategory.findMany({ where: { status: 1 }, orderBy: { sort: 'asc' } });
+    return this.prisma.newspaper_categories.findMany({ where: { status: 1 }, orderBy: { sort: 'asc' } });
   }
 
   async getNewspapers(query: any) {
-    const { province, city, provinceCode, cityCode, level, categoryId, region } = query;
+    const { province, city, province_code, city_code, level, category_id, region } = query;
     const where: any = { status: 1 };
     if (region) where.region = region;
-    if (provinceCode) where.provinceCode = provinceCode;
+    if (province_code) where.province_code = province_code;
     else if (province) where.province = province;
-    if (cityCode) where.cityCode = cityCode;
+    if (city_code) where.city_code = city_code;
     else if (city) where.city = city;
     if (level) where.level = Number(level);
-    if (categoryId) where.categoryId = categoryId;
-    return this.prisma.newspaper.findMany({ where, include: { category: true }, orderBy: { sort: 'asc' } });
+    if (category_id) where.category_id = category_id;
+    return this.prisma.newspapers.findMany({ where, include: { category: true }, orderBy: { sort: 'asc' } });
   }
 
-  async getTemplates(newspaperId?: string, categoryId?: string, businessType?: string) {
+  async getTemplates(newspaper_id?: string, category_id?: string, businessType?: string) {
     const where: any = { status: 1 };
-    if (newspaperId) where.newspaperId = newspaperId;
-    if (categoryId) where.categoryId = categoryId;
+    if (newspaper_id) where.newspaper_id = newspaper_id;
+    if (category_id) where.category_id = category_id;
     if (businessType) where.businessType = businessType;
-    return this.prisma.newspaperTemplate.findMany({ where, include: { newspaper: true, category: true }, orderBy: { sort: 'asc' } });
+    return this.prisma.newspaper_templates.findMany({ where, include: { newspaper: true, category: true }, orderBy: { sort: 'asc' } });
   }
 
-  async calculatePrice(newspaperId: string, contentLength: number, issueCount = 1, copyCount = 1) {
-    const newspaper = await this.prisma.newspaper.findUnique({ where: { id: newspaperId } });
+  async calculatePrice(newspaper_id: string, contentLength: number, issueCount = 1, copyCount = 1) {
+    const newspaper = await this.prisma.newspapers.findUnique({ where: { id: newspaper_id } });
     if (!newspaper) return null;
-    const words = Math.max(contentLength, newspaper.minWords);
-    const price = words * Number(newspaper.pricePerWord) * (Number(issueCount) || 1) * (Number(copyCount) || 1);
-    return { words, unitPrice: newspaper.pricePerWord, totalPrice: price, copies: Number(copyCount) || 1 };
+    const words = Math.max(contentLength, newspaper.min_words);
+    const price = words * Number(newspaper.price_per_word) * (Number(issueCount) || 1) * (Number(copyCount) || 1);
+    return { words, unitPrice: newspaper.price_per_word, total_price: price, copies: Number(copyCount) || 1 };
   }
 
   // --- admin ---
   async adminCreateCategory(dto: any) {
     // ⚠ 白名单字段
-    return this.prisma.newspaperCategory.create({
+    return this.prisma.newspaper_categories.create({
       data: { name: dto.name, icon: dto.icon || null, sort: dto.sort ?? 0, status: dto.status ?? 1 },
     });
   }
@@ -53,40 +53,40 @@ export class NewspaperService {
     if (dto.icon !== undefined) data.icon = dto.icon;
     if (dto.sort !== undefined) data.sort = dto.sort;
     if (dto.status !== undefined) data.status = dto.status;
-    return this.prisma.newspaperCategory.update({ where: { id }, data });
+    return this.prisma.newspaper_categories.update({ where: { id }, data });
   }
-  async adminDeleteCategory(id: string) { return this.prisma.newspaperCategory.delete({ where: { id } }); }
+  async adminDeleteCategory(id: string) { return this.prisma.newspaper_categories.delete({ where: { id } }); }
   async adminCreateNewspaper(dto: any) {
     // ⚠ 白名单字段
-    return this.prisma.newspaper.create({
+    return this.prisma.newspapers.create({
       data: {
         name: dto.name, alias: dto.alias, publisher: dto.publisher,
         province: dto.province, region: dto.region, city: dto.city,
-        provinceCode: dto.provinceCode, cityCode: dto.cityCode,
-        pricePerWord: dto.pricePerWord, minWords: dto.minWords,
+        province_code: dto.province_code, city_code: dto.city_code,
+        price_per_word: dto.price_per_word, min_words: dto.min_words,
         coverage: dto.coverage, level: dto.level,
         image: dto.image, description: dto.description,
-        status: dto.status ?? 1, sort: dto.sort ?? 0, categoryId: dto.categoryId,
+        status: dto.status ?? 1, sort: dto.sort ?? 0, category_id: dto.category_id,
       },
     });
   }
   async adminUpdateNewspaper(id: string, dto: any) {
     // ⚠ 白名单字段
-    const fields = ['name','alias','publisher','province','region','city','provinceCode','cityCode','pricePerWord','minWords','coverage','level','image','description','status','sort','categoryId'];
+    const fields = ['name','alias','publisher','province','region','city','province_code','city_code','price_per_word','min_words','coverage','level','image','description','status','sort','category_id'];
     const data: any = {};
     for (const f of fields) {
       if (dto[f] !== undefined) data[f] = dto[f];
     }
-    return this.prisma.newspaper.update({ where: { id }, data });
+    return this.prisma.newspapers.update({ where: { id }, data });
   }
-  async adminDeleteNewspaper(id: string) { return this.prisma.newspaper.delete({ where: { id } }); }
+  async adminDeleteNewspaper(id: string) { return this.prisma.newspapers.delete({ where: { id } }); }
   async adminCreateTemplate(dto: any) {
     // ⚠ 白名单字段
-    return this.prisma.newspaperTemplate.create({
+    return this.prisma.newspaper_templates.create({
       data: {
-        name: dto.name, content: dto.content, categoryId: dto.categoryId,
-        newspaperId: dto.newspaperId, templateType: dto.templateType,
-        businessType: dto.businessType, sampleData: dto.sampleData,
+        name: dto.name, content: dto.content, category_id: dto.category_id,
+        newspaper_id: dto.newspaper_id, templateType: dto.templateType,
+        businessType: dto.businessType, sample_data: dto.sample_data,
         desc: dto.desc, color: dto.color,
         sort: dto.sort ?? 0, status: dto.status ?? 1,
       },
@@ -94,18 +94,18 @@ export class NewspaperService {
   }
   async adminUpdateTemplate(id: string, dto: any) {
     // ⚠ 白名单字段
-    const fields = ['name','content','categoryId','newspaperId','templateType','businessType','sampleData','desc','color','sort','status'];
+    const fields = ['name','content','category_id','newspaper_id','templateType','businessType','sample_data','desc','color','sort','status'];
     const data: any = {};
     for (const f of fields) {
       if (dto[f] !== undefined) data[f] = dto[f];
     }
-    return this.prisma.newspaperTemplate.update({ where: { id }, data });
+    return this.prisma.newspaper_templates.update({ where: { id }, data });
   }
-  async adminDeleteTemplate(id: string) { return this.prisma.newspaperTemplate.delete({ where: { id } }); }
+  async adminDeleteTemplate(id: string) { return this.prisma.newspaper_templates.delete({ where: { id } }); }
 
   // ========== 个人证件 ==========
   async getPersonalDocs() {
-    const categories = await this.prisma.personalDocCategory.findMany({
+    const categories = await this.prisma.personal_doc_categories.findMany({
       where: { status: 1 }, orderBy: { sort: 'asc' },
       include: { items: { where: { status: 1 }, orderBy: { sort: 'asc' } } },
     });
@@ -115,32 +115,32 @@ export class NewspaperService {
     }));
   }
   async getPersonalDocCategories() {
-    return this.prisma.personalDocCategory.findMany({ where: { status: 1 }, orderBy: { sort: 'asc' } });
+    return this.prisma.personal_doc_categories.findMany({ where: { status: 1 }, orderBy: { sort: 'asc' } });
   }
-  async getPersonalDocItems(categoryId?: string) {
+  async getPersonalDocItems(category_id?: string) {
     const where: any = { status: 1 };
-    if (categoryId) where.categoryId = categoryId;
-    return this.prisma.personalDocItem.findMany({ where, orderBy: { sort: 'asc' } });
+    if (category_id) where.category_id = category_id;
+    return this.prisma.personal_doc_items.findMany({ where, orderBy: { sort: 'asc' } });
   }
   async adminCreatePersonalDocCategory(dto: any) {
-    return this.prisma.personalDocCategory.create({ data: dto });
+    return this.prisma.personal_doc_categories.create({ data: dto });
   }
   async adminUpdatePersonalDocCategory(id: string, dto: any) {
-    return this.prisma.personalDocCategory.update({ where: { id }, data: dto });
+    return this.prisma.personal_doc_categories.update({ where: { id }, data: dto });
   }
-  async adminDeletePersonalDocCategory(id: string) { return this.prisma.personalDocCategory.delete({ where: { id } }); }
+  async adminDeletePersonalDocCategory(id: string) { return this.prisma.personal_doc_categories.delete({ where: { id } }); }
   async adminCreatePersonalDocItem(dto: any) {
-    return this.prisma.personalDocItem.create({ data: dto });
+    return this.prisma.personal_doc_items.create({ data: dto });
   }
   async adminUpdatePersonalDocItem(id: string, dto: any) {
-    return this.prisma.personalDocItem.update({ where: { id }, data: dto });
+    return this.prisma.personal_doc_items.update({ where: { id }, data: dto });
   }
-  async adminDeletePersonalDocItem(id: string) { return this.prisma.personalDocItem.delete({ where: { id } }); }
+  async adminDeletePersonalDocItem(id: string) { return this.prisma.personal_doc_items.delete({ where: { id } }); }
 
   // ========== 发票收据（全部无 templateType，合为一组） ==========
   async getInvoiceTemplates() {
     const CAT = 'b0447320-b0ca-41d7-a51e-b375a4eca8b4';
-    const templates = await this.prisma.newspaperTemplate.findMany({ where: { categoryId: CAT, status: 1 }, orderBy: { sort: 'asc' } });
+    const templates = await this.prisma.newspaper_templates.findMany({ where: { category_id: CAT, status: 1 }, orderBy: { sort: 'asc' } });
     return [{ id: 'all', name: '发票收据', color: '#5B6FE8', total: templates.length, docs: templates.map(t => ({ name: t.name, content: t.content })) }];
   }
 
@@ -158,7 +158,7 @@ export class NewspaperService {
       notary:    { name: '公证公告',     color: '#FA541C'             },
       vehicle:   { name: '车辆公告',     color: '#13C2C2'             },
     };
-    const templates = await this.prisma.newspaperTemplate.findMany({ where: { categoryId: CAT, status: 1 }, orderBy: { sort: 'asc' } });
+    const templates = await this.prisma.newspaper_templates.findMany({ where: { category_id: CAT, status: 1 }, orderBy: { sort: 'asc' } });
     const g: Record<string, any[]> = {};
     for (const t of templates) { const k = t.templateType || 'other'; (g[k] = g[k] || []).push(t); }
     return Object.keys(M).map(k => {
@@ -170,7 +170,7 @@ export class NewspaperService {
   // ========== 公告声明 ==========
   async getAnnouncement2Templates() {
     const CAT = 'e1023e5f-90c1-43c1-9e40-bf4ba0ed0a78';
-    const templates = await this.prisma.newspaperTemplate.findMany({ where: { categoryId: CAT, status: 1 }, orderBy: { sort: 'asc' } });
+    const templates = await this.prisma.newspaper_templates.findMany({ where: { category_id: CAT, status: 1 }, orderBy: { sort: 'asc' } });
     return [{ id: 'all', name: '公告声明', color: '#5B6FE8', total: templates.length, docs: templates.map(t => ({ name: t.name, content: t.content })) }];
   }
 
@@ -191,7 +191,7 @@ export class NewspaperService {
       culture_food_other:     { name: '文化食品其他',  color: '#2F54EB'             },
       transport_equipment:   { name: '运输设备类',    color: '#13C2C2'             },
     };
-    const templates = await this.prisma.newspaperTemplate.findMany({ where: { categoryId: CAT, status: 1 }, orderBy: { sort: 'asc' } });
+    const templates = await this.prisma.newspaper_templates.findMany({ where: { category_id: CAT, status: 1 }, orderBy: { sort: 'asc' } });
     const g: Record<string, any[]> = {};
     for (const t of templates) { const k = t.templateType || 'other'; (g[k] = g[k] || []).push(t); }
     return Object.keys(M).map(k => {
@@ -214,7 +214,7 @@ export class NewspaperService {
       search_people:          { name: '寻人协查与司法文书', color: '#0FCB7D'             },
       admin_regulation:       { name: '行政监管与企业公告', color: '#EB2F96'             },
     };
-    const templates = await this.prisma.newspaperTemplate.findMany({ where: { categoryId: CAT, status: 1 }, orderBy: { sort: 'asc' } });
+    const templates = await this.prisma.newspaper_templates.findMany({ where: { category_id: CAT, status: 1 }, orderBy: { sort: 'asc' } });
     const g: Record<string, any[]> = {};
     for (const t of templates) { const k = t.templateType || 'other'; (g[k] = g[k] || []).push(t); }
     return Object.keys(M).map(k => {
@@ -233,7 +233,7 @@ export class NewspaperService {
       planning_permit:    { name: '规划行政许可公示', color: '#0FCB7D'             },
       notary_testament:   { name: '公证遗嘱类公告',   color: '#FA8C16'             },
     };
-    const templates = await this.prisma.newspaperTemplate.findMany({ where: { categoryId: CAT, status: 1 }, orderBy: { sort: 'asc' } });
+    const templates = await this.prisma.newspaper_templates.findMany({ where: { category_id: CAT, status: 1 }, orderBy: { sort: 'asc' } });
     const g: Record<string, any[]> = {};
     for (const t of templates) { const k = t.templateType || 'other'; (g[k] = g[k] || []).push(t); }
     return Object.keys(M).map(k => {
@@ -250,7 +250,7 @@ export class NewspaperService {
       procurement_supplier:{ name: '采购供应商招标',  color: '#FA541C', hot: true  },
       recruitment_general:  { name: '招聘通用招标',    color: '#5B6FE8'             },
     };
-    const templates = await this.prisma.newspaperTemplate.findMany({ where: { categoryId: CAT, status: 1 }, orderBy: { sort: 'asc' } });
+    const templates = await this.prisma.newspaper_templates.findMany({ where: { category_id: CAT, status: 1 }, orderBy: { sort: 'asc' } });
     const g: Record<string, any[]> = {};
     for (const t of templates) { const k = t.templateType || 'other'; (g[k] = g[k] || []).push(t); }
     return Object.keys(M).map(k => {
@@ -268,7 +268,7 @@ export class NewspaperService {
       loan_default:    { name: '贷款违约公告',      color: '#D4380D'             },
       finance_release: { name: '金融保险债权解除',  color: '#8C8C8C'             },
     };
-    const templates = await this.prisma.newspaperTemplate.findMany({ where: { categoryId: CAT, status: 1 }, orderBy: { sort: 'asc' } });
+    const templates = await this.prisma.newspaper_templates.findMany({ where: { category_id: CAT, status: 1 }, orderBy: { sort: 'asc' } });
     const g: Record<string, any[]> = {};
     for (const t of templates) { const k = t.templateType || 'other'; (g[k] = g[k] || []).push(t); }
     return Object.keys(M).map(k => {
@@ -286,7 +286,7 @@ export class NewspaperService {
       asset:    { name: '专项资产拍卖', color: '#FA8C16'             },
       judicial: { name: '司法法院拍卖', color: '#F5222D'             },
     };
-    const templates = await this.prisma.newspaperTemplate.findMany({ where: { categoryId: CAT, status: 1 }, orderBy: { sort: 'asc' } });
+    const templates = await this.prisma.newspaper_templates.findMany({ where: { category_id: CAT, status: 1 }, orderBy: { sort: 'asc' } });
     const g: Record<string, any[]> = {};
     for (const t of templates) { const k = t.templateType || 'other'; (g[k] = g[k] || []).push(t); }
     return Object.keys(M).map(k => {
@@ -304,7 +304,7 @@ export class NewspaperService {
       product:   { name: '产品道歉声明', color: '#FA8C16'             },
       other:     { name: '其他道歉声明', color: '#52C41A'             },
     };
-    const templates = await this.prisma.newspaperTemplate.findMany({ where: { categoryId: CAT, status: 1 }, orderBy: { sort: 'asc' } });
+    const templates = await this.prisma.newspaper_templates.findMany({ where: { category_id: CAT, status: 1 }, orderBy: { sort: 'asc' } });
     const g: Record<string, any[]> = {};
     for (const t of templates) { const k = t.templateType || 'other'; (g[k] = g[k] || []).push(t); }
     return Object.keys(M).map(k => {
@@ -323,7 +323,7 @@ export class NewspaperService {
       clean_production:  { name: '清洁生产与环境预案公示', color: '#5B6FE8'             },
       other:             { name: '其他环保公示',           color: '#7B8FF7'             },
     };
-    const templates = await this.prisma.newspaperTemplate.findMany({ where: { categoryId: CAT, status: 1 }, orderBy: { sort: 'asc' } });
+    const templates = await this.prisma.newspaper_templates.findMany({ where: { category_id: CAT, status: 1 }, orderBy: { sort: 'asc' } });
     const g: Record<string, any[]> = {};
     for (const t of templates) { const k = t.templateType || 'other'; (g[k] = g[k] || []).push(t); }
     return Object.keys(M).map(k => {
@@ -341,7 +341,7 @@ export class NewspaperService {
       employee:  { name: '员工表扬信', color: '#52C41A'             },
       unit:      { name: '单位表扬信', color: '#F5222D'             },
     };
-    const templates = await this.prisma.newspaperTemplate.findMany({ where: { categoryId: CAT, status: 1 }, orderBy: { sort: 'asc' } });
+    const templates = await this.prisma.newspaper_templates.findMany({ where: { category_id: CAT, status: 1 }, orderBy: { sort: 'asc' } });
     const g: Record<string, any[]> = {};
     for (const t of templates) { const k = t.templateType || 'other'; (g[k] = g[k] || []).push(t); }
     return Object.keys(M).map(k => {
@@ -359,7 +359,7 @@ export class NewspaperService {
       labor_wage:      { name: '工资欠款公告',     color: '#FAAD14', hot: true  },
       labor_injury:    { name: '工伤事故公告',     color: '#FF4D4F'             },
     };
-    const templates = await this.prisma.newspaperTemplate.findMany({ where: { categoryId: CAT, status: 1 }, orderBy: { sort: 'asc' } });
+    const templates = await this.prisma.newspaper_templates.findMany({ where: { category_id: CAT, status: 1 }, orderBy: { sort: 'asc' } });
     const g: Record<string, any[]> = {};
     for (const t of templates) { const k = t.templateType || 'other'; (g[k] = g[k] || []).push(t); }
     return Object.keys(M).map(k => {
@@ -378,7 +378,7 @@ export class NewspaperService {
       legal:      { name: '普法公益', color: '#52C41A'             },
       project:    { name: '项目工程', color: '#0FCB7D'             },
     };
-    const templates = await this.prisma.newspaperTemplate.findMany({ where: { categoryId: CAT, status: 1 }, orderBy: { sort: 'asc' } });
+    const templates = await this.prisma.newspaper_templates.findMany({ where: { category_id: CAT, status: 1 }, orderBy: { sort: 'asc' } });
     const g: Record<string, any[]> = {};
     for (const t of templates) { const k = t.templateType || 'other'; (g[k] = g[k] || []).push(t); }
     return Object.keys(M).map(k => {

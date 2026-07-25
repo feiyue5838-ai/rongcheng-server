@@ -19,7 +19,7 @@ model addresses {
   is_default Boolean  @default(false)
   created_at DateTime @default(now())
   updated_at DateTime
-  users      users    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user      users    @relation(fields: [user_id], references: [id], onDelete: Cascade)
 }
 
 model admins {
@@ -65,7 +65,7 @@ model delivery_receipts {
   remark      String?
   created_at  DateTime    @default(now())
   seal_orders seal_orders @relation(fields: [order_id], references: [id], onDelete: Cascade)
-  outlets     outlets     @relation(fields: [outlet_id], references: [id])
+  outlet     outlets     @relation(fields: [outlet_id], references: [id])
 }
 
 model invoices {
@@ -81,7 +81,7 @@ model invoices {
   email        String?
   created_at   DateTime @default(now())
   updated_at   DateTime
-  users        users    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user        users    @relation(fields: [user_id], references: [id], onDelete: Cascade)
 }
 
 model materials {
@@ -124,7 +124,7 @@ model newspaper_templates {
   desc                 String?
   templateType         String?
   newspaper_categories newspaper_categories @relation(fields: [category_id], references: [id])
-  newspapers           newspapers?          @relation(fields: [newspaper_id], references: [id])
+  newspaper           newspapers?          @relation(fields: [newspaper_id], references: [id])
 }
 
 model newspapers {
@@ -176,7 +176,7 @@ model order_assignments {
   completed_at DateTime?
   remark       String?
   seal_orders  seal_orders @relation(fields: [order_id], references: [id], onDelete: Cascade)
-  outlets      outlets     @relation(fields: [outlet_id], references: [id])
+  outlet      outlets     @relation(fields: [outlet_id], references: [id])
 }
 
 model order_items {
@@ -191,8 +191,8 @@ model order_items {
   image         String?
   created_at    DateTime       @default(now())
   seal_orders   seal_orders    @relation(fields: [order_id], references: [id], onDelete: Cascade)
-  seal_packages seal_packages? @relation(fields: [package_id], references: [id])
-  seals         seals?         @relation(fields: [seal_id], references: [id])
+  package seal_packages? @relation(fields: [package_id], references: [id])
+  seal         seals?         @relation(fields: [seal_id], references: [id])
 }
 
 model outlet_notifications {
@@ -205,7 +205,7 @@ model outlet_notifications {
   order_no   String?
   is_read    Boolean  @default(false)
   created_at DateTime @default(now())
-  outlets    outlets  @relation(fields: [outlet_id], references: [id])
+  outlet    outlets  @relation(fields: [outlet_id], references: [id])
 
   @@index([outlet_id, created_at])
   @@index([outlet_id, is_read])
@@ -232,7 +232,7 @@ model outlets {
   outlet_openid        String?
   subscribe_msg        Int                    @default(1)
   delivery_receipts    delivery_receipts[]
-  order_assignments    order_assignments[]
+  assignments    order_assignments[]
   outlet_notifications outlet_notifications[]
 }
 
@@ -270,7 +270,7 @@ model question_replies {
   author_name String
   content     String
   created_at  DateTime  @default(now())
-  questions   questions @relation(fields: [question_id], references: [id], onDelete: Cascade)
+  replies   questions @relation(fields: [question_id], references: [id], onDelete: Cascade)
 
   @@index([question_id])
 }
@@ -287,7 +287,7 @@ model questions {
   created_at       DateTime           @default(now())
   updated_at       DateTime
   question_replies question_replies[]
-  users            users?             @relation(fields: [user_id], references: [id])
+  user            users?             @relation(fields: [user_id], references: [id])
 
   @@index([module, status])
   @@index([status, created_at])
@@ -307,7 +307,7 @@ model reviews {
   updated_at  DateTime
   status      String      @default("pending")
   seal_orders seal_orders @relation(fields: [order_id], references: [id], onDelete: Cascade)
-  users       users       @relation(fields: [user_id], references: [id])
+  user       users       @relation(fields: [user_id], references: [id])
 }
 
 model seal_categories {
@@ -363,10 +363,10 @@ model seal_orders {
   newspaper_images      String?
   delivery_receipts     delivery_receipts[]
   materials             materials[]
-  order_assignments     order_assignments?
+  assignment     order_assignments?
   order_items           order_items[]
   reviews               reviews[]
-  users                 users               @relation(fields: [user_id], references: [id])
+  user                 users               @relation(fields: [user_id], references: [id])
 }
 
 model seal_packages {
@@ -390,7 +390,7 @@ model seal_scene_packages {
   package_id    String
   sort          Int           @default(0)
   created_at    DateTime      @default(now())
-  seal_packages seal_packages @relation(fields: [package_id], references: [id])
+  package seal_packages @relation(fields: [package_id], references: [id])
   seal_scenes   seal_scenes   @relation(fields: [scene_id], references: [id])
 
   @@id([scene_id, package_id])
@@ -402,7 +402,7 @@ model seal_scene_seals {
   sort        Int         @default(0)
   created_at  DateTime    @default(now())
   seal_scenes seal_scenes @relation(fields: [scene_id], references: [id])
-  seals       seals       @relation(fields: [seal_id], references: [id])
+  seal       seals       @relation(fields: [seal_id], references: [id])
 
   @@id([scene_id, seal_id])
 }

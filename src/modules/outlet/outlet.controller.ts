@@ -12,8 +12,8 @@ class CreateStoreDto {
   province?: string;
   city?: string;
   address?: string;
-  businessLicense?: string;
-  specialPermits?: string[];
+  business_license?: string;
+  special_permits?: string[];
 }
 
 class UpdateStoreDto {
@@ -24,8 +24,8 @@ class UpdateStoreDto {
   city?: string;
   address?: string;
   status?: number;
-  businessLicense?: string;
-  specialPermits?: string[];
+  business_license?: string;
+  special_permits?: string[];
 }
 
 @ApiTags('网点管理')
@@ -100,7 +100,7 @@ export class StoreController {
     return this.storeService.resetPassword(id);
   }
 
-  // 网点端：获取自己的订单列表（从 token 中提取 outletId）
+  // 网点端：获取自己的订单列表（从 token 中提取 outlet_id）
   @Get('me/orders')
   @UseGuards(StoreJwtAuthGuard)
   @ApiBearerAuth()
@@ -114,8 +114,8 @@ export class StoreController {
   @UseGuards(StoreJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '网点订单详情（网点端）' })
-  async getMyOrderDetail(@Param('id') orderId: string, @Request() req: any) {
-    return this.storeService.getStoreOrderDetail(req.user.id, orderId);
+  async getMyOrderDetail(@Param('id') order_id: string, @Request() req: any) {
+    return this.storeService.getStoreOrderDetail(req.user.id, order_id);
   }
 
   // 网点端：接单
@@ -124,8 +124,8 @@ export class StoreController {
   @UseGuards(StoreJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '网点接单' })
-  async acceptOrder(@Param('id') orderId: string, @Request() req: any) {
-    return this.storeService.acceptOrder(req.user.id, orderId);
+  async acceptOrder(@Param('id') order_id: string, @Request() req: any) {
+    return this.storeService.acceptOrder(req.user.id, order_id);
   }
 
   // 网点端：完成制作
@@ -134,8 +134,8 @@ export class StoreController {
   @UseGuards(StoreJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '网点完成制作' })
-  async completeOrder(@Param('id') orderId: string, @Body() body: { remark?: string }, @Request() req: any) {
-    return this.storeService.completeOrder(req.user.id, orderId, body.remark);
+  async completeOrder(@Param('id') order_id: string, @Body() body: { remark?: string }, @Request() req: any) {
+    return this.storeService.completeOrder(req.user.id, order_id, body.remark);
   }
 
   // 网点端：发货
@@ -144,8 +144,8 @@ export class StoreController {
   @UseGuards(StoreJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '网点发货' })
-  async shipOrder(@Param('id') orderId: string, @Body() body: { trackingNo?: string; remark?: string }, @Request() req: any) {
-    return this.storeService.shipOrder(req.user.id, orderId, body.trackingNo, body.remark);
+  async shipOrder(@Param('id') order_id: string, @Body() body: { trackingNo?: string; remark?: string }, @Request() req: any) {
+    return this.storeService.shipOrder(req.user.id, order_id, body.trackingNo, body.remark);
   }
 
   @Put('me/bind-openid')
@@ -166,16 +166,16 @@ export class StoreController {
     return this.storeService.toggleSubscribe(req.user.id, dto.enabled);
   }
 
-  @Get(':outletId/orders')
+  @Get(':outlet_id/orders')
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '网点订单列表（管理端查看）' })
   async getStoreOrders(
-    @Param('outletId') outletId: string,
+    @Param('outlet_id') outlet_id: string,
     @Query('page') page?: number,
     @Query('pageSize') pageSize?: number,
     @Query('status') status?: number,
   ) {
-    return this.storeService.getStoreOrders(outletId, { page: Number(page) || 1, pageSize: Number(pageSize) || 20, status });
+    return this.storeService.getStoreOrders(outlet_id, { page: Number(page) || 1, pageSize: Number(pageSize) || 20, status });
   }
 }

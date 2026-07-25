@@ -4,12 +4,12 @@ dist/
 build/
 *.tsbuildinfo
 
-# ===== 环境变量 / 密钥（敏感，切勿提交） =====
+# ===== 环境变量 / 密钥（敏感，切勿提交）=====
 .env
 .env.local
 .env.*.local
 
-# ===== 上传文件（用户数据，运行时生成） =====
+# ===== 上传文件（用户数据，运行时生成）=====
 uploads/
 
 # ===== 日志 & 运行输出 =====
@@ -27,7 +27,7 @@ debug_out2.txt
 jwt_*.txt
 *.bat
 
-# ===== 临时 / 一次性调试脚本（非项目源码） =====
+# ===== 临时 / 一次性调试脚本（非项目源码）=====
 check_*
 debug_*
 test_*.js
@@ -42,9 +42,10 @@ _*.js
 .vscode/
 .idea/
 .DS_Store
-# ===== macOS AppleDouble junk =====
+
+# ===== macOS AppleDouble 垃圾文件 =====
 ._*
 
-# 防止编译产物误入 src (tsconfig outDir=dist)
+# 防止编译产物误入 src（tsconfig outDir=dist）
 src/**/*.js
 _trash_2026-07-22/

@@ -43,40 +43,40 @@ export class NewspaperController {
   }
 
   @Get()
-  @ApiOperation({ summary: '获取报纸列表（支持 region/provinceCode/cityCode 精确匹配）' })
+  @ApiOperation({ summary: '获取报纸列表（支持 region/province_code/city_code 精确匹配）' })
   async getNewspapers(
     @Query('province') province?: string,
     @Query('city') city?: string,
-    @Query('provinceCode') provinceCode?: string,
-    @Query('cityCode') cityCode?: string,
+    @Query('province_code') province_code?: string,
+    @Query('city_code') city_code?: string,
     @Query('level') level?: string,
-    @Query('categoryId') categoryId?: string,
+    @Query('category_id') category_id?: string,
     @Query('region') region?: string,
   ) {
     return this.newspaperService.getNewspapers({
-      province, city, provinceCode, cityCode, level, categoryId, region
+      province, city, province_code, city_code, level, category_id, region
     });
   }
 
   @Get('templates')
   @ApiOperation({ summary: '获取登报模板' })
   async getTemplates(
-    @Query('newspaperId') newspaperId?: string,
-    @Query('categoryId') categoryId?: string,
+    @Query('newspaper_id') newspaper_id?: string,
+    @Query('category_id') category_id?: string,
     @Query('businessType') businessType?: string,
   ) {
-    return this.newspaperService.getTemplates(newspaperId, categoryId, businessType);
+    return this.newspaperService.getTemplates(newspaper_id, category_id, businessType);
   }
 
   @Get('price')
   @ApiOperation({ summary: '计算登报价格（含期数×份数）' })
   async calculatePrice(
-    @Query('newspaperId') newspaperId: string,
+    @Query('newspaper_id') newspaper_id: string,
     @Query('contentLength') contentLength: number,
     @Query('issueCount') issueCount?: number,
     @Query('copyCount') copyCount?: number,
   ) {
-    return this.newspaperService.calculatePrice(newspaperId, contentLength, issueCount, copyCount);
+    return this.newspaperService.calculatePrice(newspaper_id, contentLength, issueCount, copyCount);
   }
 
   // 管理端

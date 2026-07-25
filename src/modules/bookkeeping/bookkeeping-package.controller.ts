@@ -11,7 +11,7 @@ export class BookkeepingPackageController {
 
   @Get()
   @ApiOperation({ summary: '获取套餐列表' })
-  async getList(@Query() query: { taxpayerType?: string; status?: number }) {
+  async getList(@Query() query: { taxpayer_type?: string; status?: number }) {
     return this.bookkeepingService.getPackageList(query);
   }
 

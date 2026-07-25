@@ -21,24 +21,24 @@ export class AfterSalesService {
     if (module) where.module = module;
 
     const [rows, total] = await Promise.all([
-      this.prisma.sealOrder.findMany({
+      this.prisma.seal_orders.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { created_at: 'desc' },
         skip: (page - 1) * pageSize,
         take: pageSize,
         include: {
           user: { select: { nickname: true, phone: true } },
         },
       }),
-      this.prisma.sealOrder.count({ where }),
+      this.prisma.seal_orders.count({ where }),
     ]);
 
     return { rows, total, page, pageSize };
   }
 
   /** 确认退款（status=7 → 8 退款中）—— 复用 OrderService 微信退款逻辑 */
-  async confirmRefund(orderId: string, amount?: number, operatorId?: string) {
-    const order = await this.prisma.sealOrder.findUnique({ where: { id: orderId } });
+  async confirmRefund(order_id: string, amount?: number, operatorId?: string) {
+    const order = await this.prisma.seal_orders.findUnique({ where: { id: order_id } });
     if (!order) throw new NotFoundException('订单不存在');
     if (order.status !== 7) throw new BadRequestException('仅「售后中」订单可确认退款');
 
@@ -50,12 +50,12 @@ export class AfterSalesService {
     } catch { /* ignore */ }
 
     // 复用 OrderService.refundOrder（内部调微信退款 + 置 status=8）
-    return this.orderService.refundOrder(orderId, operatorId, amount, afterSalesReason);
+    return this.orderService.refundOrder(order_id, operatorId, amount, afterSalesReason);
   }
 
   /** 拒绝售后（status=7 → 5 已完成，不退款） */
-  async rejectAfterSales(orderId: string, reason: string, operatorId?: string) {
-    const order = await this.prisma.sealOrder.findUnique({ where: { id: orderId } });
+  async rejectAfterSales(order_id: string, reason: string, operatorId?: string) {
+    const order = await this.prisma.seal_orders.findUnique({ where: { id: order_id } });
     if (!order) throw new NotFoundException('订单不存在');
     if (order.status !== 7) throw new BadRequestException('仅「售后中」订单可拒绝售后');
 
@@ -68,9 +68,9 @@ export class AfterSalesService {
       remark = JSON.stringify({ afterSalesReject: { reason, operatorId, rejectedAt: new Date().toISOString() } });
     }
 
-    return this.prisma.sealOrder.update({
-      where: { id: orderId },
-      data: { status: 5, statusText: '已完成', remark },
+    return this.prisma.seal_orders.update({
+      where: { id: order_id },
+      data: { status: 5, status_text: '已完成', remark },
     });
   }
 
@@ -86,20 +86,20 @@ export class AfterSalesService {
     const { module, status, startDate, endDate, page = 1, pageSize = 20 } = query;
     const where: any = { status: { in: status ? [status] : [8, 9] } };
     if (module) where.module = module;
-    if (startDate) where.createdAt = { ...where.createdAt, gte: new Date(startDate) };
-    if (endDate) where.createdAt = { ...where.createdAt, lte: new Date(endDate + 'T23:59:59') };
+    if (startDate) where.created_at = { ...where.created_at, gte: new Date(startDate) };
+    if (endDate) where.created_at = { ...where.created_at, lte: new Date(endDate + 'T23:59:59') };
 
     const [rows, total] = await Promise.all([
-      this.prisma.sealOrder.findMany({
+      this.prisma.seal_orders.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { created_at: 'desc' },
         skip: (page - 1) * pageSize,
         take: pageSize,
         include: {
           user: { select: { nickname: true, phone: true } },
         },
       }),
-      this.prisma.sealOrder.count({ where }),
+      this.prisma.seal_orders.count({ where }),
     ]);
 
     return { rows, total, page, pageSize };

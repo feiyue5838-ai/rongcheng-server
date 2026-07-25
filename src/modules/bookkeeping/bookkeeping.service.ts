@@ -6,7 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 import * as crypto from 'crypto';
 
 interface PriceParams {
-  taxpayerType: 'small' | 'general';
+  taxpayer_type: 'small' | 'general';
   cycle: 'year' | 'half' | 'preorder';
   invoice: 'none' | 'within5' | 'normal';
   social: 'none' | 'with';
@@ -30,22 +30,22 @@ export class BookkeepingService {
   /**
    * 获取套餐列表
    */
-  async getPackageList(params: { taxpayerType?: string; status?: number }) {
+  async getPackageList(params: { taxpayer_type?: string; status?: number }) {
     const where: any = {};
-    if (params.taxpayerType) where.taxpayer_type = params.taxpayerType;
+    if (params.taxpayer_type) where.taxpayer_type = params.taxpayer_type;
     if (params.status !== undefined) where.status = params.status;
 
     const packages = await this.prisma.bookkeeping_packages.findMany({
       where,
-      orderBy: [{ sort: 'asc' }, { createdAt: 'desc' }],
+      orderBy: [{ sort: 'asc' }, { created_at: 'desc' }],
     });
 
     return packages.map(pkg => ({
       ...pkg,
-      basePrice: Number(pkg.base_price),
-      invoicePrice: Number(pkg.invoice_price),
-      socialPrice: Number(pkg.social_price),
-      fundPrice: Number(pkg.fund_price),
+      base_price: Number(pkg.base_price),
+      invoice_price: Number(pkg.invoice_price),
+      social_price: Number(pkg.social_price),
+      fund_price: Number(pkg.fund_price),
     }));
   }
 
@@ -57,10 +57,10 @@ export class BookkeepingService {
     if (!pkg) throw new NotFoundException('套餐不存在');
     return {
       ...pkg,
-      basePrice: Number(pkg.base_price),
-      invoicePrice: Number(pkg.invoice_price),
-      socialPrice: Number(pkg.social_price),
-      fundPrice: Number(pkg.fund_price),
+      base_price: Number(pkg.base_price),
+      invoice_price: Number(pkg.invoice_price),
+      social_price: Number(pkg.social_price),
+      fund_price: Number(pkg.fund_price),
     };
   }
 
@@ -71,12 +71,12 @@ export class BookkeepingService {
     const pkg = await this.prisma.bookkeeping_packages.create({
       data: {
         name: data.name,
-        taxpayer_type: data.taxpayerType,
+        taxpayer_type: data.taxpayer_type,
         cycle: data.cycle,
-        base_price: data.basePrice,
-        invoice_price: data.invoicePrice || 0,
-        social_price: data.socialPrice || 0,
-        fund_price: data.fundPrice || 0,
+        base_price: data.base_price,
+        invoice_price: data.invoice_price || 0,
+        social_price: data.social_price || 0,
+        fund_price: data.fund_price || 0,
         description: data.description,
         features: data.features,
         sort: data.sort || 0,
@@ -92,10 +92,10 @@ export class BookkeepingService {
   async updatePackage(id: string, data: any) {
     const updateData: any = {};
     if (data.name !== undefined) updateData.name = data.name;
-    if (data.basePrice !== undefined) updateData.base_price = data.basePrice;
-    if (data.invoicePrice !== undefined) updateData.invoice_price = data.invoicePrice;
-    if (data.socialPrice !== undefined) updateData.social_price = data.socialPrice;
-    if (data.fundPrice !== undefined) updateData.fund_price = data.fundPrice;
+    if (data.base_price !== undefined) updateData.base_price = data.base_price;
+    if (data.invoice_price !== undefined) updateData.invoice_price = data.invoice_price;
+    if (data.social_price !== undefined) updateData.social_price = data.social_price;
+    if (data.fund_price !== undefined) updateData.fund_price = data.fund_price;
     if (data.description !== undefined) updateData.description = data.description;
     if (data.features !== undefined) updateData.features = data.features;
     if (data.sort !== undefined) updateData.sort = data.sort;
@@ -122,7 +122,7 @@ export class BookkeepingService {
     // 从数据库读取套餐基础价格
     const pkg = await this.prisma.bookkeeping_packages.findFirst({
       where: {
-        taxpayer_type: params.taxpayerType,
+        taxpayer_type: params.taxpayer_type,
         cycle: params.cycle,
         status: 1,
       },
@@ -150,7 +150,7 @@ export class BookkeepingService {
     }
 
     // 公积金附加（仅一般纳税人）
-    if (params.taxpayerType === 'general' && params.fund === 'with') {
+    if (params.taxpayer_type === 'general' && params.fund === 'with') {
       total += Number(pkg.fund_price) || 300;
     }
 
@@ -162,7 +162,7 @@ export class BookkeepingService {
    */
   calculatePriceFallback(params: PriceParams): number {
     let base = 0;
-    if (params.taxpayerType === 'small') {
+    if (params.taxpayer_type === 'small') {
       base = params.cycle === 'year' ? 1999 : params.cycle === 'half' ? 1199 : 1999;
     } else {
       base = params.cycle === 'year' ? 3999 : params.cycle === 'half' ? 2299 : 9.9;
@@ -175,7 +175,7 @@ export class BookkeepingService {
     let socialFee = params.social === 'with' ? 300 : 0;
 
     let fundFee = 0;
-    if (params.taxpayerType === 'general' && params.fund === 'with') {
+    if (params.taxpayer_type === 'general' && params.fund === 'with') {
       fundFee = 300;
     }
 
@@ -203,7 +203,7 @@ export class BookkeepingService {
   /**
    * 创建代理记账订单
    */
-  async createOrder(params: OrderParams, userId: string): Promise<any> {
+  async createOrder(params: OrderParams, user_id: string): Promise<any> {
     const calculatedPrice = await this.calculatePriceFromDb(params);
     const price = Number(params.price);
 
@@ -211,24 +211,24 @@ export class BookkeepingService {
       throw new BadRequestException(`价格不匹配：前端传入 ${price}，计算结果 ${calculatedPrice}`);
     }
 
-    if (!userId) {
+    if (!user_id) {
       throw new BadRequestException('用户未登录');
     }
 
-    const orderNo = 'RCBK' + Date.now() + uuidv4().slice(0, 4).toUpperCase();
+    const order_no = 'RCBK' + Date.now() + uuidv4().slice(0, 4).toUpperCase();
 
     const order = await this.prisma.seal_orders.create({
       data: {
-        orderNo,
-        userId,
+        order_no,
+        user_id,
         module: 'bookkeeping',
         type: '代理记账',
-        totalPrice: price,
-        payPrice: price,
+        total_price: price,
+        pay_price: price,
         status: 1,
-        statusText: '待支付',
+        status_text: '待支付',
         remark: JSON.stringify({
-          taxpayer_type: params.taxpayerType,
+          taxpayer_type: params.taxpayer_type,
           cycle: params.cycle,
           invoice: params.invoice,
           social: params.social,
@@ -240,8 +240,8 @@ export class BookkeepingService {
 
     return {
       id: order.id,
-      orderNo: order.orderNo,
-      totalPrice: order.totalPrice,
+      order_no: order.order_no,
+      total_price: order.total_price,
       status: order.status,
     };
   }
@@ -249,11 +249,11 @@ export class BookkeepingService {
   /**
    * 获取代理记账订单支付参数
    */
-  async getPayParams(orderId: string, userId: string, openid?: string): Promise<any> {
-    const order = await this.prisma.seal_orders.findUnique({ where: { id: orderId } });
+  async getPayParams(order_id: string, user_id: string, openid?: string): Promise<any> {
+    const order = await this.prisma.seal_orders.findUnique({ where: { id: order_id } });
     if (!order) throw new NotFoundException('订单不存在');
     if (order.module !== 'bookkeeping') throw new BadRequestException('非代理记账订单');
-    if (order.userId !== userId) throw new BadRequestException('无权访问此订单');
+    if (order.user_id !== user_id) throw new BadRequestException('无权访问此订单');
 
     if (order.status !== 1) {
       return {
@@ -267,21 +267,21 @@ export class BookkeepingService {
 
     let userOpenid = openid;
     if (!userOpenid) {
-      const user = await this.prisma.user.findUnique({ where: { id: userId } });
+      const user = await this.prisma.users.findUnique({ where: { id: user_id } });
       userOpenid = user?.openid || '';
     }
 
     const payResult = await this.wechatService.createUnifiedOrder({
-      outTradeNo: order.orderNo,
-      totalFee: Math.round(Number(order.totalPrice) * 100),
-      body: `蓉城企服-代理记账(${order.orderNo})`,
+      outTradeNo: order.order_no,
+      totalFee: Math.round(Number(order.total_price) * 100),
+      body: `蓉城企服-代理记账(${order.order_no})`,
       openid: userOpenid || '',
       notifyUrl: process.env.WECHAT_PAY_NOTIFY_URL || 'https://your-domain.com/api/wechat/pay-notify',
     });
 
     return {
       ...payResult,
-      orderId: order.id,
+      order_id: order.id,
     };
   }
 
@@ -299,7 +299,7 @@ export class BookkeepingService {
         include: {
           user: { select: { id: true, nickname: true, phone: true } },
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: { created_at: 'desc' },
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),

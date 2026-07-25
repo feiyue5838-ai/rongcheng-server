@@ -30,9 +30,9 @@ export class AuthService {
     }
 
     // 2. 查找或创建用户
-    let user = await this.prisma.user.findUnique({ where: { openid } });
+    let user = await this.prisma.users.findUnique({ where: { openid } });
     if (!user) {
-      user = await this.prisma.user.create({
+      user = await this.prisma.users.create({
         data: { openid, status: 1 },
       });
     }
@@ -63,7 +63,7 @@ export class AuthService {
     if (!username || !password) {
       throw new BadRequestException('用户名和密码不能为空');
     }
-    const admin = await this.prisma.admin.findUnique({ where: { username } });
+    const admin = await this.prisma.admins.findUnique({ where: { username } });
     if (!admin) {
       throw new UnauthorizedException('用户名或密码错误');
     }
@@ -78,11 +78,11 @@ export class AuthService {
     }
 
     // 更新登录信息
-    await this.prisma.admin.update({
+    await this.prisma.admins.update({
       where: { id: admin.id },
       data: {
-        lastLoginAt: new Date(),
-        lastLoginIp: '127.0.0.1', // TODO: 从请求中获取真实 IP
+        last_login_at: new Date(),
+        last_login_ip: '127.0.0.1', // TODO: 从请求中获取真实 IP
       },
     });
 
@@ -111,11 +111,11 @@ export class AuthService {
     try {
       const payload = this.jwtService.verify(token);
       if (payload.type === 'user') {
-        const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
+        const user = await this.prisma.users.findUnique({ where: { id: payload.sub } });
         if (!user || user.status === 0) return null;
         return { ...payload, user };
       } else if (payload.type === 'admin') {
-        const admin = await this.prisma.admin.findUnique({ where: { id: payload.sub } });
+        const admin = await this.prisma.admins.findUnique({ where: { id: payload.sub } });
         if (!admin || admin.status === 0) return null;
         return { ...payload, admin };
       }
@@ -134,13 +134,13 @@ export class AuthService {
     if (!username || !password) {
       throw new BadRequestException('用户名和密码不能为空');
     }
-    const existing = await this.prisma.admin.findUnique({ where: { username } });
+    const existing = await this.prisma.admins.findUnique({ where: { username } });
     if (existing) {
       throw new BadRequestException('用户名已存在');
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const admin = await this.prisma.admin.create({
+    const admin = await this.prisma.admins.create({
       data: {
         username,
         password: hashedPassword,
@@ -163,7 +163,7 @@ export class AuthService {
     if (!phone || !password) {
       throw new BadRequestException('手机号和密码不能为空');
     }
-    const Outlet = await this.prisma.outlet.findUnique({ where: { phone } });
+    const Outlet = await this.prisma.outlets.findUnique({ where: { phone } });
     if (!Outlet) {
       throw new NotFoundException('网点账号不存在');
     }
@@ -178,9 +178,9 @@ export class AuthService {
     }
 
     // 更新登录信息
-    await this.prisma.outlet.update({
+    await this.prisma.outlets.update({
       where: { id: Outlet.id },
-      data: { lastLoginAt: new Date() },
+      data: { last_login_at: new Date() },
     });
 
     const token = this.jwtService.sign({
@@ -201,17 +201,17 @@ export class AuthService {
         city: Outlet.city,
         address: Outlet.address,
         status: Outlet.status,
-        outletOpenid: Outlet.outletOpenid || null,
-        subscribeMsg: Outlet.subscribeMsg,
+        outlet_openid: Outlet.outlet_openid || null,
+        subscribe_msg: Outlet.subscribe_msg,
       },
     };
   }
 
   // ==================== 管理员信息 ====================
-  async getAdminProfile(adminId: string) {
-    const admin = await this.prisma.admin.findUnique({
-      where: { id: adminId },
-      select: { id: true, username: true, nickname: true, role: true, permissions: true, status: true, createdAt: true },
+  async getAdminProfile(admin_id: string) {
+    const admin = await this.prisma.admins.findUnique({
+      where: { id: admin_id },
+      select: { id: true, username: true, nickname: true, role: true, permissions: true, status: true, created_at: true },
     });
     if (!admin) {
       throw new NotFoundException('管理员不存在');

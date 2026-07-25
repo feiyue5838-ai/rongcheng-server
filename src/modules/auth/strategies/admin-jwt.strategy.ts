@@ -23,7 +23,7 @@ export class AdminJwtStrategy extends PassportStrategy(Strategy, 'admin-jwt') {
       throw new UnauthorizedException('无效的管理员令牌');
     }
 
-    const admin = await this.prisma.admin.findUnique({ where: { id: payload.sub } });
+    const admin = await this.prisma.admins.findUnique({ where: { id: payload.sub } });
     if (!admin || admin.status === 0) {
       throw new UnauthorizedException('管理员不存在或已被禁用');
     }

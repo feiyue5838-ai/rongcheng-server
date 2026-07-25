@@ -19,8 +19,8 @@ export class OrderController {
   @ApiOperation({ summary: '创建刻章订单' })
   async createSealOrder(@Request() req, @Body() dto: any) {
     // req.user.id 来自 User 表；如无效则 fallback 到匿名用户
-    const userId = req.user?.id || '00000000-0000-0000-0000-000000000000';
-    return this.orderService.createSealOrder(userId, dto);
+    const user_id = req.user?.id || '00000000-0000-0000-0000-000000000000';
+    return this.orderService.createSealOrder(user_id, dto);
   }
 
   @Post('newspaper')
@@ -29,8 +29,8 @@ export class OrderController {
   @ApiBearerAuth()
   @ApiOperation({ summary: '创建登报订单' })
   async createNewspaperOrder(@Request() req, @Body() dto: any) {
-    const userId = req.user?.id || '00000000-0000-0000-0000-000000000000';
-    return this.orderService.createNewspaperOrder(userId, dto);
+    const user_id = req.user?.id || '00000000-0000-0000-0000-000000000000';
+    return this.orderService.createNewspaperOrder(user_id, dto);
   }
 
   @Get()
@@ -113,10 +113,10 @@ export class OrderController {
   @ApiOperation({ summary: '分配订单给网点' })
   async assignOrder(
     @Param('id') id: string,
-    @Body() dto: { outletId: string; remark?: string },
+    @Body() dto: { outlet_id: string; remark?: string },
     @Request() req: any,
   ) {
-    return this.orderService.assignOrder(id, dto.outletId, dto.remark, req.user.id as string);
+    return this.orderService.assignOrder(id, dto.outlet_id, dto.remark, req.user.id as string);
   }
 
   @Put(':id/accept')
@@ -135,7 +135,7 @@ export class OrderController {
   @ApiOperation({ summary: '网点提交交付（自动生效）' })
   async deliverOrder(
     @Param('id') id: string,
-    @Body() dto: { expressCompany: string; expressNo: string; receipts: Array<{ type: string; url: string; remark?: string }>; remark?: string },
+    @Body() dto: { express_company: string; express_no: string; receipts: Array<{ type: string; url: string; remark?: string }>; remark?: string },
     @Request() req: any,
   ) {
     return this.orderService.deliverOrder(id, dto, req.user.id);
@@ -185,9 +185,9 @@ export class OrderController {
   @ApiOperation({ summary: '发起微信支付（获取支付参数）' })
   async createPayOrder(@Param('id') id: string, @Request() req, @Body() body: { openid?: string }) {
     // 与 createSealOrder 一致：开发期容忍匿名用户，上线前恢复 JWT 鉴权
-    const userId = req.user?.id || '00000000-0000-0000-0000-000000000000';
+    const user_id = req.user?.id || '00000000-0000-0000-0000-000000000000';
     const openid = body.openid || req.user?.user?.openid || '';
-    return this.orderService.createPayOrder(id, userId, openid);
+    return this.orderService.createPayOrder(id, user_id, openid);
   }
 
   @Post(':id/dev-paid')
@@ -200,8 +200,8 @@ export class OrderController {
     if (process.env.NODE_ENV === 'production') {
       throw new ForbiddenException('生产环境不允许模拟支付');
     }
-    const userId = req.user?.id || '00000000-0000-0000-0000-000000000000';
-    return this.orderService.devConfirmPaid(id, userId);
+    const user_id = req.user?.id || '00000000-0000-0000-0000-000000000000';
+    return this.orderService.devConfirmPaid(id, user_id);
   }
 
   @Post(':id/cancel')
@@ -210,8 +210,8 @@ export class OrderController {
   @ApiBearerAuth()
   @ApiOperation({ summary: '用户取消订单（仅限未支付订单）已支付订单退款请联系管理员' })
   async cancelOrder(@Param('id') id: string, @Request() req) {
-    const userId = req.user?.id || '00000000-0000-0000-0000-000000000000';
-    return this.orderService.cancelOrder(id, userId);
+    const user_id = req.user?.id || '00000000-0000-0000-0000-000000000000';
+    return this.orderService.cancelOrder(id, user_id);
   }
 
   @Post(':id/refund')

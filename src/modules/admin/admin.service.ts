@@ -14,25 +14,25 @@ export class AdminService {
     if (keyword) where.OR = [{ username: { contains: keyword } }, { nickname: { contains: keyword } }];
 
     const [admins, total] = await Promise.all([
-      this.prisma.admin.findMany({
+      this.prisma.admins.findMany({
         where,
-        select: { id: true, username: true, nickname: true, role: true, status: true, lastLoginAt: true, createdAt: true },
-        orderBy: { createdAt: 'desc' },
+        select: { id: true, username: true, nickname: true, role: true, status: true, last_login_at: true, created_at: true },
+        orderBy: { created_at: 'desc' },
         skip: (page - 1) * pageSize,
         take: Number(pageSize),
       }),
-      this.prisma.admin.count({ where }),
+      this.prisma.admins.count({ where }),
     ]);
     return { list: admins, pagination: { page: Number(page), pageSize: Number(pageSize), total, totalPages: Math.ceil(total / Number(pageSize)) } };
   }
 
   /** 创建管理员 */
   async createAdmin(dto: any) {
-    const existing = await this.prisma.admin.findUnique({ where: { username: dto.username } });
+    const existing = await this.prisma.admins.findUnique({ where: { username: dto.username } });
     if (existing) throw new BadRequestException('用户名已存在');
     const hashedPassword = await bcrypt.hash(dto.password, 10);
     // ⚠ 白名单字段：拒绝 role / permissions / status 来自客户端
-    return this.prisma.admin.create({
+    return this.prisma.admins.create({
       data: {
         username: dto.username,
         nickname: dto.nickname || null,
@@ -46,55 +46,55 @@ export class AdminService {
 
   /** 更新管理员 */
   async updateAdmin(id: string, dto: any) {
-    const admin = await this.prisma.admin.findUnique({ where: { id } });
+    const admin = await this.prisma.admins.findUnique({ where: { id } });
     if (!admin) throw new NotFoundException('管理员不存在');
     // ⚠ 白名单字段：只允许更新 nickname / password
     const data: any = {};
     if (dto.nickname !== undefined) data.nickname = dto.nickname;
     if (dto.password) data.password = await bcrypt.hash(dto.password, 10);
-    return this.prisma.admin.update({ where: { id }, data });
+    return this.prisma.admins.update({ where: { id }, data });
   }
 
   /** 删除管理员 */
   async deleteAdmin(id: string) {
-    return this.prisma.admin.delete({ where: { id } });
+    return this.prisma.admins.delete({ where: { id } });
   }
 
   /** 操作日志 */
   async createLog(
-    adminId: string | null,
+    admin_id: string | null,
     module: string,
     action: string,
     target: string,
     detail?: string,
     ip?: string,
-    userAgent?: string,
+    user_agent?: string,
   ) {
-    return this.prisma.operationLog.create({
-      data: { adminId: adminId || null, module, action, target, detail, ip: ip || null, userAgent: userAgent || null },
+    return this.prisma.operation_logs.create({
+      data: { admin_id: admin_id || null, module, action, target, detail, ip: ip || null, user_agent: user_agent || null },
     });
   }
 
   async getLogs(query: any) {
-    const { page = 1, pageSize = 20, adminId, module, startDate, endDate } = query;
+    const { page = 1, pageSize = 20, admin_id, module, startDate, endDate } = query;
     const where: any = {};
-    if (adminId) where.adminId = adminId;
+    if (admin_id) where.admin_id = admin_id;
     if (module) where.module = module;
     if (startDate || endDate) {
-      where.createdAt = {};
-      if (startDate) where.createdAt.gte = new Date(startDate);
-      if (endDate) where.createdAt.lte = new Date(endDate);
+      where.created_at = {};
+      if (startDate) where.created_at.gte = new Date(startDate);
+      if (endDate) where.created_at.lte = new Date(endDate);
     }
 
     const [logs, total] = await Promise.all([
-      this.prisma.operationLog.findMany({
+      this.prisma.operation_logs.findMany({
         where,
         include: { admin: { select: { id: true, username: true, nickname: true } } },
-        orderBy: { createdAt: 'desc' },
+        orderBy: { created_at: 'desc' },
         skip: (page - 1) * pageSize,
         take: Number(pageSize),
       }),
-      this.prisma.operationLog.count({ where }),
+      this.prisma.operation_logs.count({ where }),
     ]);
     return { list: logs, pagination: { page: Number(page), pageSize: Number(pageSize), total, totalPages: Math.ceil(total / Number(pageSize)) } };
   }
@@ -102,36 +102,36 @@ export class AdminService {
   /** 系统总览数据 */
   async getDashboard() {
     const [
-      totalUsers, todayUsers, totalOrders, todayOrders,
+      totalUsers, todayUsers, total_orders, todayOrders,
       pendingOrders, completedOrders, totalRevenue,
       pendingReviews,
     ] = await Promise.all([
-      this.prisma.user.count(),
-      this.prisma.user.count({ where: { createdAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) } } }),
-      this.prisma.sealOrder.count(),
-      this.prisma.sealOrder.count({ where: { createdAt: { gte: new Date(new Date().setHours(0, 0, 0, 0)) } } }),
-      this.prisma.sealOrder.count({ where: { status: 1 } }),
-      this.prisma.sealOrder.count({ where: { status: 5 } }),
-      this.prisma.sealOrder.aggregate({ _sum: { payPrice: true }, where: { status: { in: [2, 3, 4, 5] } } }),
-      this.prisma.review.count({ where: { reply: null } }),
+      this.prisma.users.count(),
+      this.prisma.users.count({ where: { created_at: { gte: new Date(new Date().setHours(0, 0, 0, 0)) } } }),
+      this.prisma.seal_orders.count(),
+      this.prisma.seal_orders.count({ where: { created_at: { gte: new Date(new Date().setHours(0, 0, 0, 0)) } } }),
+      this.prisma.seal_orders.count({ where: { status: 1 } }),
+      this.prisma.seal_orders.count({ where: { status: 5 } }),
+      this.prisma.seal_orders.aggregate({ _sum: { pay_price: true }, where: { status: { in: [2, 3, 4, 5] } } }),
+      this.prisma.reviews.count({ where: { reply: null } }),
     ]);
 
     return {
       totalUsers,
       todayUsers,
-      totalOrders,
+      total_orders,
       todayOrders,
       pendingOrders,
       completedOrders,
-      totalRevenue: totalRevenue._sum.payPrice || 0,
+      totalRevenue: totalRevenue._sum.pay_price || 0,
       pendingReviews,
     };
   }
 
-  async getProfile(adminId: string) {
-    const admin = await this.prisma.admin.findUnique({
-      where: { id: adminId },
-      select: { id: true, username: true, nickname: true, role: true, permissions: true, status: true, createdAt: true },
+  async getProfile(admin_id: string) {
+    const admin = await this.prisma.admins.findUnique({
+      where: { id: admin_id },
+      select: { id: true, username: true, nickname: true, role: true, permissions: true, status: true, created_at: true },
     });
     if (!admin) {
       throw new NotFoundException('管理员不存在');

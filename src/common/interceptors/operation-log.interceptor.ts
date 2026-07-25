@@ -16,7 +16,7 @@ import { LOG_METADATA_KEY } from '../decorators/log.decorator';
  * - 读取 @Log 装饰器元数据
  * - 仅对 POST/PUT/DELETE/PATCH 写操作生效（GET 不记日志）
  * - 成功后才落库；失败不入库（避免脏数据）
- * - 自动从 JWT 中取 adminId，从 request 取 ip / userAgent
+ * - 自动从 JWT 中取 admin_id，从 request 取 ip / user_agent
  */
 @Injectable()
 export class OperationLogInterceptor implements NestInterceptor {
@@ -39,26 +39,26 @@ export class OperationLogInterceptor implements NestInterceptor {
     return next.handle().pipe(
       tap(async (data) => {
         try {
-          const adminId = req.user?.id || req.user?.sub || null;
+          const admin_id = req.user?.id || req.user?.sub || null;
           const ip =
             (req.headers?.['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
             req.ip ||
             req.socket?.remoteAddress ||
             null;
-          const userAgent = (req.headers?.['user-agent'] as string) || null;
+          const user_agent = (req.headers?.['user-agent'] as string) || null;
 
           // 解析 target
           const target = this.resolveTarget(meta.target, req, data);
 
-          await this.prisma.operationLog.create({
+          await this.prisma.operation_logs.create({
             data: {
-              adminId,
+              admin_id,
               module: meta.module,
               action: meta.action,
               target,
               detail: this.safeStringify({ body: req.body, params: req.params, result: data }, 800),
               ip,
-              userAgent,
+              user_agent,
             },
           });
         } catch (err: any) {

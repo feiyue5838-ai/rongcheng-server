@@ -61,7 +61,7 @@ export class AdminController {
   @Get('profile')
   @ApiOperation({ summary: '当前管理员信息' })
   async getProfile(@Request() req: any) {
-    const adminId = req.user?.id;
-    return this.adminService.getProfile(adminId);
+    const admin_id = req.user?.id;
+    return this.adminService.getProfile(admin_id);
   }
 }

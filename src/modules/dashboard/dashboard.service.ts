@@ -27,7 +27,7 @@ export class DashboardService {
       completedSealOrders,
       completedNewspaperOrders,
       completedBookkeepingOrders,
-      // 收入（刻章/代理记账用 payPrice，登报用 totalPrice）
+      // 收入（刻章/代理记账用 pay_price，登报用 total_price）
       sealRevenue,
       newspaperRevenue,
       bookkeepingRevenue,
@@ -35,54 +35,54 @@ export class DashboardService {
       pendingReviews,
     ] = await Promise.all([
       // 用户
-      this.prisma.user.count(),
-      this.prisma.user.count({ where: { createdAt: { gte: todayStart } } }),
+      this.prisma.users.count(),
+      this.prisma.users.count({ where: { created_at: { gte: todayStart } } }),
       // 订单总数
-      this.prisma.sealOrder.count({ where: { module: 'seal' } }),
-      this.prisma.sealOrder.count({ where: { module: 'newspaper' } }),
-      this.prisma.sealOrder.count({ where: { module: 'bookkeeping' } }),
+      this.prisma.seal_orders.count({ where: { module: 'seal' } }),
+      this.prisma.seal_orders.count({ where: { module: 'newspaper' } }),
+      this.prisma.seal_orders.count({ where: { module: 'bookkeeping' } }),
       // 待处理（status 2=已支付 3=制作中）
-      this.prisma.sealOrder.count({ where: { module: 'seal', status: { in: [2, 3] } } }),
-      this.prisma.sealOrder.count({ where: { module: 'newspaper', status: { in: [2, 3] } } }),
-      this.prisma.sealOrder.count({ where: { module: 'bookkeeping', status: { in: [2, 3] } } }),
+      this.prisma.seal_orders.count({ where: { module: 'seal', status: { in: [2, 3] } } }),
+      this.prisma.seal_orders.count({ where: { module: 'newspaper', status: { in: [2, 3] } } }),
+      this.prisma.seal_orders.count({ where: { module: 'bookkeeping', status: { in: [2, 3] } } }),
       // 今日新增
-      this.prisma.sealOrder.count({ where: { module: 'seal', createdAt: { gte: todayStart } } }),
-      this.prisma.sealOrder.count({ where: { module: 'newspaper', createdAt: { gte: todayStart } } }),
-      this.prisma.sealOrder.count({ where: { module: 'bookkeeping', createdAt: { gte: todayStart } } }),
+      this.prisma.seal_orders.count({ where: { module: 'seal', created_at: { gte: todayStart } } }),
+      this.prisma.seal_orders.count({ where: { module: 'newspaper', created_at: { gte: todayStart } } }),
+      this.prisma.seal_orders.count({ where: { module: 'bookkeeping', created_at: { gte: todayStart } } }),
       // 已完成（status 5）
-      this.prisma.sealOrder.count({ where: { module: 'seal', status: 5 } }),
-      this.prisma.sealOrder.count({ where: { module: 'newspaper', status: 5 } }),
-      this.prisma.sealOrder.count({ where: { module: 'bookkeeping', status: 5 } }),
+      this.prisma.seal_orders.count({ where: { module: 'seal', status: 5 } }),
+      this.prisma.seal_orders.count({ where: { module: 'newspaper', status: 5 } }),
+      this.prisma.seal_orders.count({ where: { module: 'bookkeeping', status: 5 } }),
       // 收入（已支付订单）
-      this.prisma.sealOrder.aggregate({
+      this.prisma.seal_orders.aggregate({
         where: { module: 'seal', status: { gte: 2 } },
-        _sum: { payPrice: true },
+        _sum: { pay_price: true },
       }),
-      this.prisma.sealOrder.aggregate({
+      this.prisma.seal_orders.aggregate({
         where: { module: 'newspaper', status: { gte: 2 } },
-        _sum: { totalPrice: true },
+        _sum: { total_price: true },
       }),
-      this.prisma.sealOrder.aggregate({
+      this.prisma.seal_orders.aggregate({
         where: { module: 'bookkeeping', status: { gte: 2 } },
-        _sum: { payPrice: true },
+        _sum: { pay_price: true },
       }),
       // 待回复评价
-      this.prisma.review.count({ where: { reply: null } }),
+      this.prisma.reviews.count({ where: { reply: null } }),
     ]);
 
-    const totalOrders = totalSealOrders + totalNewspaperOrders + totalBookkeepingOrders;
+    const total_orders = totalSealOrders + totalNewspaperOrders + totalBookkeepingOrders;
     const pendingOrders = pendingSealOrders + pendingNewspaperOrders + pendingBookkeepingOrders;
     const todayOrders = todaySealOrders + todayNewspaperOrders + todayBookkeepingOrders;
     const completedOrders = completedSealOrders + completedNewspaperOrders + completedBookkeepingOrders;
     const totalRevenue =
-      Number(sealRevenue._sum.payPrice || 0) +
-      Number(newspaperRevenue._sum?.totalPrice || 0) +
-      Number(bookkeepingRevenue._sum?.payPrice || 0);
+      Number(sealRevenue._sum.pay_price || 0) +
+      Number(newspaperRevenue._sum?.total_price || 0) +
+      Number(bookkeepingRevenue._sum?.pay_price || 0);
 
     return {
       totalUsers,
       todayUsers,
-      totalOrders,
+      total_orders,
       pendingOrders,
       totalRevenue: Math.round(totalRevenue * 100) / 100,
       todayOrders,
@@ -90,7 +90,7 @@ export class DashboardService {
       completedOrders,
       // 明细（方便前端拆分展示）
       _detail: {
-        sealOrders: totalSealOrders,
+        seal_orders: totalSealOrders,
         newspaperOrders: totalNewspaperOrders,
         bookkeepingOrders: totalBookkeepingOrders,
         pendingSealOrders,
@@ -102,9 +102,9 @@ export class DashboardService {
         completedSealOrders,
         completedNewspaperOrders,
         completedBookkeepingOrders,
-        sealRevenue: Number(sealRevenue._sum.payPrice || 0),
-        newspaperRevenue: Number(newspaperRevenue._sum?.totalPrice || 0),
-        bookkeepingRevenue: Number(bookkeepingRevenue._sum?.payPrice || 0),
+        sealRevenue: Number(sealRevenue._sum.pay_price || 0),
+        newspaperRevenue: Number(newspaperRevenue._sum?.total_price || 0),
+        bookkeepingRevenue: Number(bookkeepingRevenue._sum?.pay_price || 0),
       },
     };
   }
@@ -128,14 +128,14 @@ export class DashboardService {
       if (type === 'order') {
         // 订单量统计
         const [sealCount, newspaperCount, bookkeepingCount] = await Promise.all([
-          this.prisma.sealOrder.count({
-            where: { module: 'seal', createdAt: { gte: dayStart, lt: dayEnd } },
+          this.prisma.seal_orders.count({
+            where: { module: 'seal', created_at: { gte: dayStart, lt: dayEnd } },
           }),
-          this.prisma.sealOrder.count({
-            where: { module: 'newspaper', createdAt: { gte: dayStart, lt: dayEnd } },
+          this.prisma.seal_orders.count({
+            where: { module: 'newspaper', created_at: { gte: dayStart, lt: dayEnd } },
           }),
-          this.prisma.sealOrder.count({
-            where: { module: 'bookkeeping', createdAt: { gte: dayStart, lt: dayEnd } },
+          this.prisma.seal_orders.count({
+            where: { module: 'bookkeeping', created_at: { gte: dayStart, lt: dayEnd } },
           }),
         ]);
         sealData.push(sealCount);
@@ -144,22 +144,22 @@ export class DashboardService {
       } else {
         // 金额统计（已支付订单，按创建时间统计）
         const [sealSum, newspaperSum, bookkeepingSum] = await Promise.all([
-          this.prisma.sealOrder.aggregate({
-            where: { module: 'seal', status: { gte: 2 }, createdAt: { gte: dayStart, lt: dayEnd } },
-            _sum: { payPrice: true },
+          this.prisma.seal_orders.aggregate({
+            where: { module: 'seal', status: { gte: 2 }, created_at: { gte: dayStart, lt: dayEnd } },
+            _sum: { pay_price: true },
           }),
-          this.prisma.sealOrder.aggregate({
-            where: { module: 'newspaper', status: { gte: 2 }, createdAt: { gte: dayStart, lt: dayEnd } },
-            _sum: { totalPrice: true },
+          this.prisma.seal_orders.aggregate({
+            where: { module: 'newspaper', status: { gte: 2 }, created_at: { gte: dayStart, lt: dayEnd } },
+            _sum: { total_price: true },
           }),
-          this.prisma.sealOrder.aggregate({
-            where: { module: 'bookkeeping', status: { gte: 2 }, createdAt: { gte: dayStart, lt: dayEnd } },
-            _sum: { payPrice: true },
+          this.prisma.seal_orders.aggregate({
+            where: { module: 'bookkeeping', status: { gte: 2 }, created_at: { gte: dayStart, lt: dayEnd } },
+            _sum: { pay_price: true },
           }),
         ]);
-        sealData.push(Math.round(Number(sealSum._sum?.payPrice ?? 0) * 100) / 100);
-        newspaperData.push(Math.round(Number(newspaperSum._sum?.totalPrice ?? 0) * 100) / 100);
-        bookkeepingData.push(Math.round(Number(bookkeepingSum._sum?.payPrice ?? 0) * 100) / 100);
+        sealData.push(Math.round(Number(sealSum._sum?.pay_price ?? 0) * 100) / 100);
+        newspaperData.push(Math.round(Number(newspaperSum._sum?.total_price ?? 0) * 100) / 100);
+        bookkeepingData.push(Math.round(Number(bookkeepingSum._sum?.pay_price ?? 0) * 100) / 100);
       }
     }
 

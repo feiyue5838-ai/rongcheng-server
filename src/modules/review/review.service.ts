@@ -7,8 +7,8 @@ export class ReviewService {
   constructor(private prisma: PrismaService) {}
 
   /** 提交评价（小程序端） */
-  async submitReview(userId: string, dto: any) {
-    const { orderId, rating, content, images } = dto;
+  async submitReview(user_id: string, dto: any) {
+    const { order_id, rating, content, images } = dto;
 
     if (!rating || rating < 1 || rating > 5) {
       throw new BadRequestException('请输入 1-5 星评分');
@@ -18,19 +18,19 @@ export class ReviewService {
     }
 
     // 验证订单归属且已完成
-    const order = await this.prisma.sealOrder.findFirst({
-      where: { id: orderId, userId, status: 5 },
+    const order = await this.prisma.seal_orders.findFirst({
+      where: { id: order_id, user_id, status: 5 },
     });
     if (!order) throw new BadRequestException('订单不存在或未完成，无法评价');
 
     // 检查是否已评价
-    const existing = await this.prisma.review.findFirst({ where: { orderId } });
+    const existing = await this.prisma.reviews.findFirst({ where: { order_id } });
     if (existing) throw new BadRequestException('该订单已评价');
 
-    return this.prisma.review.create({
+    return this.prisma.reviews.create({
       data: {
-        orderId,
-        userId,
+        order_id,
+        user_id,
         module: order.module,
         rating,
         content: content.trim(),
@@ -39,26 +39,26 @@ export class ReviewService {
       },
       include: {
         user: { select: { nickname: true, avatar: true } },
-        order: { select: { orderNo: true, type: true } },
+        order: { select: { order_no: true, type: true } },
       },
     });
   }
 
   /** 我的评价列表 */
-  async getMyReviews(userId: string, query: any) {
+  async getMyReviews(user_id: string, query: any) {
     const { page = 1, pageSize = 10 } = query;
     const [reviews, total] = await Promise.all([
-      this.prisma.review.findMany({
-        where: { userId },
+      this.prisma.reviews.findMany({
+        where: { user_id },
         include: {
           user: { select: { nickname: true, avatar: true } },
-          order: { select: { orderNo: true, type: true } },
+          order: { select: { order_no: true, type: true } },
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: { created_at: 'desc' },
         skip: (page - 1) * pageSize,
         take: Number(pageSize),
       }),
-      this.prisma.review.count({ where: { userId } }),
+      this.prisma.reviews.count({ where: { user_id } }),
     ]);
     return {
       list: reviews,
@@ -73,17 +73,17 @@ export class ReviewService {
     if (module) where.module = module;
 
     const [reviews, total] = await Promise.all([
-      this.prisma.review.findMany({
+      this.prisma.reviews.findMany({
         where,
         include: {
           user: { select: { nickname: true, avatar: true } },
-          order: { select: { orderNo: true, type: true } },
+          order: { select: { order_no: true, type: true } },
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: { created_at: 'desc' },
         skip: (page - 1) * pageSize,
         take: Number(pageSize),
       }),
-      this.prisma.review.count({ where }),
+      this.prisma.reviews.count({ where }),
     ]);
 
     // 脱敏手机号
@@ -111,22 +111,22 @@ export class ReviewService {
     if (keyword) {
       where.OR = [
         { content: { contains: keyword } },
-        { order: { orderNo: { contains: keyword } } },
+        { order: { order_no: { contains: keyword } } },
       ];
     }
 
     const [reviews, total] = await Promise.all([
-      this.prisma.review.findMany({
+      this.prisma.reviews.findMany({
         where,
         include: {
           user: { select: { nickname: true, phone: true, avatar: true } },
-          order: { select: { orderNo: true, type: true } },
+          order: { select: { order_no: true, type: true } },
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: { created_at: 'desc' },
         skip: (page - 1) * pageSize,
         take: Number(pageSize),
       }),
-      this.prisma.review.count({ where }),
+      this.prisma.reviews.count({ where }),
     ]);
 
     return {
@@ -140,24 +140,24 @@ export class ReviewService {
     if (!['approved', 'rejected'].includes(status)) {
       throw new BadRequestException('状态值非法');
     }
-    const review = await this.prisma.review.findUnique({ where: { id: reviewId } });
+    const review = await this.prisma.reviews.findUnique({ where: { id: reviewId } });
     if (!review) throw new NotFoundException('评价不存在');
-    return this.prisma.review.update({ where: { id: reviewId }, data: { status } });
+    return this.prisma.reviews.update({ where: { id: reviewId }, data: { status } });
   }
 
   /** 管理端：回复评价 */
   async adminReplyReview(reviewId: string, reply: string) {
-    const review = await this.prisma.review.findUnique({ where: { id: reviewId } });
+    const review = await this.prisma.reviews.findUnique({ where: { id: reviewId } });
     if (!review) throw new NotFoundException('评价不存在');
-    return this.prisma.review.update({
+    return this.prisma.reviews.update({
       where: { id: reviewId },
-      data: { reply, replyAt: new Date() },
+      data: { reply, reply_at: new Date() },
     });
   }
 
   /** 管理端：删除评价 */
   async adminDeleteReview(reviewId: string) {
-    await this.prisma.review.delete({ where: { id: reviewId } });
+    await this.prisma.reviews.delete({ where: { id: reviewId } });
     return { success: true };
   }
 }

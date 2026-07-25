@@ -11,9 +11,9 @@ export class BookkeepingController {
 
   @Get('price')
   @ApiOperation({ summary: '获取代理记账价格' })
-  async getPrice(@Query() q: { taxpayerType: string; cycle: string; invoice: string; social: string; fund: string }) {
+  async getPrice(@Query() q: { taxpayer_type: string; cycle: string; invoice: string; social: string; fund: string }) {
     return this.bookkeepingService.getPrice({
-      taxpayerType: q.taxpayerType as any,
+      taxpayer_type: q.taxpayer_type as any,
       cycle: q.cycle as any,
       invoice: q.invoice as any,
       social: q.social as any,
@@ -28,7 +28,7 @@ export class BookkeepingController {
   async createOrder(@Body() body: any, @Request() req: any) {
     return this.bookkeepingService.createOrder(
       {
-        taxpayerType: body.taxpayerType,
+        taxpayer_type: body.taxpayer_type,
         cycle: body.cycle,
         invoice: body.invoice,
         social: body.social,
