@@ -2,6 +2,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import * as bcrypt from 'bcryptjs';
+import { randomUUID } from 'crypto';
 import { REGION_MAP, provinceToRegion } from '../../common/region';
 
 @Injectable()
@@ -92,6 +93,8 @@ export class StoreService {
 
     const Outlet = await this.prisma.outlets.create({
       data: {
+        id: randomUUID(),
+        updated_at: new Date(),
         ...data,
         business_license: data.business_license || null,
         special_permits: JSON.stringify(data.special_permits || []),
@@ -183,7 +186,7 @@ export class StoreService {
       where: { order_id, outlet_id },
       include: {
         outlet: { select: { id: true, name: true } },
-        order: {
+        seal_orders: {
           include: {
             user: { select: { id: true, nickname: true, phone: true } },
             order_items: true,
@@ -205,24 +208,24 @@ export class StoreService {
     return {
       id: assignment.id,
       order_id: assignment.order_id,
-      order_no: assignment.order.order_no,
-      company_name: assignment.order.company_name,
-      type: assignment.order.type,
-      status: assignment.order.status,
-      status_text: assignment.order.status_text,
-      address_json: assignment.order.address_json,
-      contact_phone: assignment.order.contact_phone,
-      seal_reason: assignment.order.seal_reason,
-      legal_phone: assignment.order.legal_phone,
-      express_company: assignment.order.express_company,
-      express_no: assignment.order.express_no,
-      created_at: assignment.order.created_at,
+      order_no: assignment.seal_orders.order_no,
+      company_name: assignment.seal_orders.company_name,
+      type: assignment.seal_orders.type,
+      status: assignment.seal_orders.status,
+      status_text: assignment.seal_orders.status_text,
+      address_json: assignment.seal_orders.address_json,
+      contact_phone: assignment.seal_orders.contact_phone,
+      seal_reason: assignment.seal_orders.seal_reason,
+      legal_phone: assignment.seal_orders.legal_phone,
+      express_company: assignment.seal_orders.express_company,
+      express_no: assignment.seal_orders.express_no,
+      created_at: assignment.seal_orders.created_at,
       accepted_at: assignment.accepted_at,
       completed_at: assignment.completed_at,
       assignment_status: assignment.status,
       assignmentStatusText: assignment.status_text,
-      user: assignment.order.user,
-      order_items: assignment.order.order_items,
+      user: assignment.seal_orders.user,
+      order_items: assignment.seal_orders.order_items,
       outlet: assignment.outlet,
       receipts,
     };
@@ -242,7 +245,7 @@ export class StoreService {
         take: pageSize,
         orderBy: { assigned_at: 'desc' },
         include: {
-          order: {
+          seal_orders: {
             include: {
               user: { select: { id: true, nickname: true, phone: true } },
               order_items: true,
@@ -257,16 +260,16 @@ export class StoreService {
       list: assignments.map(a => ({
         id: a.id,
         order_id: a.order_id,
-        order_no: a.order.order_no,
-        company_name: a.order.company_name,
-        type: a.order.type,
+        order_no: a.seal_orders.order_no,
+        company_name: a.seal_orders.company_name,
+        type: a.seal_orders.type,
         status: a.status,
         status_text: a.status_text,
         assigned_at: a.assigned_at,
         accepted_at: a.accepted_at,
         completed_at: a.completed_at,
-        user: a.order.user,
-        order_items: a.order.order_items,
+        user: a.seal_orders.user,
+        order_items: a.seal_orders.order_items,
       })),
       pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
     };
