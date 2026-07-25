@@ -104,7 +104,7 @@ export class DeliveryReceiptController {
       if (endDate) where.created_at.lte = new Date(`${endDate}T23:59:59.999Z`);
     }
     if (keyword) {
-      where.order = {
+      where.seal_orders = {
         OR: [
           { order_no: { contains: keyword, mode: 'insensitive' } },
           { company_name: { contains: keyword, mode: 'insensitive' } },
@@ -119,7 +119,7 @@ export class DeliveryReceiptController {
         take: pageSizeNum,
         orderBy: { created_at: 'desc' },
         include: { outlet: { select: { id: true, name: true, contact: true, phone: true, province: true, city: true } },
-          order: {
+        seal_orders: {
             select: {
               id: true,
               order_no: true,
