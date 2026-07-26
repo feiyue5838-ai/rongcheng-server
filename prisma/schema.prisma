@@ -430,6 +430,7 @@ model seals {
   description      String?
   image            String?
   price            Decimal            @db.Decimal(10, 2)
+  region_prices   Json              @default("{}") @db.Json
   status           Int                @default(1)
   sort             Int                @default(0)
   created_at       DateTime           @default(now())

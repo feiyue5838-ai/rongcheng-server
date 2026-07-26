@@ -9,9 +9,9 @@ export class SealService {
 
   // ==================== 用户端 ====================
 
-  /** 获取印章分类列表（管理后台用：返回全部分类含辅助场景） */
+  /** 获取印章分类列表（小程序用户端 + 管理后台：返回 seal_categories 全部分类） */
   async getCategories() {
-    return this.prisma.seal_scenes.findMany({
+    return this.prisma.seal_categories.findMany({
       where: { status: 1 },
       orderBy: { sort: 'asc' },
     });
@@ -19,7 +19,7 @@ export class SealService {
 
   /** 获取某个分类下的印章和套餐（用户端弹窗用） */
   /** 获取印章分类下的印章（小程序用户端） */
-  async getCategoryProducts(category_id: string) {
+  async getCategoryProducts(category_id: string, region?: string) {
     const category = await this.prisma.seal_categories.findUnique({ where: { id: category_id } });
     if (!category) throw new NotFoundException('分类不存在');
 
@@ -29,11 +29,14 @@ export class SealService {
       orderBy: { sort: 'asc' },
     });
 
-    return { category, seals };
+    return {
+      category,
+      seals: seals.map((s) => ({ ...s, displayPrice: this.calcDisplayPrice(s, region || '') })),
+    };
   }
 
   /** 获取印章列表（按分类/场景） */
-  async getSeals(category_id?: string) {
+  async getSeals(category_id?: string, region?: string) {
     const where: any = { status: 1 };
     if (category_id) {
       // 按场景关联表筛选（SealSceneSeal）
@@ -49,27 +52,34 @@ export class SealService {
       }
     }
 
-    return this.prisma.seals.findMany({
+    const seals = await this.prisma.seals.findMany({
       where,
       include: { seal_categories: true },
       orderBy: { sort: 'asc' },
     });
+    return seals.map((s) => ({ ...s, displayPrice: this.calcDisplayPrice(s, region || '') }));
   }
 
   /** 获取印章套餐列表 */
-  async getPackages() {
+  async getPackages(region?: string) {
     const packages = await this.prisma.seal_packages.findMany({
       where: { status: 1 },
       orderBy: { sort: 'asc' },
     });
 
-    // 补充印章详情
+    // 补充印章详情（含 displayPrice）
     return Promise.all(
       packages.map(async (pkg) => ({
         ...pkg,
         seals: await this.prisma.seals.findMany({
           where: { id: { in: pkg.seal_ids } },
+          include: { seal_categories: true },
         }),
+      })),
+    ).then((pkgs) =>
+      pkgs.map((pkg) => ({
+        ...pkg,
+        seals: pkg.seals.map((s) => ({ ...s, displayPrice: this.calcDisplayPrice(s, region || '') })),
       })),
     );
   }
@@ -83,9 +93,42 @@ export class SealService {
   }
 
   /** 获取某个场景下的印章和套餐（用户端弹窗用） */
-  async getSceneProducts(scene_id: string) {
-    const scene = await this.prisma.seal_scenes.findUnique({ where: { id: scene_id } });
-    if (!scene) throw new NotFoundException('场景不存在');
+  /**
+   * 根据 region_prices JSONB 计算展示价格
+   * region 参数格式：城市名（如 "成都市"、"北京"）
+   * region_prices 格式：{ "成都市": 180, "北京市": 200 }
+   * 优先级：region_prices[region] > 默认 price
+   */
+  private calcDisplayPrice(seal: any, region: string) {
+    if (!region) return Number(seal.price);
+    const regionPrices = typeof seal.region_prices === 'object' && seal.region_prices !== null
+      ? seal.region_prices
+      : {};
+    // 精确匹配城市名
+    if (regionPrices[region] !== undefined) return Number(regionPrices[region]);
+    // 回退到默认 price
+    return Number(seal.price);
+  }
+
+  async getSceneProducts(scene_id: string, region?: string) {
+    // 优先查 seal_scenes（业务场景）
+    let scene = await this.prisma.seal_scenes.findUnique({ where: { id: scene_id } });
+    if (!scene) {
+      // 尝试查 seal_categories（印章分类，含电子印章子分类）
+      const category = await this.prisma.seal_categories.findUnique({ where: { id: scene_id } });
+      if (!category) throw new NotFoundException('分类不存在');
+      // 直接按 category_id 查印章
+      const seals = await this.prisma.seals.findMany({
+        where: { category_id: category.id, status: 1 },
+        include: { seal_categories: true },
+        orderBy: { sort: 'asc' },
+      });
+      return {
+        scene: category,
+        seals: seals.map((s) => ({ ...s, displayPrice: this.calcDisplayPrice(s, region || '') })),
+        packages: [],
+      };
+    }
 
     // 获取该场景关联的印章（按 sort 排序）
     const sceneSeals = await this.prisma.seal_scene_seals.findMany({
@@ -111,14 +154,23 @@ export class SealService {
           include: { seal_categories: true },
         });
         // 显示排序优先用关联表 sp.sort；未设置时回退到套餐自身 package.sort
-        return { ...sp.package, seals, sort: sp.sort || sp.package.sort };
+        return {
+          ...sp.package,
+          seals: seals.map((s) => ({ ...s, displayPrice: this.calcDisplayPrice(s, region || '') })),
+          sort: sp.sort || sp.package.sort,
+        };
       }),
     );
 
     return {
       scene,
       // 显示排序优先用关联表 sf.sort；未设置（默认 0）时回退到印章自身 seal.sort，使管理端排序字段生效
-      seals: sceneSeals.map((sf) => ({ ...sf.seal, seal_categories: sf.seal.seal_categories, sort: sf.sort || sf.seal.sort })),
+      seals: sceneSeals.map((sf) => ({
+        ...sf.seal,
+        seal_categories: sf.seal.seal_categories,
+        sort: sf.sort || sf.seal.sort,
+        displayPrice: this.calcDisplayPrice(sf.seal, region || ''),
+      })),
       packages,
     };
   }
@@ -145,8 +197,8 @@ export class SealService {
 
   /** 管理端：印章 CRUD */
   async adminCreateSeal(dto: any) {
-    // category_id = 场景 id（建立 SealSceneSeal 关联）；sealCategoryId = 旧 SealCategory（个人子分类，写回 seal.category_id）
-    const { category_id, sealCategoryId, ...rest } = dto;
+    // categoryId = 场景 id（建立 SealSceneSeal 关联）；sealCategoryId = 旧 SealCategory（个人子分类，写回 seal.category_id）
+    const { categoryId, sealCategoryId, ...rest } = dto;
     const seal = await this.prisma.seals.create({
       data: { ...rest, category_id: sealCategoryId ?? null },
     });
@@ -159,7 +211,9 @@ export class SealService {
   }
 
   async adminUpdateSeal(id: string, dto: any) {
-    const { category_id, sealCategoryId, ...rest } = dto;
+    // DTO 发 categoryId（camelCase），DB 用 category_id（snake_case）
+    const { categoryId, sealCategoryId, ...rest } = dto;
+    const category_id = categoryId; // rename for consistency
     const updateData: any = { ...rest };
     // 个人印章子分类：写回/清除 seal.category_id（空串统一为 null，避免无效外键）
     if (sealCategoryId !== undefined) updateData.category_id = sealCategoryId || null;

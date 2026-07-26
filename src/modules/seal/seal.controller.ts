@@ -19,20 +19,26 @@ export class SealController {
 
   @Get('categories/:id')
   @ApiOperation({ summary: '获取分类下的印章和套餐' })
-  async getCategoryProducts(@Param('id') id: string) {
-    return this.sealService.getCategoryProducts(id);
+  async getCategoryProducts(
+    @Param('id') id: string,
+    @Query('region') region: string,
+  ) {
+    return this.sealService.getCategoryProducts(id, region);
   }
 
   @Get()
   @ApiOperation({ summary: '获取印章列表' })
-  async getSeals(@Query('category_id') category_id?: string) {
-    return this.sealService.getSeals(category_id);
+  async getSeals(
+    @Query('category_id') category_id?: string,
+    @Query('region') region?: string,
+  ) {
+    return this.sealService.getSeals(category_id, region);
   }
 
   @Get('packages')
   @ApiOperation({ summary: '获取印章套餐列表' })
-  async getPackages() {
-    return this.sealService.getPackages();
+  async getPackages(@Query('region') region?: string) {
+    return this.sealService.getPackages(region);
   }
 
   @Get('scenes')
@@ -43,8 +49,11 @@ export class SealController {
 
   @Get('scenes/:id')
   @ApiOperation({ summary: '获取场景下的印章和套餐' })
-  async getSceneProducts(@Param('id') id: string) {
-    return this.sealService.getSceneProducts(id);
+  async getSceneProducts(
+    @Param('id') id: string,
+    @Query('region') region: string,
+  ) {
+    return this.sealService.getSceneProducts(id, region);
   }
 
   // ==================== 管理端：场景（SealScene）管理 ====================
