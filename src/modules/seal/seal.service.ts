@@ -18,8 +18,18 @@ export class SealService {
   }
 
   /** 获取某个分类下的印章和套餐（用户端弹窗用） */
+  /** 获取印章分类下的印章（小程序用户端） */
   async getCategoryProducts(category_id: string) {
-    return this.getSceneProducts(category_id);
+    const category = await this.prisma.seal_categories.findUnique({ where: { id: category_id } });
+    if (!category) throw new NotFoundException('分类不存在');
+
+    const seals = await this.prisma.seals.findMany({
+      where: { category_id, status: 1 },
+      include: { seal_categories: true },
+      orderBy: { sort: 'asc' },
+    });
+
+    return { category, seals };
   }
 
   /** 获取印章列表（按分类/场景） */
