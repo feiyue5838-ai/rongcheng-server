@@ -31,7 +31,7 @@ export class SealService {
 
     return {
       category,
-      seals: seals.map((s) => ({ ...s, displayPrice: this.calcDisplayPrice(s, region || '') })),
+      seals: seals.map((s) => ({ ...s, displayPrice: this.resolveRegionPrice(s, region || '') })),
     };
   }
 
@@ -57,7 +57,7 @@ export class SealService {
       include: { seal_categories: true },
       orderBy: { sort: 'asc' },
     });
-    return seals.map((s) => ({ ...s, displayPrice: this.calcDisplayPrice(s, region || '') }));
+    return seals.map((s) => ({ ...s, displayPrice: this.resolveRegionPrice(s, region || '') }));
   }
 
   /** 获取印章套餐列表 */
@@ -79,8 +79,8 @@ export class SealService {
     ).then((pkgs) =>
       pkgs.map((pkg) => ({
         ...pkg,
-        seals: pkg.seals.map((s) => ({ ...s, displayPrice: this.calcDisplayPrice(s, region || '') })),
-        displayPrice: this.calcPkgDisplayPrice(pkg, region || ''),
+        seals: pkg.seals.map((s) => ({ ...s, displayPrice: this.resolveRegionPrice(s, region || '') })),
+        displayPrice: this.resolveRegionPrice(pkg, region || ''),
       })),
     );
   }
@@ -95,33 +95,32 @@ export class SealService {
 
   /** 获取某个场景下的印章和套餐（用户端弹窗用） */
   /**
-   * 根据 region_prices JSONB 计算展示价格
-   * region 参数格式：城市名（如 "成都市"、"北京"）
-   * region_prices 格式：{ "成都市": 180, "北京市": 200 }
-   * 优先级：region_prices[region] > 默认 price
+   * 按 region_prices JSONB 计算展示价格（印章 / 套餐通用）
+   * region 参数格式："省 市"（如 "四川省 成都市"），兼容纯城市名（"成都市"）
+   * region_prices 格式：{ "成都市": 180, "四川省": 200 }
+   * 优先级：region_prices[市] > region_prices[省] > 默认 price
    */
-  private calcDisplayPrice(seal: any, region: string) {
-    if (!region) return Number(seal.price);
-    const regionPrices = typeof seal.region_prices === 'object' && seal.region_prices !== null
-      ? seal.region_prices
+  private resolveRegionPrice(obj: any, region: string) {
+    if (!region) return Number(obj.price);
+    const regionPrices = typeof obj.region_prices === 'object' && obj.region_prices !== null
+      ? obj.region_prices
       : {};
-    // 精确匹配城市名
-    if (regionPrices[region] !== undefined) return Number(regionPrices[region]);
+    // "省 市" → 末段为市、首段为省；纯城市名则市=region、省为空
+    const parts = region.split(/\s+/).filter(Boolean);
+    const city = parts.length > 1 ? parts[parts.length - 1] : region;
+    const province = parts.length > 1 ? parts[0] : '';
+    // 优先精确匹配城市级（兼容 key 为城市全称"成都市"而 region 末段为"成都"的情况）
+    if (regionPrices[city] !== undefined) return Number(regionPrices[city]);
+    const fuzzyCityKey = Object.keys(regionPrices).find((k) => k === city || k.startsWith(city));
+    if (fuzzyCityKey !== undefined) return Number(regionPrices[fuzzyCityKey]);
+    // 回退到省级（同样兼容省全称/简称）
+    if (province) {
+      if (regionPrices[province] !== undefined) return Number(regionPrices[province]);
+      const fuzzyProvKey = Object.keys(regionPrices).find((k) => k === province || k.startsWith(province));
+      if (fuzzyProvKey !== undefined) return Number(regionPrices[fuzzyProvKey]);
+    }
     // 回退到默认 price
-    return Number(seal.price);
-  }
-
-  /**
-   * 计算套餐展示价格（按 region_prices JSONB）
-   * region：城市名（如 "成都市"）；无 region 或无匹配 → Number(pkg.price)
-   */
-  private calcPkgDisplayPrice(pkg: any, region: string) {
-    if (!region) return Number(pkg.price);
-    const regionPrices = typeof pkg.region_prices === 'object' && pkg.region_prices !== null
-      ? pkg.region_prices
-      : {};
-    if (regionPrices[region] !== undefined) return Number(regionPrices[region]);
-    return Number(pkg.price);
+    return Number(obj.price);
   }
 
   async getSceneProducts(scene_id: string, region?: string) {
@@ -139,7 +138,7 @@ export class SealService {
       });
       return {
         scene: category,
-        seals: seals.map((s) => ({ ...s, displayPrice: this.calcDisplayPrice(s, region || '') })),
+        seals: seals.map((s) => ({ ...s, displayPrice: this.resolveRegionPrice(s, region || '') })),
         packages: [],
       };
     }
@@ -170,9 +169,9 @@ export class SealService {
         // 显示排序优先用关联表 sp.sort；未设置时回退到套餐自身 package.sort
         return {
           ...sp.package,
-          seals: seals.map((s) => ({ ...s, displayPrice: this.calcDisplayPrice(s, region || '') })),
+          seals: seals.map((s) => ({ ...s, displayPrice: this.resolveRegionPrice(s, region || '') })),
           sort: sp.sort || sp.package.sort,
-          displayPrice: this.calcPkgDisplayPrice(sp.package, region || ''),
+          displayPrice: this.resolveRegionPrice(sp.package, region || ''),
         };
       }),
     );
@@ -184,7 +183,7 @@ export class SealService {
         ...sf.seal,
         seal_categories: sf.seal.seal_categories,
         sort: sf.sort || sf.seal.sort,
-        displayPrice: this.calcDisplayPrice(sf.seal, region || ''),
+        displayPrice: this.resolveRegionPrice(sf.seal, region || ''),
       })),
       packages,
     };
@@ -373,9 +372,9 @@ export class SealService {
         });
         return {
           ...sp.package,
-          seals: seals.map((s) => ({ ...s, displayPrice: this.calcDisplayPrice(s, '') })),
+          seals: seals.map((s) => ({ ...s, displayPrice: this.resolveRegionPrice(s, '') })),
           sort: sp.sort || sp.package.sort,
-          displayPrice: this.calcPkgDisplayPrice(sp.package, ''),
+          displayPrice: this.resolveRegionPrice(sp.package, ''),
         };
       }),
     );
@@ -385,7 +384,7 @@ export class SealService {
         ...sf.seal,
         seal_categories: sf.seal.seal_categories,
         sort: sf.sort || sf.seal.sort,
-        displayPrice: this.calcDisplayPrice(sf.seal, ''),
+        displayPrice: this.resolveRegionPrice(sf.seal, ''),
       })),
       packages,
     };
