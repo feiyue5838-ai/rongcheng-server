@@ -80,6 +80,7 @@ export class SealService {
       pkgs.map((pkg) => ({
         ...pkg,
         seals: pkg.seals.map((s) => ({ ...s, displayPrice: this.calcDisplayPrice(s, region || '') })),
+        displayPrice: this.calcPkgDisplayPrice(pkg, region || ''),
       })),
     );
   }
@@ -108,6 +109,19 @@ export class SealService {
     if (regionPrices[region] !== undefined) return Number(regionPrices[region]);
     // 回退到默认 price
     return Number(seal.price);
+  }
+
+  /**
+   * 计算套餐展示价格（按 region_prices JSONB）
+   * region：城市名（如 "成都市"）；无 region 或无匹配 → Number(pkg.price)
+   */
+  private calcPkgDisplayPrice(pkg: any, region: string) {
+    if (!region) return Number(pkg.price);
+    const regionPrices = typeof pkg.region_prices === 'object' && pkg.region_prices !== null
+      ? pkg.region_prices
+      : {};
+    if (regionPrices[region] !== undefined) return Number(regionPrices[region]);
+    return Number(pkg.price);
   }
 
   async getSceneProducts(scene_id: string, region?: string) {
@@ -158,6 +172,7 @@ export class SealService {
           ...sp.package,
           seals: seals.map((s) => ({ ...s, displayPrice: this.calcDisplayPrice(s, region || '') })),
           sort: sp.sort || sp.package.sort,
+          displayPrice: this.calcPkgDisplayPrice(sp.package, region || ''),
         };
       }),
     );
@@ -360,6 +375,7 @@ export class SealService {
           ...sp.package,
           seals: seals.map((s) => ({ ...s, displayPrice: this.calcDisplayPrice(s, '') })),
           sort: sp.sort || sp.package.sort,
+          displayPrice: this.calcPkgDisplayPrice(sp.package, ''),
         };
       }),
     );

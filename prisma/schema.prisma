@@ -381,6 +381,7 @@ model seal_packages {
   created_at          DateTime              @default(now())
   updated_at          DateTime @updatedAt
   images              String[]
+  region_prices       Json?
   order_items         order_items[]
   seal_scene_packages seal_scene_packages[]
 }
