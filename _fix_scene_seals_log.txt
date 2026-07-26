@@ -1,0 +1,22 @@
+=== Find orphaned seal_scene_seals ===
+Orphan count: 7
+  scene=其他章名, seal_id=56f6c208-0bd0-4469-a7b1-bb3f94181645
+  scene=其他章名, seal_id=ef62e910-a192-4a99-9784-e56882c0d2ad
+  scene=公司, seal_id=0927f759-680e-4e07-8cd4-d936d5789da8
+  scene=其他章名, seal_id=42741c89-2d39-46b2-8719-c9a8b2043316
+  scene=其他章名, seal_id=c542bb8b-47bc-4d3e-a74d-2ae657d72892
+  scene=其他章名, seal_id=1c1bdbe4-cd15-46d6-8afd-63b79ffa165c
+  scene=其他章名, seal_id=4071e6e5-6629-467d-abd7-a4d50097d127
+DELETE FROM seal_scene_seals WHERE seal_id IN (SELECT sss.seal_id FROM seal_scen
+  => OK, rows affected: 0
+
+=== Find orphaned seal_scene_packages ===
+Orphan count: 0
+
+=== Re-test getSceneProducts ===
+Scene: 公司
+sceneSeals: 2
+  - 中英文对照公章 (公司)
+  - 中英文合同章 (公司)
+
+ALL OK - getSceneProducts fixed!

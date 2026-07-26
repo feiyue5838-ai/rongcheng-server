@@ -339,20 +339,39 @@ export class SealService {
   async adminGetScene(id: string) {
     const scene = await this.prisma.seal_scenes.findUnique({ where: { id } });
     if (!scene) throw new NotFoundException('场景不存在');
-    const seals = await this.prisma.seal_scene_seals.findMany({
+    const sceneSeals = await this.prisma.seal_scene_seals.findMany({
       where: { scene_id: id },
       orderBy: { sort: 'asc' },
-      include: { seal: true },
+      include: { seal: { include: { seal_categories: true } } },
     });
-    const packages = await this.prisma.seal_scene_packages.findMany({
+    const scenePackages = await this.prisma.seal_scene_packages.findMany({
       where: { scene_id: id },
       orderBy: { sort: 'asc' },
       include: { package: true },
     });
+    // 套餐补全印章详情
+    const packages = await Promise.all(
+      scenePackages.map(async (sp) => {
+        const seals = await this.prisma.seals.findMany({
+          where: { id: { in: sp.package.seal_ids } },
+          include: { seal_categories: true },
+        });
+        return {
+          ...sp.package,
+          seals: seals.map((s) => ({ ...s, displayPrice: this.calcDisplayPrice(s, '') })),
+          sort: sp.sort || sp.package.sort,
+        };
+      }),
+    );
     return {
       scene,
-      seals: seals.map((s) => s.seal),
-      packages: packages.map((p) => p.package),
+      seals: sceneSeals.map((sf) => ({
+        ...sf.seal,
+        seal_categories: sf.seal.seal_categories,
+        sort: sf.sort || sf.seal.sort,
+        displayPrice: this.calcDisplayPrice(sf.seal, ''),
+      })),
+      packages,
     };
   }
 

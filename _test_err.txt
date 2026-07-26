@@ -1,0 +1,14 @@
+Connecting...
+Q1 scene: 公司
+Testing Q2 (seal_scene_seals)...
+Q2 ERROR: 
+Invalid `p.seal_scene_seals.findMany()` invocation in
+D:\rongcheng-admin\server\_test2.cjs:17:49
+
+  14 logWrite('Q1 scene: ' + (scene ? scene.name : 'NOT FOUND'));
+  15 
+  16 logWrite('Testing Q2 (seal_scene_seals)...');
+→ 17 const sceneSeals = await p.seal_scene_seals.findMany(
+Inconsistent query result: Field seal is required to return data, got `null` instead.
+Q2 NAME: PrismaClientUnknownRequestError
+Q2 CODE: undefined
