@@ -169,6 +169,7 @@ export class SealService {
         // 显示排序优先用关联表 sp.sort；未设置时回退到套餐自身 package.sort
         return {
           ...sp.package,
+          scene_id: sp.scene_id,
           seals: seals.map((s) => ({ ...s, displayPrice: this.resolveRegionPrice(s, region || '') })),
           sort: sp.sort || sp.package.sort,
           displayPrice: this.resolveRegionPrice(sp.package, region || ''),
@@ -216,9 +217,9 @@ export class SealService {
     const seal = await this.prisma.seals.create({
       data: { ...rest, category_id: sealCategoryId ?? null },
     });
-    if (category_id) {
+    if (categoryId) {
       await this.prisma.seal_scene_seals.create({
-        data: { scene_id: category_id, seal_id: seal.id, sort: 0 },
+        data: { scene_id: categoryId, seal_id: seal.id, sort: 0 },
       });
     }
     return seal;
@@ -324,14 +325,35 @@ export class SealService {
 
   /** 管理端：套餐 CRUD */
   async adminCreatePackage(dto: any) {
-    return this.prisma.seal_packages.create({ data: dto });
+    const { scene_ids, ...pkgData } = dto;
+    const pkg = await this.prisma.seal_packages.create({ data: pkgData });
+    if (Array.isArray(scene_ids) && scene_ids.length > 0) {
+      await this.prisma.seal_scene_packages.createMany({
+        data: scene_ids.map((scene_id) => ({ scene_id, package_id: pkg.id })),
+        skipDuplicates: true,
+      });
+    }
+    return pkg;
   }
 
   async adminUpdatePackage(id: string, dto: any) {
-    return this.prisma.seal_packages.update({ where: { id }, data: dto });
+    const { scene_ids, ...pkgData } = dto;
+    const pkg = await this.prisma.seal_packages.update({ where: { id }, data: pkgData });
+    if (Array.isArray(scene_ids)) {
+      // 全量替换：先删后建（保持简单一致）
+      await this.prisma.seal_scene_packages.deleteMany({ where: { package_id: id } });
+      if (scene_ids.length > 0) {
+        await this.prisma.seal_scene_packages.createMany({
+          data: scene_ids.map((scene_id) => ({ scene_id, package_id: id })),
+          skipDuplicates: true,
+        });
+      }
+    }
+    return pkg;
   }
 
   async adminDeletePackage(id: string) {
+    await this.prisma.seal_scene_packages.deleteMany({ where: { package_id: id } });
     return this.prisma.seal_packages.delete({ where: { id } });
   }
 
