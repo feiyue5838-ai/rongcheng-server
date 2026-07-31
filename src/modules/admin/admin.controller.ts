@@ -58,6 +58,12 @@ export class AdminController {
     return this.adminService.getLogs(query);
   }
 
+  @Get('logs/modules')
+  @ApiOperation({ summary: '日志模块列表' })
+  async getLogModules() {
+    return this.adminService.getLogModules();
+  }
+
   @Get('profile')
   @ApiOperation({ summary: '当前管理员信息' })
   async getProfile(@Request() req: any) {

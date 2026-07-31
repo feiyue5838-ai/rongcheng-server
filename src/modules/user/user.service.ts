@@ -2,6 +2,19 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
+function snakeToCamel(s: string) {
+  return s.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+}
+function toCamelDeep(obj: any): any {
+  if (obj === null || obj === undefined) return obj;
+  if (Array.isArray(obj)) return obj.map(toCamelDeep);
+  if (obj instanceof Date) return obj;
+  if (typeof obj === 'object') return Object.fromEntries(
+    Object.entries(obj).map(([k, v]) => [snakeToCamel(k), toCamelDeep(v)]),
+  );
+  return obj;
+}
+
 @Injectable()
 export class UserService {
   constructor(private prisma: PrismaService) {}
@@ -94,8 +107,24 @@ export class UserService {
     ]);
 
     return {
-      list: users,
+      list: toCamelDeep(users),
       pagination: { page: Number(page), pageSize: Number(pageSize), total, totalPages: Math.ceil(total / Number(pageSize)) },
     };
+  }
+
+  /** 管理端：更新用户（状态等） */
+  async adminUpdateUser(id: string, dto: any) {
+    const updateData: any = {};
+    if (dto.status !== undefined) updateData.status = dto.status;
+    if (dto.realname !== undefined) updateData.realname = dto.realname;
+
+    const user = await this.prisma.users.update({ where: { id }, data: updateData });
+    return toCamelDeep(user);
+  }
+
+  /** 管理端：删除用户 */
+  async adminDeleteUser(id: string) {
+    await this.prisma.users.delete({ where: { id } });
+    return { success: true };
   }
 }

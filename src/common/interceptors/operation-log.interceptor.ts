@@ -76,13 +76,34 @@ export class OperationLogInterceptor implements NestInterceptor {
       return `${req.method} ${req.originalUrl || req.url}`;
     }
     let result = template;
-    // 替换 {paramName} 占位符
-    const paramMatches = template.matchAll(/\{(\w+)\}/g);
-    for (const m of paramMatches) {
+
+    // 优先取真实路由参数（req.params 已有 Express 已解析的值）
+    const src = req.params ?? {};
+
+    // 风格 1: :paramName（Express 路由参数语法，有前缀 /）
+    // 示例: "admin/:id" → "admin/abc123"
+    for (const m of template.matchAll(/\/:(\w+)/g)) {
       const key = m[1];
-      const value = req.params?.[key] || data?.id || data?.[key] || '';
-      result = result.replace(`{${key}}`, String(value));
+      const val = src[key] ?? req.body?.[key] ?? req.query?.[key] ?? data?.id ?? '';
+      result = result.replace(`/:${key}`, val ? `/${val}` : '');
     }
+
+    // 风格 1b: 纯 :paramName（无前缀，常用于单资源路径）
+    // 示例: ":id" → "abc123"
+    for (const m of template.matchAll(/^:(\w+)$/g)) {
+      const key = m[1];
+      const val = src[key] ?? req.body?.[key] ?? req.query?.[key] ?? data?.id ?? '';
+      result = result.replace(`:${key}`, val);
+    }
+
+    // 风格 2: {paramName}（纯文本模板占位符，admin.controller.ts 风格）
+    // 示例: "管理员 {id}" → "管理员 abc123"
+    for (const m of result.matchAll(/\{(\w+)\}/g)) {
+      const key = m[1];
+      const val = src[key] ?? req.body?.[key] ?? req.query?.[key] ?? data?.id ?? '';
+      result = result.replace(`{${key}}`, String(val));
+    }
+
     return result;
   }
 

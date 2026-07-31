@@ -80,4 +80,20 @@ export class UserController {
   async adminGetUsers(@Query() query: any) {
     return this.userService.adminGetUsers(query);
   }
+
+  @Put('admin/:id')
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '管理端：更新用户（状态等）' })
+  async adminUpdateUser(@Param('id') id: string, @Body() dto: any) {
+    return this.userService.adminUpdateUser(id, dto);
+  }
+
+  @Delete('admin/:id')
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '管理端：删除用户' })
+  async adminDeleteUser(@Param('id') id: string) {
+    return this.userService.adminDeleteUser(id);
+  }
 }
