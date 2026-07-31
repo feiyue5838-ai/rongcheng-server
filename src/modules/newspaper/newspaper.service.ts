@@ -84,9 +84,9 @@ export class NewspaperService {
       return { ...n, region: r };
     });
     const result = { list: toCamelDeep(list), total };
-    // 缓存key必须含分页参数，否则不同页返回同一缓存
+    // 缓存改为fire-and-forget，避免Redis阻塞主响应
     const cacheKey = `news:papers:${province_code || ''}:${city_code || ''}:${level || ''}:${category_id || ''}:${region || ''}:${pageSize}:${pageNum}`;
-    await this.cache.set(cacheKey, result, 60 * 1000);
+    this.cache.set(cacheKey, result, 60 * 1000).catch(() => {});
     return result;
   }
 
@@ -109,12 +109,22 @@ export class NewspaperService {
       region: n.region || provinceToRegion(n.province_code ? null : n.province),
     }));
     const result = { list: toCamelDeep(list), total: list.length };
-    await this.cache.set(cacheKey, result, 60 * 1000);
+    // 缓存fire-and-forget，避免Redis阻塞
+    this.cache.set(cacheKey, result, 60 * 1000).catch(() => {});
     return result;
   }
 
-  async getTemplates(newspaper_id?: string, category_id?: string, businessType?: string, skipCache = false) {
-    if (!skipCache) {
+  async getTemplates(
+    newspaper_id?: string,
+    category_id?: string,
+    businessType?: string,
+    page?: number,
+    pageSize?: number,
+    skipCache = false
+  ) {
+    // 分页查询不走缓存（避免缓存分页碎片）
+    const useCache = !skipCache && !page && !pageSize;
+    if (useCache) {
       const key = `news:tmpl:${newspaper_id || ''}:${category_id || ''}:${businessType || ''}`;
       const cached = await this.cache.get<any>(key);
       if (cached) return cached;
@@ -123,13 +133,23 @@ export class NewspaperService {
     if (newspaper_id) where.newspaper_id = newspaper_id;
     if (category_id) where.category_id = category_id;
     if (businessType) where.businessType = businessType;
-    const rawList = await this.prisma.newspaper_templates.findMany({
-      where,
-      include: { newspaper: true, newspaper_categories: true },
-      orderBy: { sort: 'asc' },
-    });
-    const result = { list: toCamelDeep(rawList), total: rawList.length };
-    if (!skipCache) await this.cache.set(`news:tmpl:${newspaper_id || ''}:${category_id || ''}:${businessType || ''}`, result, 60 * 1000);
+
+    const p = Math.max(1, page || 1);
+    const ps = Math.min(100, Math.max(1, pageSize || 20));
+
+    const [rawList, totalCount] = await Promise.all([
+      this.prisma.newspaper_templates.findMany({
+        where,
+        include: { newspaper: true, newspaper_categories: true },
+        orderBy: { sort: 'asc' },
+        skip: (p - 1) * ps,
+        take: ps,
+      }),
+      this.prisma.newspaper_templates.count({ where }),
+    ]);
+
+    const result = { list: toCamelDeep(rawList), total: totalCount };
+    if (useCache) await this.cache.set(`news:tmpl:${newspaper_id || ''}:${category_id || ''}:${businessType || ''}`, result, 60 * 1000);
     return result;
   }
 
@@ -335,10 +355,23 @@ export class NewspaperService {
   }
 
   // ========== 公告声明 ==========
-  async getAnnouncement2Templates() {
+  async getNoticeTemplates() {
     const CAT = 'e1023e5f-90c1-43c1-9e40-bf4ba0ed0a78';
+    const M = {
+      company:  { name: '企业公告',     color: '#5B6FE8', hot: true },
+    };
     const templates = await this.prisma.newspaper_templates.findMany({ where: { category_id: CAT, status: 1 }, orderBy: { sort: 'asc' } });
-    return [{ id: 'all', name: '公告声明', color: '#5B6FE8', total: templates.length, docs: templates.map(t => ({ name: t.name, content: t.content })) }];
+    const g: Record<string, any[]> = {};
+    for (const t of templates) { const k = t.templateType || 'other'; (g[k] = g[k] || []).push(t); }
+    return Object.keys(M).map(k => {
+      const items = g[k] || [];
+      return { id: k, name: M[k].name, desc: M[k].name, color: M[k].color, hot: M[k].hot || false, total: items.length, docs: items.map(t => ({ name: t.name, content: t.content })) };
+    }).filter(x => x.total > 0);
+  }
+
+  // 保留旧方法以兼容
+  async getAnnouncement2Templates() {
+    return this.getNoticeTemplates();
   }
 
   // ========== 企业证件 ==========
