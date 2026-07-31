@@ -8,7 +8,8 @@ export class UploadService {
   private uploadDir: string;
 
   constructor() {
-    this.uploadDir = path.join(process.cwd(), 'uploads');
+    // 统一使用 process.cwd() + 相对路径上传根目录
+    this.uploadDir = path.resolve(process.cwd(), 'uploads');
     if (!fs.existsSync(this.uploadDir)) {
       fs.mkdirSync(this.uploadDir, { recursive: true });
     }

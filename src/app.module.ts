@@ -2,6 +2,9 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_INTERCEPTOR, APP_GUARD } from '@nestjs/core';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { CacheModule } from '@nestjs/cache-manager';
+import { Keyv } from 'keyv';
+import { createKeyv } from '@keyv/redis';
 import { AuthModule } from './modules/auth/auth.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { OrderModule } from './modules/order/order.module';
@@ -24,7 +27,19 @@ import { OperationLogInterceptor } from './common/interceptors/operation-log.int
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
-    ThrottlerModule.forRoot([{ ttl: 60000, limit: 60 }]), // 全局限流：60次/分钟
+    // Redis 分布式缓存：跨 8 workers 共享，持久化，重启不丢
+    CacheModule.registerAsync({
+      isGlobal: true,
+      useFactory: async () => {
+        const store = createKeyv('redis://localhost:6379', { namespace: 'rc' });
+        return {
+          stores: [store],
+          ttl: 60 * 1000,
+        };
+      },
+    }),
+    // ⚠️ 压测/大并发时临时调高；生产环境可根据实际流量调回 500-1000
+    ThrottlerModule.forRoot([{ ttl: 60000, limit: 10000 }]),
     PrismaModule,
     AuthModule,
     OrderModule,

@@ -1,0 +1,20 @@
+{
+  "name": "rongcheng-api",
+  "script": "node",
+  "args": "dist/main.js",
+  "cwd": "D:\\rongcheng-admin\\server",
+  "interpreter": "none",
+  "watch": false,
+  "env": {
+    "NODE_ENV": "development",
+    "PORT": "3001",
+    "DB_HOST": "localhost",
+    "DB_PORT": "5432",
+    "DB_USER": "postgres",
+    "DB_PASSWORD": "wuhongyuan198911",
+    "DB_NAME": "rongcheng",
+    "JWT_SECRET": "rongcheng-jwt-secret-2024",
+    "API_BASE": "http://localhost:3001",
+    "MINIAPP_BASE": "http://localhost:3001"
+  }
+}

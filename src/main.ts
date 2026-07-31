@@ -35,7 +35,8 @@ async function bootstrap() {
   });
 
   // 静态资源：上传的图片通过 /uploads 访问
-  app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+  // 统一使用 process.cwd() 路径（PM2 cluster 模式下 __dirname 会指向每个 worker 的目录）
+  app.use('/uploads', express.static(path.resolve(process.cwd(), 'uploads')));
 
   // 全局前缀: 所有路由统一加上 /api
   app.setGlobalPrefix('api');
