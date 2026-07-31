@@ -26,7 +26,7 @@ export class ConfigController {
   @ApiBearerAuth()
   @ApiOperation({ summary: '设置配置' })
   @Log('系统', '更新配置')
-  async setConfig(@Body() dto: { key: string; value: any; name?: string }) {
-    return this.configService.setConfig(dto.key, dto.value, dto.name);
+  async setConfig(@Body() dto: { key: string; value: any; name?: string; group?: string }) {
+    return this.configService.setConfig(dto.key, dto.value, dto.name, dto.group);
   }
 }

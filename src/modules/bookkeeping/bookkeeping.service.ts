@@ -5,6 +5,25 @@ import { WechatService } from '../wechat/wechat.service';
 import { v4 as uuidv4 } from 'uuid';
 import * as crypto from 'crypto';
 
+function snakeToCamel(key: string): string {
+  return key.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+}
+
+function toCamelDeep(obj: any): any {
+  if (obj instanceof Date) return obj;
+  if (Array.isArray(obj)) return obj.map(toCamelDeep);
+  if (obj !== null && typeof obj === 'object') {
+    if (typeof obj.toString === 'function' && !('getTime' in obj)) {
+      const str = obj.toString();
+      if (/^\d+(\.\d+)?$/.test(str)) return Number(str);
+    }
+    return Object.fromEntries(
+      Object.entries(obj).map(([k, v]) => [snakeToCamel(k), toCamelDeep(v)])
+    );
+  }
+  return obj;
+}
+
 interface PriceParams {
   taxpayer_type: 'small' | 'general';
   cycle: 'year' | 'half' | 'preorder';
@@ -310,7 +329,16 @@ export class BookkeepingService {
     const list = rows.map(o => {
       let extra: any = {};
       try { extra = JSON.parse(o.remark || '{}'); } catch { /* ignore */ }
-      return { ...o, extra };
+      return {
+        ...toCamelDeep(o),
+        extra,
+        totalPrice: Number(o.total_price) || 0,
+        payPrice: Number(o.pay_price) || 0,
+        createdAt: o.created_at,
+        orderNo: o.order_no,
+        contactPhone: o.contact_phone,
+        statusText: o.status_text,
+      };
     });
 
     return { rows: list, total, page, pageSize };
