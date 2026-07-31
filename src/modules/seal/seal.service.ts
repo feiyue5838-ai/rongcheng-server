@@ -1,27 +1,68 @@
 // @ts-nocheck
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Inject } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from '@nestjs/cache-manager';
 import { v4 as uuidv4 } from 'uuid';
 import { PrismaService } from '../../prisma/prisma.service';
 
+// ==================== snake → camel 转换工具 ====================
+function snakeToCamel(key: string): string {
+  return key.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+}
+function toCamelDeep(obj: any): any {
+  if (obj instanceof Date) return obj;
+  if (Array.isArray(obj)) return obj.map(toCamelDeep);
+  if (obj !== null && typeof obj === 'object') {
+    if (typeof obj.toString === 'function' && !('getTime' in obj)) {
+      const str = obj.toString();
+      if (/^\d+(\.\d+)?$/.test(str)) return Number(str);
+    }
+    return Object.fromEntries(
+      Object.entries(obj).map(([k, v]) => [snakeToCamel(k), toCamelDeep(v)])
+    );
+  }
+  return obj;
+}
+
 @Injectable()
 export class SealService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    @Inject(CACHE_MANAGER) private cache: Cache,
+  ) {}
 
   // ==================== 用户端 ====================
 
-  /** 获取印章分类列表（小程序用户端 + 管理后台：返回 seal_categories 全部分类） */
+  /** 获取印章分类列表（带 30s 内存缓存） */
   async getCategories() {
-    return this.prisma.seal_categories.findMany({
+    const key = 'seal:categories';
+    const cached = await this.cache.get<any[]>(key);
+    if (cached) return cached;
+    const result = await this.prisma.seal_categories.findMany({
       where: { status: 1 },
       orderBy: { sort: 'asc' },
     });
+    const camel = toCamelDeep(result);
+    await this.cache.set(key, camel, 300 * 1000);
+    return camel;
+  }
+
+  /** 清除印章模块缓存 */
+  private async invalidateSealCache() {
+    try {
+      await this.cache.del('seal:categories');
+      await this.cache.del('seal:packages');
+      for (const region of ['', '成都市', '四川省']) {
+        await this.cache.del('seal:packages:' + region).catch(() => {});
+      }
+    } catch { /* 静默 */ }
   }
 
   /** 获取某个分类下的印章和套餐（用户端弹窗用） */
   /** 获取印章分类下的印章（小程序用户端） */
   async getCategoryProducts(category_id: string, region?: string) {
-    const category = await this.prisma.seal_categories.findUnique({ where: { id: category_id } });
-    if (!category) throw new NotFoundException('分类不存在');
+    const categoryRaw = await this.prisma.seal_categories.findUnique({ where: { id: category_id } });
+    if (!categoryRaw) throw new NotFoundException('分类不存在');
 
     const seals = await this.prisma.seals.findMany({
       where: { category_id, status: 1 },
@@ -30,67 +71,91 @@ export class SealService {
     });
 
     return {
-      category,
-      seals: seals.map((s) => ({ ...s, displayPrice: this.resolveRegionPrice(s, region || '') })),
+      category: toCamelDeep(categoryRaw),
+      seals: toCamelDeep(seals.map((s) => ({ ...s, displayPrice: this.resolveRegionPrice(s, region || '') }))),
     };
   }
 
   /** 获取印章列表（按分类/场景） */
   async getSeals(category_id?: string, region?: string) {
-    const where: any = { status: 1 };
+    // 刻章备案查询分类ID（这些是全国印章查询平台链接，不是真实印章产品，需要排除）
+    const recordQueryCategoryId = '9837519a-9dbf-4e52-b19e-60eea192eef6';
+    
+    let seals;
     if (category_id) {
       // 按场景关联表筛选（SealSceneSeal）
       const sceneSealIds = await this.prisma.seal_scene_seals.findMany({
         where: { scene_id: category_id },
         select: { seal_id: true },
       });
+      const where: any = { status: 1 };
       if (sceneSealIds.length > 0) {
         where.id = { in: sceneSealIds.map((s) => s.seal_id) };
       } else {
         // 场景下无关联印章（如钢印章场景只有套餐），返回空
         where.id = { in: [] };
       }
+      seals = await this.prisma.seals.findMany({
+        where,
+        include: { seal_categories: true },
+        orderBy: { sort: 'asc' },
+      });
+    } else {
+      // 未指定场景时，返回所有印章，但排除刻章备案查询分类
+      seals = await this.prisma.seals.findMany({
+        where: { 
+          status: 1,
+          category_id: { not: recordQueryCategoryId }
+        },
+        include: { seal_categories: true },
+        orderBy: { sort: 'asc' },
+      });
     }
-
-    const seals = await this.prisma.seals.findMany({
-      where,
-      include: { seal_categories: true },
-      orderBy: { sort: 'asc' },
-    });
-    return seals.map((s) => ({ ...s, displayPrice: this.resolveRegionPrice(s, region || '') }));
+    return toCamelDeep(seals.map((s) => ({ ...s, displayPrice: this.resolveRegionPrice(s, region || '') })));
   }
 
-  /** 获取印章套餐列表 */
+  /** 获取印章套餐列表（优化：无 N+1 + 30s 内存缓存） */
   async getPackages(region?: string) {
+    const key = region ? `seal:packages:${region}` : 'seal:packages';
+    const cached = await this.cache.get<any[]>(key);
+    if (cached) return cached;
+
     const packages = await this.prisma.seal_packages.findMany({
       where: { status: 1 },
       orderBy: { sort: 'asc' },
     });
 
-    // 补充印章详情（含 displayPrice）
-    return Promise.all(
-      packages.map(async (pkg) => ({
+    // 收集所有套餐涉及的唯一印章 ID，一次性批量查询
+    const allSealIds = [...new Set(packages.flatMap((p) => p.seal_ids || []))];
+    const allSeals = await this.prisma.seals.findMany({
+      where: { id: { in: allSealIds } },
+      include: { seal_categories: true },
+    });
+    const sealMap = new Map(allSeals.map((s) => [s.id, s]));
+
+    const result = packages.map((pkg) => {
+      const seals = (pkg.seal_ids || [])
+        .map((id) => sealMap.get(id))
+        .filter(Boolean)
+        .map((s) => ({ ...s, displayPrice: this.resolveRegionPrice(s, region || '') }));
+      return {
         ...pkg,
-        seals: await this.prisma.seals.findMany({
-          where: { id: { in: pkg.seal_ids } },
-          include: { seal_categories: true },
-        }),
-      })),
-    ).then((pkgs) =>
-      pkgs.map((pkg) => ({
-        ...pkg,
-        seals: pkg.seals.map((s) => ({ ...s, displayPrice: this.resolveRegionPrice(s, region || '') })),
+        seals,
         displayPrice: this.resolveRegionPrice(pkg, region || ''),
-      })),
-    );
+      };
+    });
+    const camel = toCamelDeep(result);
+    await this.cache.set(key, camel, 60 * 1000);
+    return camel;
   }
 
   /** 获取业务场景列表（小程序用户端首页选择，只返回 sceneType=scene） */
   async getScenes(userFacing = true) {
-    return this.prisma.seal_scenes.findMany({
+    const result = await this.prisma.seal_scenes.findMany({
       where: userFacing ? { status: 1, sceneType: 'scene' } : { sceneType: 'scene' },
       orderBy: { sort: 'asc' },
     });
+    return toCamelDeep(result);
   }
 
   /** 获取某个场景下的印章和套餐（用户端弹窗用） */
@@ -125,25 +190,25 @@ export class SealService {
 
   async getSceneProducts(scene_id: string, region?: string) {
     // 优先查 seal_scenes（业务场景）
-    let scene = await this.prisma.seal_scenes.findUnique({ where: { id: scene_id } });
-    if (!scene) {
+    let sceneRaw = await this.prisma.seal_scenes.findUnique({ where: { id: scene_id } });
+    if (!sceneRaw) {
       // 尝试查 seal_categories（印章分类，含电子印章子分类）
-      const category = await this.prisma.seal_categories.findUnique({ where: { id: scene_id } });
-      if (!category) throw new NotFoundException('分类不存在');
+      const categoryRaw = await this.prisma.seal_categories.findUnique({ where: { id: scene_id } });
+      if (!categoryRaw) throw new NotFoundException('分类不存在');
       // 直接按 category_id 查印章
       const seals = await this.prisma.seals.findMany({
-        where: { category_id: category.id, status: 1 },
+        where: { category_id: categoryRaw.id, status: 1 },
         include: { seal_categories: true },
         orderBy: { sort: 'asc' },
       });
       return {
-        scene: category,
-        seals: seals.map((s) => ({ ...s, displayPrice: this.resolveRegionPrice(s, region || '') })),
+        scene: toCamelDeep(categoryRaw),
+        seals: toCamelDeep(seals.map((s) => ({ ...s, displayPrice: this.resolveRegionPrice(s, region || '') }))),
         packages: [],
       };
     }
 
-    // 获取该场景关联的印章（按 sort 排序）
+    // 获取该场景关联的印章（按 sort 排序，include 已带分类，无 N+1）
     const sceneSeals = await this.prisma.seal_scene_seals.findMany({
       where: { scene_id },
       orderBy: { sort: 'asc' },
@@ -154,39 +219,40 @@ export class SealService {
     const scenePackages = await this.prisma.seal_scene_packages.findMany({
       where: { scene_id },
       orderBy: { sort: 'asc' },
-      include: {
-        package: true,
-      },
+      include: { package: true },
     });
 
-    // 套餐补全印章详情
-    const packages = await Promise.all(
-      scenePackages.map(async (sp) => {
-        const seals = await this.prisma.seals.findMany({
-          where: { id: { in: sp.package.seal_ids } },
-          include: { seal_categories: true },
-        });
-        // 显示排序优先用关联表 sp.sort；未设置时回退到套餐自身 package.sort
-        return {
-          ...sp.package,
-          scene_id: sp.scene_id,
-          seals: seals.map((s) => ({ ...s, displayPrice: this.resolveRegionPrice(s, region || '') })),
-          sort: sp.sort || sp.package.sort,
-          displayPrice: this.resolveRegionPrice(sp.package, region || ''),
-        };
-      }),
-    );
+    // 批量补全印章详情（无 N+1）
+    const allSceneSealIds = [...new Set(scenePackages.flatMap((sp) => sp.package.seal_ids || []))];
+    const allSeals = await this.prisma.seals.findMany({
+      where: { id: { in: allSceneSealIds } },
+      include: { seal_categories: true },
+    });
+    const sealMap = new Map(allSeals.map((s) => [s.id, s]));
+
+    const packages = scenePackages.map((sp) => {
+      const seals = (sp.package.seal_ids || [])
+        .map((id) => sealMap.get(id))
+        .filter(Boolean)
+        .map((s) => ({ ...s, displayPrice: this.resolveRegionPrice(s, region || '') }));
+      return {
+        ...sp.package,
+        scene_id: sp.scene_id,
+        seals,
+        sort: sp.sort || sp.package.sort,
+        displayPrice: this.resolveRegionPrice(sp.package, region || ''),
+      };
+    });
 
     return {
-      scene,
-      // 显示排序优先用关联表 sf.sort；未设置（默认 0）时回退到印章自身 seal.sort，使管理端排序字段生效
-      seals: sceneSeals.map((sf) => ({
+      scene: toCamelDeep(sceneRaw),
+      seals: toCamelDeep(sceneSeals.map((sf) => ({
         ...sf.seal,
         seal_categories: sf.seal.seal_categories,
         sort: sf.sort || sf.seal.sort,
         displayPrice: this.resolveRegionPrice(sf.seal, region || ''),
-      })),
-      packages,
+      }))),
+      packages: toCamelDeep(packages),
     };
   }
 
@@ -194,20 +260,25 @@ export class SealService {
 
   /** 管理端：分类 CRUD（已统一为 SealScene） */
   async adminCreateCategory(dto: any) {
-    return this.prisma.seal_scenes.create({
+    const result = await this.prisma.seal_scenes.create({
       data: { ...dto, sceneType: dto.sceneType || 'scene' },
     });
+    await this.invalidateSealCache();
+    return toCamelDeep(result);
   }
 
   async adminUpdateCategory(id: string, dto: any) {
-    return this.prisma.seal_scenes.update({ where: { id }, data: dto });
+    const result = await this.prisma.seal_scenes.update({ where: { id }, data: dto });
+    return toCamelDeep(result);
   }
 
   async adminDeleteCategory(id: string) {
     // 管理端删除场景：自动清除关联
     await this.prisma.seal_scene_seals.deleteMany({ where: { scene_id: id } });
     await this.prisma.seal_scene_packages.deleteMany({ where: { scene_id: id } });
-    return this.prisma.seal_scenes.delete({ where: { id } });
+    const result = await this.prisma.seal_scenes.delete({ where: { id } });
+    await this.invalidateSealCache();
+    return toCamelDeep(result);
   }
 
   /** 管理端：印章 CRUD */
@@ -215,14 +286,15 @@ export class SealService {
     // categoryId = 场景 id（建立 SealSceneSeal 关联）；sealCategoryId = 旧 SealCategory（个人子分类，写回 seal.category_id）
     const { categoryId, sealCategoryId, ...rest } = dto;
     const seal = await this.prisma.seals.create({
-      data: { ...rest, category_id: sealCategoryId ?? null },
+      data: { ...rest, category_id: sealCategoryId ?? null, price: rest.price ?? 0 },
     });
     if (categoryId) {
       await this.prisma.seal_scene_seals.create({
         data: { scene_id: categoryId, seal_id: seal.id, sort: 0 },
       });
     }
-    return seal;
+    await this.invalidateSealCache();
+    return toCamelDeep(seal);
   }
 
   async adminUpdateSeal(id: string, dto: any) {
@@ -242,12 +314,15 @@ export class SealService {
         });
       }
     }
-    return seal;
+    await this.invalidateSealCache();
+    return toCamelDeep(seal);
   }
 
   async adminDeleteSeal(id: string) {
     await this.prisma.seal_scene_seals.deleteMany({ where: { seal_id: id } });
-    return this.prisma.seals.delete({ where: { id } });
+    const result = await this.prisma.seals.delete({ where: { id } });
+    await this.invalidateSealCache();
+    return toCamelDeep(result);
   }
 
   /** 刻章备案查询场景：按 route 动态解析（不再写死 UUID），找不到时回退常量 */
@@ -267,10 +342,10 @@ export class SealService {
       orderBy: { sort: 'asc' },
       include: { seal: true },
     });
-    return sceneSeals.map((sf) => ({
+    return toCamelDeep(sceneSeals.map((sf) => ({
       ...sf.seal,
       sort: sf.sort,
-    }));
+    })));
   }
 
   /** 管理端：刻章备案查询 - 新增省份 */
@@ -294,7 +369,7 @@ export class SealService {
         sort: dto.sort ?? 0,
       },
     });
-    return seal;
+    return toCamelDeep(seal);
   }
 
   /** 管理端：刻章备案查询 - 更新省份 */
@@ -313,14 +388,15 @@ export class SealService {
       });
     }
 
-    return seal;
+    return toCamelDeep(seal);
   }
 
   /** 管理端：刻章备案查询 - 删除省份 */
   async adminDeleteRecordQuery(id: string) {
     const scene_id = await this.getRecordQuerySceneId();
     await this.prisma.seal_scene_seals.deleteMany({ where: { seal_id: id, scene_id } });
-    return this.prisma.seals.delete({ where: { id } });
+    const result = await this.prisma.seals.delete({ where: { id } });
+    return toCamelDeep(result);
   }
 
   /** 管理端：套餐 CRUD */
@@ -333,7 +409,8 @@ export class SealService {
         skipDuplicates: true,
       });
     }
-    return pkg;
+    await this.invalidateSealCache();
+    return toCamelDeep(pkg);
   }
 
   async adminUpdatePackage(id: string, dto: any) {
@@ -349,19 +426,22 @@ export class SealService {
         });
       }
     }
-    return pkg;
+    await this.invalidateSealCache();
+    return toCamelDeep(pkg);
   }
 
   async adminDeletePackage(id: string) {
     await this.prisma.seal_scene_packages.deleteMany({ where: { package_id: id } });
-    return this.prisma.seal_packages.delete({ where: { id } });
+    const result = await this.prisma.seal_packages.delete({ where: { id } });
+    await this.invalidateSealCache();
+    return toCamelDeep(result);
   }
 
   // ==================== 管理端：场景（SealScene）管理 ====================
 
   /** 管理端：场景列表（含印章/套餐数量） */
   async adminGetScenes() {
-    return this.prisma.seal_scenes.findMany({
+    const result = await this.prisma.seal_scenes.findMany({
       orderBy: { sort: 'asc' },
       include: {
         _count: {
@@ -369,6 +449,7 @@ export class SealService {
         },
       },
     });
+    return toCamelDeep(result);
   }
 
   /** 管理端：场景详情（印章 + 套餐） */
@@ -401,27 +482,31 @@ export class SealService {
       }),
     );
     return {
-      scene,
-      seals: sceneSeals.map((sf) => ({
+      scene: toCamelDeep(scene),
+      seals: toCamelDeep(sceneSeals.map((sf) => ({
         ...sf.seal,
         seal_categories: sf.seal.seal_categories,
         sort: sf.sort || sf.seal.sort,
         displayPrice: this.resolveRegionPrice(sf.seal, ''),
-      })),
-      packages,
+      }))),
+      packages: toCamelDeep(packages),
     };
   }
 
   /** 管理端：创建场景 */
   async adminCreateScene(dto: any) {
-    return this.prisma.seal_scenes.create({
+    const result = await this.prisma.seal_scenes.create({
       data: { ...dto, sceneType: 'scene' },
     });
+    await this.invalidateSealCache();
+    return toCamelDeep(result);
   }
 
   /** 管理端：更新场景 */
   async adminUpdateScene(id: string, dto: any) {
-    return this.prisma.seal_scenes.update({ where: { id }, data: dto });
+    const result = await this.prisma.seal_scenes.update({ where: { id }, data: dto });
+    await this.invalidateSealCache();
+    return toCamelDeep(result);
   }
 
   /** 管理端：删除场景（级联清除关联） */
@@ -444,7 +529,8 @@ export class SealService {
         await this.prisma.seal_packages.deleteMany({ where: { id: { in: safeDelete } } });
       }
     }
-    return this.prisma.seal_scenes.delete({ where: { id } });
+    const result = await this.prisma.seal_scenes.delete({ where: { id } });
+    return toCamelDeep(result);
   }
 
   /** 管理端：设置场景印章（整体替换） */
@@ -455,6 +541,7 @@ export class SealService {
         data: seal_ids.map((seal_id, i) => ({ scene_id, seal_id, sort: i + 1 })),
       });
     }
+    await this.invalidateSealCache();
     return { count: seal_ids.length };
   }
 
@@ -504,6 +591,7 @@ export class SealService {
         });
       }
     }
+    await this.invalidateSealCache();
     return { count: packages.length };
   }
 }

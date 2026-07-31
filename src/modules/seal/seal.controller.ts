@@ -153,6 +153,7 @@ export class SealController {
   @ApiBearerAuth()
   @ApiOperation({ summary: '创建印章' })
   async createSeal(@Body() dto: any) {
+    console.log('[DEBUG] createSeal dto:', JSON.stringify(dto));
     return this.sealService.adminCreateSeal(dto);
   }
 
@@ -194,7 +195,7 @@ export class SealController {
   }
 
   @Put(':id')
-  @Log("印章", ":id", ":id")
+  @Log("印章", "更新印章", ":id")
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '更新印章' })
@@ -203,7 +204,7 @@ export class SealController {
   }
 
   @Delete(':id')
-  @Log("印章", ":id", ":id")
+  @Log("印章", "删除印章", ":id")
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '删除印章' })
