@@ -74,7 +74,7 @@ export class StoreController {
   }
 
   @Put(':id')
-  @Log("网点", ":id", ":id")
+  @Log("网点", "更新网点", ":id")
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '编辑网点' })
@@ -83,7 +83,7 @@ export class StoreController {
   }
 
   @Delete(':id')
-  @Log("网点", ":id", ":id")
+  @Log("网点", "删除网点", ":id")
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '删除网点' })

@@ -4,6 +4,24 @@ import { PrismaService } from '../../prisma/prisma.service';
 import * as bcrypt from 'bcryptjs';
 import { REGION_MAP, provinceToRegion } from '../../common/region';
 
+function snakeToCamel(key: string): string {
+  return key.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+}
+function toCamelDeep(obj: any): any {
+  if (obj instanceof Date) return obj;
+  if (Array.isArray(obj)) return obj.map(toCamelDeep);
+  if (obj !== null && typeof obj === 'object') {
+    if (typeof obj.toString === 'function' && !('getTime' in obj)) {
+      const str = obj.toString();
+      if (/^\d+(\.\d+)?$/.test(str)) return Number(str);
+    }
+    return Object.fromEntries(
+      Object.entries(obj).map(([k, v]) => [snakeToCamel(k), toCamelDeep(v)])
+    );
+  }
+  return obj;
+}
+
 @Injectable()
 export class StoreService {
   constructor(private prisma: PrismaService) {}
@@ -64,12 +82,12 @@ export class StoreService {
     ]);
 
     return {
-      list: list.map(s => ({
+      list: list.map(s => toCamelDeep({
         ...s,
         region: provinceToRegion(s.province),
         password: undefined,
-        total_orders: s._count?.assignments ?? 0,
-        status_text: s.status === 1 ? '营业中' : '已歇业',
+        totalOrders: s._count?.assignments ?? 0,
+        statusText: s.status === 1 ? '营业中' : '已歇业',
       })),
       pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
     };
@@ -79,7 +97,8 @@ export class StoreService {
   async findOne(id: string) {
     const Outlet = await this.prisma.outlets.findUnique({ where: { id } });
     if (!Outlet) throw new NotFoundException('网点不存在');
-    return { ...Outlet, password: undefined };
+    const totalOrders = await this.prisma.order_assignments.count({ where: { outlet_id: id } });
+    return { ...toCamelDeep(Outlet), password: undefined, totalOrders };
   }
 
   /** 新增网点 */
@@ -253,7 +272,7 @@ export class StoreService {
       this.prisma.order_assignments.count({ where }),
     ]);
 
-    return {
+    return toCamelDeep({
       list: assignments.map(a => ({
         id: a.id,
         order_id: a.order_id,
@@ -269,7 +288,7 @@ export class StoreService {
         order_items: a.seal_orders.order_items,
       })),
       pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
-    };
+    });
   }
 
   /** 网点统计 */
@@ -351,7 +370,7 @@ export class StoreService {
 
     const topOutlets = [...outletStats].sort((a, b) => b.total_orders - a.total_orders).slice(0, 10);
 
-    return { summary, regions: Object.values(regionMap), outlets: outletStats, topOutlets };
+    return toCamelDeep({ summary, regions: Object.values(regionMap), outlets: outletStats, topOutlets });
   }
 
   // ==================== 网点订单操作 ====================
