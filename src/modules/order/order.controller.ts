@@ -79,7 +79,7 @@ export class OrderController {
   }
 
   @Put('admin/:id')
-  @Log("订单", ":id", "admin/:id")
+  @Log("订单", "更新订单", "admin/:id")
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '管理端：更新订单（状态、物流等）' })
@@ -121,24 +121,26 @@ export class OrderController {
 
   @Put(':id/accept')
   @Log("订单", "接单", ":id/accept")
-  @UseGuards(StoreJwtAuthGuard)
+  @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: '网点接单' })
-  async acceptOrder(@Param('id') id: string, @Request() req: any) {
-    return this.orderService.acceptOrder(id, req.user.id);
+  @ApiOperation({ summary: '网点接单（管理后台代接，以网点身份）' })
+  async acceptOrder(@Param('id') id: string, @Body() body: any, @Request() req: any) {
+    const outletId = body?.outletId || req.user.id;
+    return this.orderService.acceptOrder(id, outletId);
   }
 
   @Put(':id/deliver')
   @Log("订单", "deliver", ":id/deliver")
-  @UseGuards(StoreJwtAuthGuard)
+  @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '网点提交交付（自动生效）' })
   async deliverOrder(
     @Param('id') id: string,
-    @Body() dto: { express_company: string; express_no: string; receipts: Array<{ type: string; url: string; remark?: string }>; remark?: string },
+    @Body() dto: { express_company: string; express_no: string; receipts: Array<{ type: string; url: string; remark?: string }>; remark?: string; outletId?: string },
     @Request() req: any,
   ) {
-    return this.orderService.deliverOrder(id, dto, req.user.id);
+    const outletId = dto?.outletId || req.user.id;
+    return this.orderService.deliverOrder(id, dto, outletId);
   }
 
   @Put(':id/sign')

@@ -4,6 +4,50 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { WechatService } from '../wechat/wechat.service';
 import { v4 as uuidv4 } from 'uuid';
 
+// ==================== 工具函数：snake_case → camelCase ====================
+function snakeToCamel(key: string): string {
+  return key.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+}
+
+// ==================== 工具函数：省份名归一化 ====================
+const PROVINCE_ALIASES: Record<string, string> = {
+  '内蒙古': '内蒙古自治区', '内蒙古自治区': '内蒙古自治区',
+  '西藏': '西藏自治区', '西藏自治区': '西藏自治区',
+  '广西': '广西壮族自治区', '广西壮族自治区': '广西壮族自治区',
+  '宁夏': '宁夏回族自治区', '宁夏回族自治区': '宁夏回族自治区',
+  '新疆': '新疆维吾尔自治区', '新疆维吾尔自治区': '新疆维吾尔自治区',
+};
+
+function normalizeProvince(p: string): string {
+  if (!p) return '';
+  const t = p.trim();
+  if (t.endsWith('省') || t.endsWith('自治区') || t.endsWith('市') || t.endsWith('特别行政区')) return t;
+  if (PROVINCE_ALIASES[t]) return PROVINCE_ALIASES[t];
+  if (['北京', '天津', '上海', '重庆', '香港', '澳门', '台湾'].includes(t)) return t + '市';
+  return t; // 带"省"字兜底（如"四川省"已在 DB 中，无需加
+}
+
+function provincesMatch(addrProv: string, areaProv: string): boolean {
+  if (!addrProv || !areaProv) return false;
+  return normalizeProvince(addrProv) === normalizeProvince(areaProv);
+}
+
+function toCamelDeep(obj: any): any {
+  if (obj instanceof Date) return obj;
+  if (Array.isArray(obj)) return obj.map(toCamelDeep);
+  if (obj !== null && typeof obj === 'object') {
+    // Prisma Decimal / Buffer 等特殊对象直接转原始值
+    if (typeof obj.toString === 'function' && !('getTime' in obj)) {
+      const str = obj.toString();
+      if (/^\d+(\.\d+)?$/.test(str)) return Number(str);
+    }
+    return Object.fromEntries(
+      Object.entries(obj).map(([k, v]) => [snakeToCamel(k), toCamelDeep(v)])
+    );
+  }
+  return obj;
+}
+
 @Injectable()
 export class OrderService {
   constructor(
@@ -61,9 +105,9 @@ export class OrderService {
         }
       }
 
-      // 省份匹配（次优先，找第一个）
+      // 省份匹配（次优先，找第一个，使用归一化匹配）
       if (!bestStore && province) {
-        const provMatch = service_area.find(s => s.province === province);
+        const provMatch = service_area.find(s => provincesMatch(province, s.province));
         if (provMatch) {
           bestStore = Outlet;
           matchType = `province:${province}`;
@@ -133,6 +177,14 @@ export class OrderService {
       } catch {
         addressData = null;
       }
+    }
+    // 兜底：仍无地址则取用户默认收货地址（确保支付后能自动分配网点）
+    if (!addressData) {
+      const defaultAddr = await this.prisma.addresses.findFirst({
+        where: { user_id, is_default: true },
+        orderBy: { created_at: 'desc' },
+      });
+      if (defaultAddr) addressData = defaultAddr;
     }
 
     // 2. 计算总价
@@ -258,6 +310,14 @@ export class OrderService {
       if (!addressData) throw new NotFoundException('收货地址不存在');
     } else if (address_json) {
       try { addressData = typeof address_json === 'string' ? JSON.parse(address_json) : address_json; } catch { addressData = null; }
+    }
+    // 兜底：仍无地址则取用户默认收货地址（确保支付后能自动分配网点）
+    if (!addressData) {
+      const defaultAddr = await this.prisma.addresses.findFirst({
+        where: { user_id, is_default: true },
+        orderBy: { created_at: 'desc' },
+      });
+      if (defaultAddr) addressData = defaultAddr;
     }
 
     // 服务端权威计价：单价 × max(字数, 最少字数) × 期数（覆盖客户端传入 price，防篡改）
@@ -434,7 +494,8 @@ export class OrderService {
 
     if (!order) throw new NotFoundException('订单不存在');
 
-    return order;
+    // Prisma 返回 snake_case → 统一转为 camelCase
+    return toCamelDeep(order);
   }
 
   // ==================== 微信支付 ====================
@@ -637,27 +698,40 @@ export class OrderService {
     ]);
 
     return {
-      list: orders.map(o => ({
+      list: orders.map(o => toCamelDeep({
         id: o.id,
-        order_no: o.order_no,
+        orderNo: o.order_no,
         module: o.module,
         type: o.type,
-        company_name: o.company_name,
-        contact_phone: o.contact_phone,
-        total_price: Number(o.total_price) || 0,
-        pay_price: Number(o.pay_price) || 0,
+        companyName: o.company_name,
+        contactPhone: o.contact_phone,
+        totalPrice: Number(o.total_price) || 0,
+        payPrice: Number(o.pay_price) || 0,
         status: o.status,
-        status_text: o.status_text,
-        pay_time: o.pay_time,
-        created_at: o.created_at,
+        statusText: o.status_text,
+        payTime: o.pay_time,
+        createdAt: o.created_at,
         user: o.user,
-        order_items: o.order_items,
-        assignment_status: o.assignment_status,
+        orderItems: toCamelDeep(o.order_items),
+        assignmentStatus: o.assignment_status,
         assignment: o.assignment ? (() => {
           const map: Record<number, string> = { 0: '待接单', 1: '已接单', 2: '制作中', 3: '已发货', 4: '已完成', 5: '已拒绝' };
-          return { ...o.assignment, status_text: map[o.assignment.status] ?? o.assignment.status_text };
+          const camel = toCamelDeep(o.assignment);
+          const outletName = o.assignment.outlet?.name ?? null;
+          return { ...camel, statusText: map[o.assignment.status] ?? o.assignment.status_text, outletName };
         })() : null,
-        receipts: o.delivery_receipts,
+        receipts: toCamelDeep(o.delivery_receipts),
+        // 登报字段
+        newspaperContent: o.newspaper_content,
+        newspaperIssueCount: o.newspaper_issue_count,
+        newspaperCopyCount: o.newspaper_copy_count,
+        newspaperImages: (() => { try { return JSON.parse(o.newspaper_images || '[]'); } catch { return []; } })(),
+        extra: o.module === 'bookkeeping' ? (() => {
+          try {
+            const r = typeof o.remark === 'string' ? JSON.parse(o.remark || '{}') : (o.remark || {});
+            return { taxpayerType: r.taxpayer_type, cycle: r.cycle, invoice: r.invoice, social: r.social, fund: r.fund };
+          } catch (e) { return undefined; }
+        })() : undefined,
       })),
       pagination: {
         page: Number(page),
@@ -805,21 +879,27 @@ export class OrderService {
     const shanghaiNow = new Date(utc + 8 * 3600000);
     const shanghaiStart = new Date(shanghaiNow.getFullYear(), shanghaiNow.getMonth(), shanghaiNow.getDate(), 0, 0, 0, 0);
 
-    const [total_orders, todayOrders, pendingOrders, totalRevenue] = await Promise.all([
+    const [totalOrders, todayOrders, pendingSeal, pendingNewspaper, pendingBookkeeping, sealRev, newspaperRev, bookkeepingRev] = await Promise.all([
       this.prisma.seal_orders.count(),
       this.prisma.seal_orders.count({ where: { created_at: { gte: shanghaiStart } } }),
-      this.prisma.seal_orders.count({ where: { status: 1 } }),
-      this.prisma.seal_orders.aggregate({
-        _sum: { pay_price: true },
-        where: { status: { in: [2, 3, 4, 5] } },
-      }),
+      // 待处理：与 DashboardService 口径一致，按 module 拆分统计 status in [2,3]
+      this.prisma.seal_orders.count({ where: { module: 'seal', status: { in: [2, 3] } } }),
+      this.prisma.seal_orders.count({ where: { module: 'newspaper', status: { in: [2, 3] } } }),
+      this.prisma.seal_orders.count({ where: { module: 'bookkeeping', status: { in: [2, 3] } } }),
+      // 收入：刻章/代理记账用 pay_price，登报用 total_price（与 DashboardService 双模块口径一致）
+      this.prisma.seal_orders.aggregate({ where: { module: 'seal', status: { gte: 2 } }, _sum: { pay_price: true } }),
+      this.prisma.seal_orders.aggregate({ where: { module: 'newspaper', status: { gte: 2 } }, _sum: { total_price: true } }),
+      this.prisma.seal_orders.aggregate({ where: { module: 'bookkeeping', status: { gte: 2 } }, _sum: { pay_price: true } }),
     ]);
 
     return {
-      total_orders,
+      totalOrders,
       todayOrders,
-      pendingOrders,
-      totalRevenue: Number(totalRevenue._sum.pay_price) || 0,
+      pendingOrders: pendingSeal + pendingNewspaper + pendingBookkeeping,
+      totalRevenue:
+        Number(sealRev._sum.pay_price || 0) +
+        Number(newspaperRev._sum?.total_price || 0) +
+        Number(bookkeepingRev._sum?.pay_price || 0),
     };
   }
 
@@ -838,7 +918,7 @@ export class OrderService {
       ];
     }
 
-    const [list, total] = await Promise.all([
+    const [list, total, allOutlets] = await Promise.all([
       this.prisma.seal_orders.findMany({
         where,
         skip: (page - 1) * pageSize,
@@ -854,28 +934,72 @@ export class OrderService {
         },
       }),
       this.prisma.seal_orders.count({ where }),
+      this.prisma.outlets.findMany({ where: { status: 1 }, select: { id: true, name: true, service_area: true, province: true, city: true } }),
     ]);
 
+    // 批量查询用户默认地址（兜底：没有默认则取最新地址）
+    const userIds = [...new Set(list.map(o => o.user_id).filter(Boolean))];
+    const allAddrs = await this.prisma.addresses.findMany({
+      where: { user_id: { in: userIds } },
+      orderBy: [{ is_default: 'desc' }, { created_at: 'desc' }],
+    });
+    // 每个用户取第一条（优先默认，其次最新）
+    const addrMap = new Map<string, typeof allAddrs[0]>();
+    for (const a of allAddrs) {
+      if (!addrMap.has(a.user_id)) addrMap.set(a.user_id, a);
+    }
+
     return {
-      list: list.map(o => ({
-        id: o.id,
-        order_no: o.order_no,
-        module: o.module,
-        type: o.type,
-        company_name: o.company_name,
-        contact_phone: o.contact_phone,
-        total_price: Number(o.total_price) || 0,
-        pay_price: Number(o.pay_price) || 0,
-        status: o.status,
-        status_text: o.status_text,
-        pay_time: o.pay_time,
-        created_at: o.created_at,
-        user: o.user,
-        order_items: o.order_items,
-        assignment_status: o.assignment_status,
-        assignment: o.assignment,
-        receipts: o.delivery_receipts,
-      })),
+      list: list.map(o => {
+        const addr = addrMap.get(o.user_id);
+        const serviceRegion = addr ? `${addr.province || ''}${addr.city || ''}${addr.district || ''}` : '';
+        // 匹配推荐网点
+        const recommendedOutlets = allOutlets.filter(outlet => {
+          if (!addr?.province) return false;
+          try {
+            const areas = JSON.parse(outlet.service_area || '[]');
+            for (const area of areas) {
+              if (provincesMatch(addr.province, area.province)) {
+                if (!area.city) return true; // 全省通办
+                if (addr.city?.includes(area.city) || area.city?.includes(addr.city)) return true;
+              }
+            }
+          } catch { /* ignore */ }
+          return false;
+        }).map(o => ({ id: o.id, name: o.name, province: o.province, city: o.city }));
+
+        return toCamelDeep({
+          id: o.id,
+          orderNo: o.order_no,
+          module: o.module,
+          type: o.type,
+          companyName: o.company_name,
+          contactPhone: o.contact_phone,
+          totalPrice: Number(o.total_price) || 0,
+          payPrice: Number(o.pay_price) || 0,
+          status: o.status,
+          statusText: o.status_text,
+          payTime: o.pay_time,
+          createdAt: o.created_at,
+          user: o.user,
+          orderItems: o.order_items,
+          assignmentStatus: o.assignment_status,
+          assignment: o.assignment,
+          receipts: o.delivery_receipts,
+          serviceRegion,
+          recommendedOutlets,
+          // 客户完整地址信息
+          customerAddress: addr ? {
+            contact: addr.contact,
+            phone: addr.phone,
+            province: addr.province,
+            city: addr.city,
+            district: addr.district,
+            detail: addr.detail,
+            fullAddress: `${addr.province || ''}${addr.city || ''}${addr.district || ''}${addr.detail || ''}`,
+          } : null,
+        });
+      }),
       pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
     };
   }
@@ -968,8 +1092,8 @@ export class OrderService {
           status_text: '已发货',
           assignment_status: 3,
           delivery_status: 1,
-          express_company: dto.express_company,
-          express_no: dto.express_no,
+          express_company: dto.expressCompany,
+          express_no: dto.expressNo,
           delivered_at: new Date(),
         },
       }),

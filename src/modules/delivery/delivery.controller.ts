@@ -118,8 +118,9 @@ export class DeliveryReceiptController {
         skip: (pageNum - 1) * pageSizeNum,
         take: pageSizeNum,
         orderBy: { created_at: 'desc' },
-        include: { outlet: { select: { id: true, name: true, contact: true, phone: true, province: true, city: true } },
-        seal_orders: {
+        include: {
+          outlet: { select: { id: true, name: true, contact: true, phone: true, province: true, city: true } },
+          seal_orders: {
             select: {
               id: true,
               order_no: true,
@@ -127,6 +128,9 @@ export class DeliveryReceiptController {
               type: true,
               status: true,
               status_text: true,
+              express_company: true,
+              express_no: true,
+              delivery_status: true,
               delivered_at: true,
               updated_at: true,
               order_items: {
