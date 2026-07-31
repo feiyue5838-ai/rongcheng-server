@@ -60,7 +60,7 @@ export class NewspaperService {
     if (level) where.level = Number(level);
     if (category_id) where.category_id = category_id;
     // 分页支持
-    const pageSize = Math.min(Math.max(Number(query.pageSize) || 20, 1), 200);
+    const pageSize = Math.min(Math.max(Number(query.pageSize) || 20, 1), 500);
     const pageNum = Math.max(Number(query.pageNum) || 1, 1);
     const skip = (pageNum - 1) * pageSize;
     const [rawList, total] = await Promise.all([
@@ -135,7 +135,7 @@ export class NewspaperService {
     if (businessType) where.businessType = businessType;
 
     const p = Math.max(1, page || 1);
-    const ps = Math.min(100, Math.max(1, pageSize || 20));
+    const ps = Math.min(500, Math.max(1, pageSize || 20));
 
     const [rawList, totalCount] = await Promise.all([
       this.prisma.newspaper_templates.findMany({

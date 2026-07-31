@@ -72,10 +72,19 @@ export class NewspaperController {
     @Query('newspaper_id') newspaper_id?: string,
     @Query('category_id') category_id?: string,
     @Query('businessType') businessType?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
     @Query('skipCache') skipCache?: string,
   ) {
     // 管理端默认 skipCache=true，避免缓存导致删除/编辑后列表不更新
-    return this.newspaperService.getTemplates(newspaper_id, category_id, businessType, skipCache !== 'false');
+    return this.newspaperService.getTemplates(
+      newspaper_id,
+      category_id,
+      businessType,
+      page ? parseInt(page, 10) : undefined,
+      pageSize ? parseInt(pageSize, 10) : undefined,
+      skipCache !== 'false'
+    );
   }
 
   @Get('price')
@@ -163,9 +172,15 @@ export class NewspaperController {
   // ========== 公告模板 ==========
 
   @Get('announcement-templates')
-  @ApiOperation({ summary: '获取公告模板（按 templateType 分组，供小程序 announcement 页面）' })
+  @ApiOperation({ summary: '获取声明公告模板（按 templateType 分组，供小程序 announcement 页面 id=5）' })
   async getAnnouncementTemplates() {
     return this.newspaperService.getAnnouncementTemplates();
+  }
+
+  @Get('notice-templates')
+  @ApiOperation({ summary: '获取公告声明模板（按 templateType 分组，供小程序 announcement 页面 id=6）' })
+  async getNoticeTemplates() {
+    return this.newspaperService.getNoticeTemplates();
   }
 
   // 管理端 - 分类 CRUD
