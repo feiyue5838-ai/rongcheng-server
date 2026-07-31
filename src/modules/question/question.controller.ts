@@ -64,7 +64,7 @@ export class QuestionController {
   }
 
   @Delete(':id')
-  @Log("问答", ":id", ":id")
+  @Log("问答", "删除问题", ":id")
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '删除问题' })

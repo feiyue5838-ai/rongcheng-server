@@ -65,7 +65,7 @@ export class ReviewController {
   }
 
   @Delete(':id')
-  @Log("评价", ":id", ":id")
+  @Log("评价", "删除评价", ":id")
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '删除评价' })

@@ -2,6 +2,15 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
+function snakeToCamel(s) { return s.replace(/_([a-z])/g, (_, c) => c.toUpperCase()); }
+function toCamelDeep(obj) {
+  if (obj === null || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return obj.map(toCamelDeep);
+  if (obj instanceof Date) return obj;
+  return Object.fromEntries(Object.entries(obj).map(([k, v]) => [snakeToCamel(k), toCamelDeep(v)]));
+}
+
+
 @Injectable()
 export class ReviewService {
   constructor(private prisma: PrismaService) {}
@@ -130,7 +139,7 @@ export class ReviewService {
     ]);
 
     return {
-      list: reviews,
+      list: toCamelDeep(reviews),
       pagination: { page: Number(page), pageSize: Number(pageSize), total, totalPages: Math.ceil(total / Number(pageSize)) },
     };
   }
@@ -142,17 +151,18 @@ export class ReviewService {
     }
     const review = await this.prisma.reviews.findUnique({ where: { id: reviewId } });
     if (!review) throw new NotFoundException('评价不存在');
-    return this.prisma.reviews.update({ where: { id: reviewId }, data: { status } });
+    const updated = await this.prisma.reviews.update({ where: { id: reviewId }, data: { status } });
+    return toCamelDeep(updated);
   }
 
   /** 管理端：回复评价 */
   async adminReplyReview(reviewId: string, reply: string) {
     const review = await this.prisma.reviews.findUnique({ where: { id: reviewId } });
     if (!review) throw new NotFoundException('评价不存在');
-    return this.prisma.reviews.update({
+    return toCamelDeep(await this.prisma.reviews.update({
       where: { id: reviewId },
       data: { reply, reply_at: new Date() },
-    });
+    }));
   }
 
   /** 管理端：删除评价 */

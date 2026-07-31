@@ -2,6 +2,24 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
+function snakeToCamel(key: string): string {
+  return key.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+}
+function toCamelDeep(obj: any): any {
+  if (obj instanceof Date) return obj;
+  if (Array.isArray(obj)) return obj.map(toCamelDeep);
+  if (obj !== null && typeof obj === 'object') {
+    if (typeof obj.toString === 'function' && !('getTime' in obj)) {
+      const str = obj.toString();
+      if (/^\d+(\.\d+)?$/.test(str)) return Number(str);
+    }
+    return Object.fromEntries(
+      Object.entries(obj).map(([k, v]) => [snakeToCamel(k), toCamelDeep(v)])
+    );
+  }
+  return obj;
+}
+
 @Injectable()
 export class QuestionService {
   constructor(private prisma: PrismaService) {}
@@ -24,7 +42,7 @@ export class QuestionService {
       if (user) user_name = user.nickname || user.realname || user.phone?.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2') || '热心用户';
     }
 
-    return this.prisma.questions.create({
+    return toCamelDeep(await this.prisma.questions.create({
       data: {
         user_id,
         user_name,
@@ -34,7 +52,7 @@ export class QuestionService {
         status: 'pending',
       },
       include: { question_replies: { orderBy: { created_at: 'asc' } } },
-    });
+    }));
   }
 
   /** 公开问答列表（已审核） */
@@ -57,7 +75,7 @@ export class QuestionService {
     ]);
 
     return {
-      list: questions,
+      list: toCamelDeep(questions),
       pagination: { page: Number(page), pageSize: Number(pageSize), total, totalPages: Math.ceil(total / Number(pageSize)) },
     };
   }
@@ -69,7 +87,7 @@ export class QuestionService {
       include: { question_replies: { orderBy: { created_at: 'asc' } } },
     });
     if (!question) throw new NotFoundException('问题不存在');
-    return question;
+    return toCamelDeep(question);
   }
 
   // ===== 管理端 =====
@@ -99,7 +117,7 @@ export class QuestionService {
     ]);
 
     return {
-      list: questions,
+      list: toCamelDeep(questions),
       pagination: { page: Number(page), pageSize: Number(pageSize), total, totalPages: Math.ceil(total / Number(pageSize)) },
     };
   }
@@ -111,7 +129,7 @@ export class QuestionService {
     }
     const question = await this.prisma.questions.findUnique({ where: { id } });
     if (!question) throw new NotFoundException('问题不存在');
-    return this.prisma.questions.update({ where: { id }, data: { status } });
+    return toCamelDeep(this.prisma.questions.update({ where: { id }, data: { status } }));
   }
 
   /** 管理端：回复问题 */
@@ -124,7 +142,7 @@ export class QuestionService {
       }),
       this.prisma.questions.update({ where: { id }, data: { reply_count: { increment: 1 } } }),
     ]);
-    return reply;
+    return toCamelDeep(reply);
   }
 
   /** 管理端：删除问题 */
