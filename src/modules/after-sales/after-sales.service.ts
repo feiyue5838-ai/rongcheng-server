@@ -3,6 +3,24 @@ import { Injectable, BadRequestException, NotFoundException, Inject, forwardRef 
 import { PrismaService } from '@/prisma/prisma.service';
 import { OrderService } from '../order/order.service';
 
+function snakeToCamel(key: string): string {
+  return key.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+}
+function toCamelDeep(obj: any): any {
+  if (obj instanceof Date) return obj;
+  if (Array.isArray(obj)) return obj.map(toCamelDeep);
+  if (obj !== null && typeof obj === 'object') {
+    if (typeof obj.toString === 'function' && !('getTime' in obj)) {
+      const str = obj.toString();
+      if (/^\d+(\.\d+)?$/.test(str)) return Number(str);
+    }
+    return Object.fromEntries(
+      Object.entries(obj).map(([k, v]) => [snakeToCamel(k), toCamelDeep(v)]),
+    );
+  }
+  return obj;
+}
+
 @Injectable()
 export class AfterSalesService {
   constructor(
@@ -33,7 +51,7 @@ export class AfterSalesService {
       this.prisma.seal_orders.count({ where }),
     ]);
 
-    return { rows, total, page, pageSize };
+    return { rows: toCamelDeep(rows), total, page, pageSize };
   }
 
   /** 确认退款（status=7 → 8 退款中）—— 复用 OrderService 微信退款逻辑 */
@@ -102,7 +120,7 @@ export class AfterSalesService {
       this.prisma.seal_orders.count({ where }),
     ]);
 
-    return { rows, total, page, pageSize };
+    return { rows: toCamelDeep(rows), total, page, pageSize };
   }
 
 }

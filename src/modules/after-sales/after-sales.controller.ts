@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Query, UseGuards, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { AdminJwtAuthGuard } from '@/modules/auth/guards/jwt-auth.guard';
 import { AfterSalesService } from './after-sales.service';
@@ -24,17 +24,22 @@ export class AfterSalesController {
   confirmRefund(
     @Param('id') id: string,
     @Body() body: { amount?: number },
+    @Req() req: any,
   ) {
-    return this.afterSalesService.confirmRefund(id, body?.amount);
+    return this.afterSalesService.confirmRefund(id, body?.amount, req.user?.id);
   }
 
   @Post('orders/:id/reject')
   @ApiOperation({ summary: '拒绝售后（售后→已完成）' })
-  rejectAfterSales(@Param('id') id: string, @Body() body: { reason: string }) {
+  rejectAfterSales(
+    @Param('id') id: string,
+    @Body() body: { reason: string },
+    @Req() req: any,
+  ) {
     if (!body.reason?.trim()) {
       return { code: 400, message: '请填写拒绝原因' };
     }
-    return this.afterSalesService.rejectAfterSales(id, body.reason.trim());
+    return this.afterSalesService.rejectAfterSales(id, body.reason.trim(), req.user?.id);
   }
 
   @Get('refund-records')
