@@ -11,8 +11,8 @@ export class NewspaperController {
 
   @Get('categories')
   @ApiOperation({ summary: '获取登报分类' })
-  async getCategories() {
-    return this.newspaperService.getCategories();
+  async getCategories(@Query('skipCache') skipCache?: string) {
+    return this.newspaperService.getCategories(skipCache !== 'false');
   }
 
   @Post('categories')
@@ -52,10 +52,18 @@ export class NewspaperController {
     @Query('level') level?: string,
     @Query('category_id') category_id?: string,
     @Query('region') region?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('pageNum') pageNum?: string,
   ) {
     return this.newspaperService.getNewspapers({
-      province, city, province_code, city_code, level, category_id, region
+      province, city, province_code, city_code, level, category_id, region, pageSize, pageNum
     });
+  }
+
+  @Get('all')
+  @ApiOperation({ summary: '获取全部报纸（不分页，供管理后台统计使用）' })
+  async getAllNewspapers() {
+    return this.newspaperService.getAllNewspapers();
   }
 
   @Get('templates')
@@ -64,8 +72,10 @@ export class NewspaperController {
     @Query('newspaper_id') newspaper_id?: string,
     @Query('category_id') category_id?: string,
     @Query('businessType') businessType?: string,
+    @Query('skipCache') skipCache?: string,
   ) {
-    return this.newspaperService.getTemplates(newspaper_id, category_id, businessType);
+    // 管理端默认 skipCache=true，避免缓存导致删除/编辑后列表不更新
+    return this.newspaperService.getTemplates(newspaper_id, category_id, businessType, skipCache !== 'false');
   }
 
   @Get('price')
@@ -89,7 +99,7 @@ export class NewspaperController {
   }
 
   @Put(':id')
-  @Log("报纸", ":id", ":id")
+  @Log("报纸", "更新报纸", ":id")
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '更新报纸' })
@@ -98,7 +108,7 @@ export class NewspaperController {
   }
 
   @Delete(':id')
-  @Log("报纸", ":id", ":id")
+  @Log("报纸", "删除报纸", ":id")
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '删除报纸' })
@@ -112,6 +122,7 @@ export class NewspaperController {
   @ApiBearerAuth()
   @ApiOperation({ summary: '创建模板' })
   async createTemplate(@Body() dto: any) {
+    console.log('[DEBUG] createTemplate dto:', JSON.stringify(dto));
     return this.newspaperService.adminCreateTemplate(dto);
   }
 
@@ -299,5 +310,13 @@ export class NewspaperController {
   @ApiOperation({ summary: '获取公示公告模板（按 5 分类分组）' })
   async getPublicityTemplates() {
     return this.newspaperService.getPublicityTemplates();
+  }
+
+  // ========== 模板元数据（供管理前端下拉）==========
+
+  @Get('template-meta')
+  @ApiOperation({ summary: '获取模板分组元数据（businessType + subType 下拉用）' })
+  async getTemplateMeta() {
+    return this.newspaperService.getTemplateMeta();
   }
 }

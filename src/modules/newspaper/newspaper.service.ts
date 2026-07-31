@@ -1,13 +1,52 @@
 // @ts-nocheck
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from '@nestjs/cache-manager';
 import { PrismaService } from '../../prisma/prisma.service';
+import { provinceToRegion } from '../../common/region';
+
+function snakeToCamel(key: string): string {
+  return key.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+}
+function toCamelDeep(obj: any): any {
+  if (obj instanceof Date) return obj;
+  if (Array.isArray(obj)) {
+    for (let i = 0; i < obj.length; i++) obj[i] = toCamelDeep(obj[i]);
+    return obj;
+  }
+  if (obj !== null && typeof obj === 'object') {
+    if (typeof obj.toString === 'function' && !('getTime' in obj)) {
+      const str = obj.toString();
+      if (/^\d+(\.\d+)?$/.test(str)) return Number(str);
+    }
+    // 就地重命名 snake_case → camelCase，避免保留原字段
+    for (const key of Object.keys(obj)) {
+      const camelKey = snakeToCamel(key);
+      const value = toCamelDeep(obj[key]);
+      if (camelKey !== key) delete obj[key];
+      obj[camelKey] = value;
+    }
+    return obj;
+  }
+  return obj;
+}
 
 @Injectable()
 export class NewspaperService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    @Inject(CACHE_MANAGER) private cache: Cache,
+  ) {}
 
-  async getCategories() {
-    return this.prisma.newspaper_categories.findMany({ where: { status: 1 }, orderBy: { sort: 'asc' } });
+  async getCategories(skipCache = false) {
+    if (!skipCache) {
+      const key = 'news:categories';
+      const cached = await this.cache.get<any[]>(key);
+      if (cached) return cached;
+    }
+    const result = toCamelDeep(await this.prisma.newspaper_categories.findMany({ where: { status: 1 }, orderBy: { sort: 'asc' } }));
+    if (!skipCache) await this.cache.set('news:categories', result, 300 * 1000);
+    return result;
   }
 
   async getNewspapers(query: any) {
@@ -20,89 +59,216 @@ export class NewspaperService {
     else if (city) where.city = city;
     if (level) where.level = Number(level);
     if (category_id) where.category_id = category_id;
-    return this.prisma.newspapers.findMany({ where, include: { newspaper_categories: true }, orderBy: { sort: 'asc' } });
+    // 分页支持
+    const pageSize = Math.min(Math.max(Number(query.pageSize) || 20, 1), 200);
+    const pageNum = Math.max(Number(query.pageNum) || 1, 1);
+    const skip = (pageNum - 1) * pageSize;
+    const [rawList, total] = await Promise.all([
+      this.prisma.newspapers.findMany({
+        where,
+        select: { id: true, name: true, alias: true, publisher: true,
+          province: true, province_code: true, city: true, city_code: true,
+          region: true, price_per_word: true, min_words: true,
+          coverage: true, level: true, image: true, category_id: true,
+          sort: true, status: true, created_at: true, updated_at: true,
+          newspaper_categories: true },
+        orderBy: { sort: 'asc' },
+        skip,
+        take: pageSize,
+      }),
+      this.prisma.newspapers.count({ where }),
+    ]);
+    // 注入 region 字段
+    const list = rawList.map((n: any) => {
+      const r = n.region || provinceToRegion(n.province_code ? null : n.province);
+      return { ...n, region: r };
+    });
+    const result = { list: toCamelDeep(list), total };
+    // 缓存key必须含分页参数，否则不同页返回同一缓存
+    const cacheKey = `news:papers:${province_code || ''}:${city_code || ''}:${level || ''}:${category_id || ''}:${region || ''}:${pageSize}:${pageNum}`;
+    await this.cache.set(cacheKey, result, 60 * 1000);
+    return result;
   }
 
-  async getTemplates(newspaper_id?: string, category_id?: string, businessType?: string) {
+  async getAllNewspapers() {
+    const cacheKey = 'news:papers:all:no-pagination';
+    const cached = await this.cache.get(cacheKey);
+    if (cached) return cached;
+    const rawList = await this.prisma.newspapers.findMany({
+      where: { status: 1 },
+      select: { id: true, name: true, alias: true, publisher: true,
+        province: true, province_code: true, city: true, city_code: true,
+        region: true, price_per_word: true, min_words: true,
+        coverage: true, level: true, image: true, category_id: true,
+        sort: true, status: true, created_at: true, updated_at: true,
+        newspaper_categories: true },
+      orderBy: { sort: 'asc' },
+    });
+    const list = rawList.map((n: any) => ({
+      ...n,
+      region: n.region || provinceToRegion(n.province_code ? null : n.province),
+    }));
+    const result = { list: toCamelDeep(list), total: list.length };
+    await this.cache.set(cacheKey, result, 60 * 1000);
+    return result;
+  }
+
+  async getTemplates(newspaper_id?: string, category_id?: string, businessType?: string, skipCache = false) {
+    if (!skipCache) {
+      const key = `news:tmpl:${newspaper_id || ''}:${category_id || ''}:${businessType || ''}`;
+      const cached = await this.cache.get<any>(key);
+      if (cached) return cached;
+    }
     const where: any = { status: 1 };
     if (newspaper_id) where.newspaper_id = newspaper_id;
     if (category_id) where.category_id = category_id;
     if (businessType) where.businessType = businessType;
-    return this.prisma.newspaper_templates.findMany({ where, include: { newspaper: true, newspaper_categories: true }, orderBy: { sort: 'asc' } });
+    const rawList = await this.prisma.newspaper_templates.findMany({
+      where,
+      include: { newspaper: true, newspaper_categories: true },
+      orderBy: { sort: 'asc' },
+    });
+    const result = { list: toCamelDeep(rawList), total: rawList.length };
+    if (!skipCache) await this.cache.set(`news:tmpl:${newspaper_id || ''}:${category_id || ''}:${businessType || ''}`, result, 60 * 1000);
+    return result;
   }
 
   async calculatePrice(newspaper_id: string, contentLength: number, issueCount = 1, copyCount = 1) {
     if (!newspaper_id) return null;
     const newspaper = await this.prisma.newspapers.findUnique({ where: { id: newspaper_id } });
     if (!newspaper) return null;
-    const words = Math.max(contentLength, newspaper.min_words);
-    const price = words * Number(newspaper.price_per_word) * (Number(issueCount) || 1) * (Number(copyCount) || 1);
-    return { words, unitPrice: newspaper.price_per_word, total_price: price, copies: Number(copyCount) || 1 };
+    const words = Math.max(contentLength, Number(newspaper.min_words));
+    const unitPrice = Number(newspaper.price_per_word);
+    const copies = Number(copyCount) || 1;
+    const ic = Number(issueCount) || 1;
+    const price = Math.round(words * unitPrice * ic * copies * 100) / 100;
+    return { words, unitPrice, totalPrice: price, copies };
   }
 
   // --- admin ---
+  /** 清除报纸模块缓存（已知键逐个删） */
+  private async invalidateCache() {
+    try {
+      await this.cache.del('news:categories');
+    } catch { /* 静默 */ }
+  }
+
   async adminCreateCategory(dto: any) {
-    // ⚠ 白名单字段
-    return this.prisma.newspaper_categories.create({
-      data: { name: dto.name, icon: dto.icon || null, sort: dto.sort ?? 0, status: dto.status ?? 1 },
+    const result = await this.prisma.newspaper_categories.create({
+      data: {
+        name: dto.name,
+        icon: dto.icon || null,
+        sort: dto.sort ?? 0,
+        status: dto.status ?? 1,
+        sub_types: dto.sub_types ?? null,
+      },
     });
+    await this.invalidateCache();
+    return toCamelDeep(result);
   }
   async adminUpdateCategory(id: string, dto: any) {
-    // ⚠ 白名单字段
     const data: any = {};
     if (dto.name !== undefined) data.name = dto.name;
     if (dto.icon !== undefined) data.icon = dto.icon;
     if (dto.sort !== undefined) data.sort = dto.sort;
     if (dto.status !== undefined) data.status = dto.status;
-    return this.prisma.newspaper_categories.update({ where: { id }, data });
+    if (dto.sub_types !== undefined) data.sub_types = dto.sub_types;
+    const result = await this.prisma.newspaper_categories.update({ where: { id }, data });
+    await this.invalidateCache();
+    return toCamelDeep(result);
   }
-  async adminDeleteCategory(id: string) { return this.prisma.newspaper_categories.delete({ where: { id } }); }
+  async adminDeleteCategory(id: string) {
+    const result = await this.prisma.newspaper_categories.delete({ where: { id } });
+    await this.invalidateCache();
+    return toCamelDeep(result);
+  }
   async adminCreateNewspaper(dto: any) {
-    // ⚠ 白名单字段
-    return this.prisma.newspapers.create({
+    const result = await this.prisma.newspapers.create({
       data: {
         name: dto.name, alias: dto.alias, publisher: dto.publisher,
         province: dto.province, region: dto.region, city: dto.city,
-        province_code: dto.province_code, city_code: dto.city_code,
-        price_per_word: dto.price_per_word, min_words: dto.min_words,
-        coverage: dto.coverage, level: dto.level,
+        province_code: dto.provinceCode, city_code: dto.cityCode,
+        price_per_word: dto.pricePerWord ?? 0.5, min_words: dto.minWords ?? 50,
+        coverage: dto.coverage ?? 0, level: dto.level ?? 1,
         image: dto.image, description: dto.description,
-        status: dto.status ?? 1, sort: dto.sort ?? 0, category_id: dto.category_id,
+        status: dto.status ?? 1, sort: dto.sort ?? 0, category_id: dto.categoryId,
       },
     });
+    return toCamelDeep(result);
   }
   async adminUpdateNewspaper(id: string, dto: any) {
-    // ⚠ 白名单字段
-    const fields = ['name','alias','publisher','province','region','city','province_code','city_code','price_per_word','min_words','coverage','level','image','description','status','sort','category_id'];
+    const map: Record<string,string> = {
+      name:'name', alias:'alias', publisher:'publisher',
+      province:'province', region:'region', city:'city',
+      province_code:'provinceCode', city_code:'cityCode',
+      price_per_word:'pricePerWord', min_words:'minWords',
+      coverage:'coverage', level:'level',
+      image:'image', description:'description',
+      status:'status', sort:'sort', category_id:'categoryId',
+    };
     const data: any = {};
-    for (const f of fields) {
-      if (dto[f] !== undefined) data[f] = dto[f];
+    for (const [db, camel] of Object.entries(map)) {
+      if (dto[camel] !== undefined) data[db] = dto[camel];
     }
-    return this.prisma.newspapers.update({ where: { id }, data });
+    const result = await this.prisma.newspapers.update({ where: { id }, data });
+    await this.invalidateCache();
+    return toCamelDeep(result);
   }
-  async adminDeleteNewspaper(id: string) { return this.prisma.newspapers.delete({ where: { id } }); }
+  async adminDeleteNewspaper(id: string) {
+    const result = await this.prisma.newspapers.delete({ where: { id } });
+    await this.invalidateCache();
+    return toCamelDeep(result);
+  }
   async adminCreateTemplate(dto: any) {
-    // ⚠ 白名单字段
-    return this.prisma.newspaper_templates.create({
-      data: {
-        name: dto.name, content: dto.content, category_id: dto.category_id,
-        newspaper_id: dto.newspaper_id, templateType: dto.templateType,
-        businessType: dto.businessType, sample_data: dto.sample_data,
-        desc: dto.desc, color: dto.color,
-        sort: dto.sort ?? 0, status: dto.status ?? 1,
-      },
-    });
+    // name 和 content 都是 NOT NULL，必须始终存在
+    const createData: any = {
+      name: dto.name != null ? dto.name : '',
+      content: dto.content != null ? dto.content : '',
+    };
+    // 使用 category_id 直接赋值（避免 Prisma relation 强制要求 create/connect）
+    if (dto.categoryId) createData.category_id = dto.categoryId;
+    if (dto.newspaperId) createData.newspaper_id = dto.newspaperId;
+    if (dto.templateType) createData.templateType = dto.templateType;
+    // businessType：废弃字段，API 接受但忽略，只写 templateType
+    // if (dto.businessType) createData.businessType = dto.businessType;
+    if (dto.sampleData) createData.sample_data = dto.sampleData;
+    if (dto.desc) createData.desc = dto.desc;
+    if (dto.color) createData.color = dto.color;
+    createData.sort = dto.sort ?? 0;
+    createData.status = dto.status ?? 1;
+
+    const result = await this.prisma.newspaper_templates.create({ data: createData });
+    return toCamelDeep(result);
   }
   async adminUpdateTemplate(id: string, dto: any) {
-    // ⚠ 白名单字段
-    const fields = ['name','content','category_id','newspaper_id','templateType','businessType','sample_data','desc','color','sort','status'];
+    const map: Record<string,string> = {
+      name:'name', content:'content',
+      category_id:'categoryId', newspaper_id:'newspaperId',
+      templateType:'templateType',
+      // businessType：废弃字段，API 接受但忽略
+      sample_data:'sampleData', desc:'desc',
+      color:'color', sort:'sort', status:'status',
+    };
     const data: any = {};
-    for (const f of fields) {
-      if (dto[f] !== undefined) data[f] = dto[f];
+    for (const [db, camel] of Object.entries(map)) {
+      if (dto[camel] !== undefined && camel !== 'businessType') data[db] = dto[camel];
     }
-    return this.prisma.newspaper_templates.update({ where: { id }, data });
+    const result = await this.prisma.newspaper_templates.update({ where: { id }, data });
+    await this.invalidateCache();
+    return toCamelDeep(result);
   }
-  async adminDeleteTemplate(id: string) { return this.prisma.newspaper_templates.delete({ where: { id } }); }
+  async adminDeleteTemplate(id: string) {
+    try {
+      const result = await this.prisma.newspaper_templates.delete({ where: { id } });
+      await this.invalidateCache();
+      return toCamelDeep(result);
+    } catch (e: any) {
+      if (e.code === 'P2025') {
+        throw new Error('该模板不存在或已被删除');
+      }
+      throw e;
+    }
+  }
 
   // ========== 个人证件 ==========
   async getPersonalDocs() {
@@ -386,5 +552,32 @@ export class NewspaperService {
       const items = g[k] || [];
       return { id: k, name: M[k].name, color: M[k].color, hot: M[k].hot || false, total: items.length, docs: items.map(t => ({ name: t.name, content: t.content })) };
     }).filter(x => x.total > 0);
+  }
+
+  // ========== 导出分组元数据（供管理前端下拉使用）==========
+  async getTemplateMeta() {
+    // 从 DB 读取各分类的 sub_types
+    const cats = await this.prisma.newspaper_categories.findMany({
+      where: { status: 1 },
+      select: { name: true, sub_types: true },
+    });
+
+    // businessTypes = 所有子分类扁平列表（key=子分类key，name=子分类name，存 businessType 字段）
+    // subTypes = { 主分类名: [子分类列表] }（按分类名组织子分类）
+    const businessTypes: { key: string; name: string }[] = [];
+    const subTypes: Record<string, { key: string; name: string }[]> = {};
+
+    for (const cat of cats) {
+      const raw = cat.sub_types as any[] | null;
+      const subs = (raw || []).map((s: any) => ({ key: s.key, name: s.name }));
+      // 业务类型下拉：key=子分类key（用于存储），name=子分类name（显示用）
+      for (const s of subs) {
+        businessTypes.push({ key: s.key, name: s.name });
+      }
+      // 子分组映射：key=主分类名，value=该分类下的子分类列表
+      subTypes[cat.name] = subs;
+    }
+
+    return { businessTypes, subTypes };
   }
 }
