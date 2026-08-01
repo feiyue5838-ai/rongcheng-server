@@ -131,7 +131,6 @@ export class NewspaperController {
   @ApiBearerAuth()
   @ApiOperation({ summary: '创建模板' })
   async createTemplate(@Body() dto: any) {
-    console.log('[DEBUG] createTemplate dto:', JSON.stringify(dto));
     return this.newspaperService.adminCreateTemplate(dto);
   }
 
@@ -333,5 +332,40 @@ export class NewspaperController {
   @ApiOperation({ summary: '获取模板分组元数据（businessType + subType 下拉用）' })
   async getTemplateMeta() {
     return this.newspaperService.getTemplateMeta();
+  }
+
+  // ========== 版面管理 ==========
+
+  @Get(':id/sections')
+  @ApiOperation({ summary: '获取报纸的版面列表' })
+  async getNewspaperSections(@Param('id') id: string) {
+    return this.newspaperService.getNewspaperSections(id);
+  }
+
+  @Post(':id/sections')
+  @Log("报纸", "版面", ":id/sections")
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '创建报纸版面' })
+  async createNewspaperSection(@Param('id') id: string, @Body() dto: any) {
+    return this.newspaperService.adminCreateNewspaperSection(id, dto);
+  }
+
+  @Put(':id/sections/:sectionId')
+  @Log("报纸", "版面", ":id/sections/:sectionId")
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '更新报纸版面' })
+  async updateNewspaperSection(@Param('id') id: string, @Param('sectionId') sectionId: string, @Body() dto: any) {
+    return this.newspaperService.adminUpdateNewspaperSection(id, sectionId, dto);
+  }
+
+  @Delete(':id/sections/:sectionId')
+  @Log("报纸", "版面", ":id/sections/:sectionId")
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '删除报纸版面' })
+  async deleteNewspaperSection(@Param('id') id: string, @Param('sectionId') sectionId: string) {
+    return this.newspaperService.adminDeleteNewspaperSection(id, sectionId);
   }
 }

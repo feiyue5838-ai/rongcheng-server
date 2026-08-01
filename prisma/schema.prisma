@@ -150,7 +150,27 @@ model newspapers {
   province_code        String?
   region               String?
   newspaper_templates  newspaper_templates[]
+  newspaper_sections   newspaper_sections[]
   newspaper_categories newspaper_categories? @relation(fields: [category_id], references: [id])
+}
+
+model newspaper_sections {
+  id              String     @id @default(uuid())
+  newspaper_id    String
+  name            String
+  category        String?    // 版面类别：头版/二版/财经版/分类广告版等
+  list_price      Decimal    @default(0) @db.Decimal(10, 2) // 刊例价
+  deadline_time   String?    // 截稿时间，如 "17:00"
+  publish_cycle   String?    // 见报周期，如 "每周一/三/五" 或 "次日见报"
+  sort            Int        @default(0)
+  status          Int        @default(1)
+  remark          String?    // 备注
+  created_at      DateTime   @default(now())
+  updated_at      DateTime   @updatedAt
+  newspaper       newspapers @relation(fields: [newspaper_id], references: [id], onDelete: Cascade)
+
+  @@index([newspaper_id, status])
+  @@index([newspaper_id, sort])
 }
 
 model operation_logs {

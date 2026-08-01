@@ -336,14 +336,14 @@ export class NewspaperService {
     const CAT = 'e0a7a143-e4e5-409a-b094-9dfd63061df6';
     const M = {
       company:   { name: '公司公告',     color: '#5B6FE8', hot: true  },
-      estate:    { name: '房产公告',     color: '#FA8C16'             },
-      seal:      { name: '印章公告',     color: '#EB2F96'             },
-      debt:      { name: '债务催收',     color: '#722ED1'             },
-      lost:      { name: '挂失公告',     color: '#F5222D'             },
-      property:  { name: '财产转让公告', color: '#FADB14'             },
-      stock:     { name: '股权公告',     color: '#A0D911'             },
-      notary:    { name: '公证公告',     color: '#FA541C'             },
-      vehicle:   { name: '车辆公告',     color: '#13C2C2'             },
+      estate:    { name: '房产公告',     color: '#6675EA'             },
+      seal:      { name: '印章公告',     color: '#717AEC'             },
+      debt:      { name: '债务催收',     color: '#7C80EE'             },
+      lost:      { name: '挂失公告',     color: '#8886F0'             },
+      property:  { name: '财产转让公告', color: '#938BF1'             },
+      stock:     { name: '股权公告',     color: '#9E91F3'             },
+      notary:    { name: '公证公告',     color: '#A996F5'             },
+      vehicle:   { name: '车辆公告',     color: '#B49CF7'             },
     };
     const templates = await this.prisma.newspaper_templates.findMany({ where: { category_id: CAT, status: 1 }, orderBy: { sort: 'asc' } });
     const g: Record<string, any[]> = {};
@@ -358,7 +358,7 @@ export class NewspaperService {
   async getNoticeTemplates() {
     const CAT = 'e1023e5f-90c1-43c1-9e40-bf4ba0ed0a78';
     const M = {
-      company:  { name: '企业公告',     color: '#5B6FE8', hot: true },
+      company:  { name: '企业公告',     color: '#5F71E9', hot: true },
     };
     const templates = await this.prisma.newspaper_templates.findMany({ where: { category_id: CAT, status: 1 }, orderBy: { sort: 'asc' } });
     const g: Record<string, any[]> = {};
@@ -378,18 +378,18 @@ export class NewspaperService {
   async getCompanyDocTemplates() {
     const CAT = '95830b12-d797-4338-903f-d1492dd9725f';
     const M = {
-      stamp_cert:            { name: '公章证照类',    color: '#F5222D', hot: true  },
-      contract_agreement:    { name: '合同协议类',    color: '#FA541C', hot: true  },
-      license_qualification: { name: '许可证资质类',  color: '#D4380D'             },
-      invoice_receipt:       { name: '票据单证类',    color: '#8C8C8C'             },
-      transportation:         { name: '运输资质类',    color: '#5B6FE8'             },
-      construction:          { name: '建筑资质类',    color: '#52C41A'             },
-      business_license:      { name: '营业执照类',    color: '#FA8C16'             },
-      medical:               { name: '医疗资质类',    color: '#722ED1'             },
-      financial_tax:          { name: '金融税务类',    color: '#0FCB7D'             },
-      import_export:         { name: '进出口资质类',  color: '#EB2F96'             },
-      culture_food_other:     { name: '文化食品其他',  color: '#2F54EB'             },
-      transport_equipment:   { name: '运输设备类',    color: '#13C2C2'             },
+      stamp_cert:            { name: '公章证照类',    color: '#6474EA', hot: true  },
+      contract_agreement:    { name: '合同协议类',    color: '#6B77EB', hot: true  },
+      license_qualification: { name: '许可证资质类',  color: '#727BEC'             },
+      invoice_receipt:       { name: '票据单证类',    color: '#7A7FED'             },
+      transportation:         { name: '运输资质类',    color: '#8182EE'             },
+      construction:          { name: '建筑资质类',    color: '#8886F0'             },
+      business_license:      { name: '营业执照类',    color: '#908AF1'             },
+      medical:               { name: '医疗资质类',    color: '#978DF2'             },
+      financial_tax:          { name: '金融税务类',    color: '#9E91F3'             },
+      import_export:         { name: '进出口资质类',  color: '#A595F5'             },
+      culture_food_other:     { name: '文化食品其他',  color: '#AD98F6'             },
+      transport_equipment:   { name: '运输设备类',    color: '#B49CF7'             },
     };
     const templates = await this.prisma.newspaper_templates.findMany({ where: { category_id: CAT, status: 1 }, orderBy: { sort: 'asc' } });
     const g: Record<string, any[]> = {};
@@ -404,15 +404,15 @@ export class NewspaperService {
   async getCourtTemplates() {
     const CAT = 'n0000001-0000-0000-0000-000000000003';
     const M = {
-      debt_collect:           { name: '债权债务与催收',     color: '#F5222D', hot: true  },
-      bankruptcy_liquidation:{ name: '破产与清算',         color: '#FA541C'             },
-      arbitration_service:   { name: '仲裁与送达',         color: '#5B6FE8'             },
-      admin_punishment:       { name: '行政处罚送达',       color: '#D4380D'             },
-      civil_dispute:          { name: '民事诉讼纠纷',       color: '#52C41A'             },
-      judicial_auction:       { name: '司法拍卖与资产处置', color: '#FA8C16'             },
-      compensation_claim:     { name: '补偿提存与领取',     color: '#722ED1'             },
-      search_people:          { name: '寻人协查与司法文书', color: '#0FCB7D'             },
-      admin_regulation:       { name: '行政监管与企业公告', color: '#EB2F96'             },
+      debt_collect:           { name: '债权债务与催收',     color: '#6876EA', hot: true  },
+      bankruptcy_liquidation:{ name: '破产与清算',         color: '#727BEC'             },
+      arbitration_service:   { name: '仲裁与送达',         color: '#7B7FED'             },
+      admin_punishment:       { name: '行政处罚送达',       color: '#8584EF'             },
+      civil_dispute:          { name: '民事诉讼纠纷',       color: '#8E89F1'             },
+      judicial_auction:       { name: '司法拍卖与资产处置', color: '#988EF2'             },
+      compensation_claim:     { name: '补偿提存与领取',     color: '#A192F4'             },
+      search_people:          { name: '寻人协查与司法文书', color: '#AB97F5'             },
+      admin_regulation:       { name: '行政监管与企业公告', color: '#B49CF7'             },
     };
     const templates = await this.prisma.newspaper_templates.findMany({ where: { category_id: CAT, status: 1 }, orderBy: { sort: 'asc' } });
     const g: Record<string, any[]> = {};
@@ -427,11 +427,11 @@ export class NewspaperService {
   async getGovernmentTemplates() {
     const CAT = '24f5d846-eaf4-43d7-87a8-614cc8a2c84c';
     const M = {
-      prosecutorial:     { name: '检察司法类公告',   color: '#722ED1'             },
-      admin_punish_gov:  { name: '行政处罚送达催告', color: '#F5222D', hot: true  },
-      labor_arbitration: { name: '劳动仲裁送达公告', color: '#5B6FE8', hot: true  },
-      planning_permit:    { name: '规划行政许可公示', color: '#0FCB7D'             },
-      notary_testament:   { name: '公证遗嘱类公告',   color: '#FA8C16'             },
+      prosecutorial:     { name: '检察司法类公告',   color: '#6D78EB'             },
+      admin_punish_gov:  { name: '行政处罚送达催告', color: '#7F81EE', hot: true  },
+      labor_arbitration: { name: '劳动仲裁送达公告', color: '#908AF1', hot: true  },
+      planning_permit:    { name: '规划行政许可公示', color: '#A293F4'             },
+      notary_testament:   { name: '公证遗嘱类公告',   color: '#B49CF7'             },
     };
     const templates = await this.prisma.newspaper_templates.findMany({ where: { category_id: CAT, status: 1 }, orderBy: { sort: 'asc' } });
     const g: Record<string, any[]> = {};
@@ -446,9 +446,9 @@ export class NewspaperService {
   async getBiddingTemplates() {
     const CAT = 'c75ec0d3-d026-4f78-bb9e-0aa8a10ab7a8';
     const M = {
-      engineering_lease:    { name: '工程场地租赁招标', color: '#F5222D', hot: true  },
-      procurement_supplier:{ name: '采购供应商招标',  color: '#FA541C', hot: true  },
-      recruitment_general:  { name: '招聘通用招标',    color: '#5B6FE8'             },
+      engineering_lease:    { name: '工程场地租赁招标', color: '#717AEC', hot: true  },
+      procurement_supplier:{ name: '采购供应商招标',  color: '#938BF1', hot: true  },
+      recruitment_general:  { name: '招聘通用招标',    color: '#B49CF7'             },
     };
     const templates = await this.prisma.newspaper_templates.findMany({ where: { category_id: CAT, status: 1 }, orderBy: { sort: 'asc' } });
     const g: Record<string, any[]> = {};
@@ -463,10 +463,10 @@ export class NewspaperService {
   async getCreditorTemplates() {
     const CAT = 'n0000001-0000-0000-0000-000000000006';
     const M = {
-      debt_cleanup:    { name: '债权债务综合清算',  color: '#F5222D', hot: true  },
-      debt_transfer:   { name: '债权转让公告催收', color: '#FA541C', hot: true  },
-      loan_default:    { name: '贷款违约公告',      color: '#D4380D'             },
-      finance_release: { name: '金融保险债权解除',  color: '#8C8C8C'             },
+      debt_cleanup:    { name: '债权债务综合清算',  color: '#767DED', hot: true  },
+      debt_transfer:   { name: '债权转让公告催收', color: '#8A87F0', hot: true  },
+      loan_default:    { name: '贷款违约公告',      color: '#9F92F4'             },
+      finance_release: { name: '金融保险债权解除',  color: '#B49CF7'             },
     };
     const templates = await this.prisma.newspaper_templates.findMany({ where: { category_id: CAT, status: 1 }, orderBy: { sort: 'asc' } });
     const g: Record<string, any[]> = {};
@@ -481,10 +481,10 @@ export class NewspaperService {
   async getAuctionTemplates() {
     const CAT = 'n0000001-0000-0000-0000-000000000004';
     const M = {
-      general:  { name: '通用拍卖公告', color: '#F5222D', hot: true  },
-      online:   { name: '网络线上拍卖', color: '#5B6FE8', hot: true  },
-      asset:    { name: '专项资产拍卖', color: '#FA8C16'             },
-      judicial: { name: '司法法院拍卖', color: '#F5222D'             },
+      general:  { name: '通用拍卖公告', color: '#7A7FED', hot: true  },
+      online:   { name: '网络线上拍卖', color: '#8D89F1', hot: true  },
+      asset:    { name: '专项资产拍卖', color: '#A192F4'             },
+      judicial: { name: '司法法院拍卖', color: '#B49CF7'             },
     };
     const templates = await this.prisma.newspaper_templates.findMany({ where: { category_id: CAT, status: 1 }, orderBy: { sort: 'asc' } });
     const g: Record<string, any[]> = {};
@@ -499,10 +499,10 @@ export class NewspaperService {
   async getApologyTemplates() {
     const CAT = '7f741109-cedf-4754-a621-05d25f8f39a6';
     const M = {
-      personal:  { name: '个人道歉声明', color: '#EB2F96', hot: true  },
-      corporate: { name: '企业道歉声明', color: '#5B6FE8', hot: true  },
-      product:   { name: '产品道歉声明', color: '#FA8C16'             },
-      other:     { name: '其他道歉声明', color: '#52C41A'             },
+      personal:  { name: '个人道歉声明', color: '#7F81EE', hot: true  },
+      corporate: { name: '企业道歉声明', color: '#908AF1', hot: true  },
+      product:   { name: '产品道歉声明', color: '#A293F4'             },
+      other:     { name: '其他道歉声明', color: '#B49CF7'             },
     };
     const templates = await this.prisma.newspaper_templates.findMany({ where: { category_id: CAT, status: 1 }, orderBy: { sort: 'asc' } });
     const g: Record<string, any[]> = {};
@@ -517,11 +517,11 @@ export class NewspaperService {
   async getEnvTemplates() {
     const CAT = 'c5385c39-917f-4ee8-b415-eb0ce5477b47';
     const M = {
-      env_impact:       { name: '环境影响评价信息公示',   color: '#52C41A', hot: true  },
-      env_acceptance:   { name: '竣工环保验收公示',       color: '#0FCB7D', hot: true  },
-      emission_permit:   { name: '排污许可证公示',         color: '#FA8C16'             },
-      clean_production:  { name: '清洁生产与环境预案公示', color: '#5B6FE8'             },
-      other:             { name: '其他环保公示',           color: '#7B8FF7'             },
+      env_impact:       { name: '环境影响评价信息公示',   color: '#8383EF', hot: true  },
+      env_acceptance:   { name: '竣工环保验收公示',       color: '#8F89F1', hot: true  },
+      emission_permit:   { name: '排污许可证公示',         color: '#9C90F3'             },
+      clean_production:  { name: '清洁生产与环境预案公示', color: '#A896F5'             },
+      other:             { name: '其他环保公示',           color: '#B49CF7'             },
     };
     const templates = await this.prisma.newspaper_templates.findMany({ where: { category_id: CAT, status: 1 }, orderBy: { sort: 'asc' } });
     const g: Record<string, any[]> = {};
@@ -536,10 +536,10 @@ export class NewspaperService {
   async getPraiseTemplates() {
     const CAT = '01f5ab6a-d62d-4223-b0b1-b31a7c740385';
     const M = {
-      personal:  { name: '个人表扬信',  color: '#FA8C16', hot: true  },
-      company:   { name: '企业表扬信',  color: '#5B6FE8', hot: true  },
-      employee:  { name: '员工表扬信', color: '#52C41A'             },
-      unit:      { name: '单位表扬信', color: '#F5222D'             },
+      personal:  { name: '个人表扬信',  color: '#8886F0', hot: true  },
+      company:   { name: '企业表扬信',  color: '#968DF2', hot: true  },
+      employee:  { name: '员工表扬信', color: '#A595F5'             },
+      unit:      { name: '单位表扬信', color: '#B49CF7'             },
     };
     const templates = await this.prisma.newspaper_templates.findMany({ where: { category_id: CAT, status: 1 }, orderBy: { sort: 'asc' } });
     const g: Record<string, any[]> = {};
@@ -554,10 +554,10 @@ export class NewspaperService {
   async getLaborTemplates() {
     const CAT = '60b1b866-275e-42d9-ab44-a386ccc58714';
     const M = {
-      labor_dismissal: { name: '解除劳动合同声明', color: '#FA8C16', hot: true  },
-      labor_arb:       { name: '劳动仲裁公告',     color: '#F5222D', hot: true  },
-      labor_wage:      { name: '工资欠款公告',     color: '#FAAD14', hot: true  },
-      labor_injury:    { name: '工伤事故公告',     color: '#FF4D4F'             },
+      labor_dismissal: { name: '解除劳动合同声明', color: '#8C88F0', hot: true  },
+      labor_arb:       { name: '劳动仲裁公告',     color: '#998FF3', hot: true  },
+      labor_wage:      { name: '工资欠款公告',     color: '#A795F5', hot: true  },
+      labor_injury:    { name: '工伤事故公告',     color: '#B49CF7'             },
     };
     const templates = await this.prisma.newspaper_templates.findMany({ where: { category_id: CAT, status: 1 }, orderBy: { sort: 'asc' } });
     const g: Record<string, any[]> = {};
@@ -572,11 +572,11 @@ export class NewspaperService {
   async getPublicityTemplates() {
     const CAT = '2e56de26-b2b5-47bb-9d2d-18070035c3a5';
     const M = {
-      personal:   { name: '个人主体', color: '#FA8C16', hot: true  },
-      corporate:  { name: '企业主体', color: '#5B6FE8', hot: true  },
-      government: { name: '政府主体', color: '#F5222D', hot: true  },
-      legal:      { name: '普法公益', color: '#52C41A'             },
-      project:    { name: '项目工程', color: '#0FCB7D'             },
+      personal:   { name: '个人主体', color: '#908AF1', hot: true  },
+      corporate:  { name: '企业主体', color: '#998FF3', hot: true  },
+      government: { name: '政府主体', color: '#A293F4', hot: true  },
+      legal:      { name: '普法公益', color: '#AB98F6'             },
+      project:    { name: '项目工程', color: '#B49CF7'             },
     };
     const templates = await this.prisma.newspaper_templates.findMany({ where: { category_id: CAT, status: 1 }, orderBy: { sort: 'asc' } });
     const g: Record<string, any[]> = {};
@@ -612,5 +612,53 @@ export class NewspaperService {
     }
 
     return { businessTypes, subTypes };
+  }
+
+  // ========== 版面管理 ==========
+  async getNewspaperSections(newspaperId: string) {
+    const list = await this.prisma.newspaper_sections.findMany({
+      where: { newspaper_id: newspaperId },
+      orderBy: [{ sort: 'asc' }, { created_at: 'asc' }],
+    });
+    return { list: toCamelDeep(list), total: list.length };
+  }
+
+  async adminCreateNewspaperSection(newspaperId: string, dto: any) {
+    const data: any = {
+      newspaper_id: newspaperId,
+      name: dto.name,
+      category: dto.category || null,
+      list_price: dto.list_price ? Number(dto.list_price) : 0,
+      deadline_time: dto.deadline_time || null,
+      publish_cycle: dto.publish_cycle || null,
+      sort: dto.sort ? Number(dto.sort) : 0,
+      status: dto.status !== undefined ? Number(dto.status) : 1,
+      remark: dto.remark || null,
+    };
+    const section = await this.prisma.newspaper_sections.create({ data });
+    return toCamelDeep(section);
+  }
+
+  async adminUpdateNewspaperSection(newspaperId: string, sectionId: string, dto: any) {
+    const data: any = {};
+    if (dto.name !== undefined) data.name = dto.name;
+    if (dto.category !== undefined) data.category = dto.category;
+    if (dto.list_price !== undefined) data.list_price = Number(dto.list_price);
+    if (dto.deadline_time !== undefined) data.deadline_time = dto.deadline_time;
+    if (dto.publish_cycle !== undefined) data.publish_cycle = dto.publish_cycle;
+    if (dto.sort !== undefined) data.sort = Number(dto.sort);
+    if (dto.status !== undefined) data.status = Number(dto.status);
+    if (dto.remark !== undefined) data.remark = dto.remark;
+
+    const section = await this.prisma.newspaper_sections.update({
+      where: { id: sectionId },
+      data,
+    });
+    return toCamelDeep(section);
+  }
+
+  async adminDeleteNewspaperSection(newspaperId: string, sectionId: string) {
+    await this.prisma.newspaper_sections.delete({ where: { id: sectionId } });
+    return { success: true };
   }
 }
