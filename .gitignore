@@ -46,6 +46,10 @@ _*.js
 # ===== macOS AppleDouble 垃圾文件 =====
 ._*
 
+
+# ===== 一次性清理脚本（测试订单清理等）=====
+clean_*.js
+
 # 防止编译产物误入 src（tsconfig outDir=dist）
 src/**/*.js
 _trash_2026-07-22/
