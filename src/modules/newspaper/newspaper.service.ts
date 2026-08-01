@@ -68,7 +68,7 @@ export class NewspaperService {
         where,
         select: { id: true, name: true, alias: true, publisher: true,
           province: true, province_code: true, city: true, city_code: true,
-          region: true, price_per_word: true, min_words: true,
+          region: true, enable_sections: true, price_per_word: true, min_words: true,
           coverage: true, level: true, image: true, category_id: true,
           sort: true, status: true, created_at: true, updated_at: true,
           newspaper_categories: true },
@@ -98,7 +98,7 @@ export class NewspaperService {
       where: { status: 1 },
       select: { id: true, name: true, alias: true, publisher: true,
         province: true, province_code: true, city: true, city_code: true,
-        region: true, price_per_word: true, min_words: true,
+        region: true, enable_sections: true, price_per_word: true, min_words: true,
         coverage: true, level: true, image: true, category_id: true,
         sort: true, status: true, created_at: true, updated_at: true,
         newspaper_categories: true },
@@ -212,6 +212,7 @@ export class NewspaperService {
         coverage: dto.coverage ?? 0, level: dto.level ?? 1,
         image: dto.image, description: dto.description,
         status: dto.status ?? 1, sort: dto.sort ?? 0, category_id: dto.categoryId,
+        enable_sections: dto.enableSections ?? 1,
       },
     });
     return toCamelDeep(result);
@@ -225,6 +226,7 @@ export class NewspaperService {
       coverage:'coverage', level:'level',
       image:'image', description:'description',
       status:'status', sort:'sort', category_id:'categoryId',
+      enable_sections:'enableSections',
     };
     const data: any = {};
     for (const [db, camel] of Object.entries(map)) {

@@ -149,6 +149,7 @@ model newspapers {
   city_code            String?
   province_code        String?
   region               String?
+  enable_sections      Int                   @default(1) // 小程序下单是否启用版面选择
   newspaper_templates  newspaper_templates[]
   newspaper_sections   newspaper_sections[]
   newspaper_categories newspaper_categories? @relation(fields: [category_id], references: [id])
