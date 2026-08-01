@@ -33,42 +33,61 @@ export class UserService {
 
   /** 获取收货地址列表 */
   async getAddresses(user_id: string) {
-    return this.prisma.addresses.findMany({
+    const list = await this.prisma.addresses.findMany({
       where: { user_id },
       orderBy: [{ is_default: 'desc' }, { created_at: 'asc' }],
+    });
+    return list.map((a: any) => {
+      const camel = toCamelDeep(a);
+      camel.name = camel.contact; // 前端读 name，DB 字段是 contact
+      return camel;
     });
   }
 
   /** 添加收货地址 */
   async addAddress(user_id: string, dto: any) {
+    const data = this._normalizeAddressDto(dto);
     // 如果设为默认，先取消其他默认
-    if (dto.is_default) {
+    if (data.is_default) {
       await this.prisma.addresses.updateMany({
         where: { user_id },
         data: { is_default: false },
       });
     }
-    return this.prisma.addresses.create({ data: { ...dto, user_id } });
+    return this.prisma.addresses.create({ data: { ...data, user_id } });
   }
 
   /** 更新收货地址 */
   async updateAddress(user_id: string, address_id: string, dto: any) {
-    const address = await this.prisma.addresses.findFirst({ where: { id: address_id, user_id } });
-    if (!address) throw new NotFoundException('地址不存在');
-
-    if (dto.is_default) {
+    const data = this._normalizeAddressDto(dto);
+    if (!Object.keys(data).length) throw new Error('无有效地址字段');
+    if (data.is_default) {
       await this.prisma.addresses.updateMany({
         where: { user_id },
         data: { is_default: false },
       });
     }
-
-    return this.prisma.addresses.update({ where: { id: address_id }, data: dto });
+    return this.prisma.addresses.update({ where: { id: address_id }, data });
   }
 
   /** 删除收货地址 */
   async deleteAddress(user_id: string, address_id: string) {
     return this.prisma.addresses.delete({ where: { id: address_id } });
+  }
+
+  /** 归一化前端地址 DTO：name→contact、isDefault→is_default、白名单过滤 */
+  _normalizeAddressDto(dto: any) {
+    const data: any = {};
+    if (dto.name !== undefined) data.contact = dto.name;
+    if (dto.contact !== undefined) data.contact = dto.contact;
+    if (dto.phone !== undefined) data.phone = dto.phone;
+    if (dto.province !== undefined) data.province = dto.province;
+    if (dto.city !== undefined) data.city = dto.city;
+    if (dto.district !== undefined) data.district = dto.district;
+    if (dto.detail !== undefined) data.detail = dto.detail;
+    if (dto.is_default !== undefined) data.is_default = dto.is_default;
+    if (dto.isDefault !== undefined) data.is_default = dto.isDefault;
+    return data;
   }
 
   /** 获取发票列表 */
