@@ -301,7 +301,7 @@ export class OrderService {
   }
 
   async createNewspaperOrder(user_id: string, dto: any) {
-    const { type, content, newspaper_id, templateId, address_id, address_json, remark, price, newspaperName, issueCount, invoice, copyCount, images } = dto;
+    const { type, content, newspaper_id, templateId, address_id, address_json, remark, price, newspaperName, issueCount, invoice, copyCount, images, section_id, section_name } = dto;
 
     // 校验/快照地址（与刻章订单保持一致）
     let addressData: any = null;
@@ -322,13 +322,26 @@ export class OrderService {
 
     // 服务端权威计价：单价 × max(字数, 最少字数) × 期数（覆盖客户端传入 price，防篡改）
     let serverPrice = Number(price) || 0;
+    let sectionId: string | null = section_id || null;
+    let sectionName: string | null = section_name || null;
     if (newspaper_id) {
       const np = await this.prisma.newspapers.findUnique({ where: { id: newspaper_id } });
       if (np) {
         const chars = (content || '').length;
         const words = Math.max(chars, np.min_words || 0);
         const copies = Number(copyCount) || 1;
-        serverPrice = words * Number(np.price_per_word) * (Number(issueCount) || 1) * copies;
+        const ic = Number(issueCount) || 1;
+        serverPrice = words * Number(np.price_per_word) * ic * copies;
+        if (section_id) {
+          const sec = await this.prisma.newspaper_sections.findFirst({
+            where: { id: section_id, newspaper_id, status: 1 },
+          });
+          if (sec) {
+            sectionId = sec.id;
+            sectionName = sec.name;
+            serverPrice += Number(sec.list_price) * ic * copies;
+          }
+        }
       }
     }
 
@@ -348,6 +361,9 @@ export class OrderService {
         newspaper_issue_count: issueCount ? Number(issueCount) : null,
         newspaper_images: Array.isArray(images) ? JSON.stringify(images) : null,
         newspaper_copy_count: copyCount ? Number(copyCount) : null,
+        newspaper_id: newspaper_id || null,
+        newspaper_section_id: sectionId,
+        newspaper_section_name: sectionName,
         invoice_json: invoice ? JSON.stringify(invoice) : null,
         remark: remark || null,
         status: 1,

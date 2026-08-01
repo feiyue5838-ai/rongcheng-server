@@ -382,6 +382,9 @@ model seal_orders {
   newspaper_issue_count Int?
   invoice_json          String?
   newspaper_copy_count  Int?
+  newspaper_id          String?
+  newspaper_section_id  String?
+  newspaper_section_name String?
   newspaper_images      String?
   delivery_receipts     delivery_receipts[]
   materials             materials[]

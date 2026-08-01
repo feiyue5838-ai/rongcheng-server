@@ -153,7 +153,7 @@ export class NewspaperService {
     return result;
   }
 
-  async calculatePrice(newspaper_id: string, contentLength: number, issueCount = 1, copyCount = 1) {
+  async calculatePrice(newspaper_id: string, contentLength: number, issueCount = 1, copyCount = 1, section_id?: string) {
     if (!newspaper_id) return null;
     const newspaper = await this.prisma.newspapers.findUnique({ where: { id: newspaper_id } });
     if (!newspaper) return null;
@@ -161,8 +161,22 @@ export class NewspaperService {
     const unitPrice = Number(newspaper.price_per_word);
     const copies = Number(copyCount) || 1;
     const ic = Number(issueCount) || 1;
-    const price = Math.round(words * unitPrice * ic * copies * 100) / 100;
-    return { words, unitPrice, totalPrice: price, copies };
+    const wordPrice = Math.round(words * unitPrice * ic * copies * 100) / 100;
+    let sectionId = '';
+    let sectionName = '';
+    let sectionPrice = 0;
+    if (section_id) {
+      const sec = await this.prisma.newspaper_sections.findFirst({
+        where: { id: section_id, newspaper_id, status: 1 },
+      });
+      if (sec) {
+        sectionId = sec.id;
+        sectionName = sec.name;
+        sectionPrice = Math.round(Number(sec.list_price) * ic * copies * 100) / 100;
+      }
+    }
+    const totalPrice = Math.round((wordPrice + sectionPrice) * 100) / 100;
+    return { words, unitPrice, wordPrice, sectionId, sectionName, sectionPrice, totalPrice, copies };
   }
 
   // --- admin ---

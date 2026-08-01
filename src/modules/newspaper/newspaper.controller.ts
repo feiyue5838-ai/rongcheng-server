@@ -94,8 +94,9 @@ export class NewspaperController {
     @Query('contentLength') contentLength: number,
     @Query('issueCount') issueCount?: number,
     @Query('copyCount') copyCount?: number,
+    @Query('section_id') section_id?: string,
   ) {
-    return this.newspaperService.calculatePrice(newspaper_id, contentLength, issueCount, copyCount);
+    return this.newspaperService.calculatePrice(newspaper_id, contentLength, issueCount, copyCount, section_id);
   }
 
   // 管理端
