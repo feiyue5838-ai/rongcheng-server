@@ -50,7 +50,7 @@ export class StoreService {
   // ==================== 网点 CRUD ====================
 
   /** 网点列表 */
-  async findAll(params: { page?: number; pageSize?: number; keyword?: string; status?: number; region?: string }) {
+  async findAll(params: { page?: number; pageSize?: number; keyword?: string; status?: number; region?: string; province?: string; city?: string; district?: string; businessType?: string }) {
     const { page = 1, pageSize = 20, keyword, status } = params;
     const where: any = {};
     if (keyword) {
@@ -61,13 +61,29 @@ export class StoreService {
       ];
     }
     if (status !== undefined) where.status = Number(status);
+    if (params.province) {
+      where.province = params.province;
+    }
+    if (params.city) {
+      where.city = params.city;
+    }
+    if (params.district) {
+      where.district = params.district;
+    }
     if (params.region) {
       if (params.region === '未知') {
-        where.province = { notIn: Object.keys(REGION_MAP) };
+        where.province = { ...where.province, notIn: Object.keys(REGION_MAP) };
       } else {
         const provinces = Object.keys(REGION_MAP).filter(k => REGION_MAP[k] === params.region);
         where.province = { in: provinces };
       }
+    }
+    if (params.businessType) {
+      where.outlet_business_types = {
+        some: {
+          business_type: { code: params.businessType },
+        },
+      };
     }
 
     const [list, total] = await Promise.all([
@@ -76,7 +92,10 @@ export class StoreService {
         skip: (page - 1) * pageSize,
         take: pageSize,
         orderBy: { created_at: 'desc' },
-        include: { _count: { select: { assignments: true } } },
+        include: {
+          _count: { select: { assignments: true } },
+          outlet_business_types: { include: { business_type: true } },
+        },
       }),
       this.prisma.outlets.count({ where }),
     ]);
@@ -88,6 +107,7 @@ export class StoreService {
         password: undefined,
         totalOrders: s._count?.assignments ?? 0,
         statusText: s.status === 1 ? '营业中' : '已歇业',
+        businessTypes: s.outlet_business_types?.map(t => ({ id: t.business_type.id, name: t.business_type.name, code: t.business_type.code })) ?? [],
       })),
       pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
     };
@@ -95,23 +115,32 @@ export class StoreService {
 
   /** 网点详情 */
   async findOne(id: string) {
-    const Outlet = await this.prisma.outlets.findUnique({ where: { id } });
+    const Outlet = await this.prisma.outlets.findUnique({ 
+      where: { id },
+      include: { outlet_business_types: { include: { business_type: true } } },
+    });
     if (!Outlet) throw new NotFoundException('网点不存在');
     const totalOrders = await this.prisma.order_assignments.count({ where: { outlet_id: id } });
-    return { ...toCamelDeep(Outlet), password: undefined, totalOrders };
+    return {
+      ...toCamelDeep(Outlet),
+      password: undefined,
+      totalOrders,
+      businessTypes: Outlet.outlet_business_types?.map(t => ({ id: t.business_type.id, name: t.business_type.name, code: t.business_type.code })) ?? [],
+    };
   }
 
   /** 新增网点 */
-  async create(data: { name: string; contact: string; phone: string; province?: string; city?: string; address?: string; business_license?: string; special_permits?: string[] }) {
+  async create(data: { name: string; contact: string; phone: string; province?: string; city?: string; district?: string; address?: string; business_license?: string; special_permits?: string[]; businessTypeIds?: string[] }) {
     const existing = await this.prisma.outlets.findUnique({ where: { phone: data.phone } });
     if (existing) throw new BadRequestException('该手机号已被注册');
 
     const initPassword = Math.random().toString().slice(2, 10);
     const hashed = await bcrypt.hash(initPassword, 10);
 
+    const { businessTypeIds, ...rest } = data;
     const Outlet = await this.prisma.outlets.create({
       data: {
-                ...data,
+        ...rest,
         business_license: data.business_license || null,
         special_permits: JSON.stringify(data.special_permits || []),
         password: hashed,
@@ -119,19 +148,48 @@ export class StoreService {
       },
     });
 
+    // 批量创建业务类型关联
+    if (data.businessTypeIds?.length) {
+      // data.businessTypeIds 是 code 列表（如 'seal'），需要查 uuid
+      for (const code of data.businessTypeIds) {
+        const bt = await this.prisma.business_types.findUnique({ where: { code } });
+        if (bt) {
+          await this.prisma.outlet_business_types.create({
+            data: { outlet_id: Outlet.id, business_type_id: bt.id },
+          });
+        }
+      }
+    }
+
     return { ...Outlet, password: undefined, initPassword };
   }
 
   /** 编辑网点 */
-  async update(id: string, data: { name?: string; contact?: string; phone?: string; province?: string; city?: string; address?: string; status?: number; business_license?: string; special_permits?: string[] }) {
+  async update(id: string, data: { name?: string; contact?: string; phone?: string; province?: string; city?: string; district?: string; address?: string; status?: number; business_license?: string; special_permits?: string[]; businessTypeIds?: string[] }) {
     if (data.phone) {
       const existing = await this.prisma.outlets.findFirst({ where: { phone: data.phone, NOT: { id } } });
       if (existing) throw new BadRequestException('该手机号已被其他网点使用');
     }
-    const updateData: any = { ...data };
+    const { businessTypeIds, ...rest } = data;
+    const updateData: any = { ...rest };
     updateData.business_license = data.business_license || null;
     updateData.special_permits = JSON.stringify(data.special_permits || []);
     const Outlet = await this.prisma.outlets.update({ where: { id }, data: updateData });
+
+    // 更新业务类型关联
+    if (businessTypeIds !== undefined) {
+      await this.prisma.outlet_business_types.deleteMany({ where: { outlet_id: id } });
+      if (businessTypeIds.length > 0) {
+        for (const code of businessTypeIds) {
+          const bt = await this.prisma.business_types.findUnique({ where: { code } });
+          if (bt) {
+            await this.prisma.outlet_business_types.create({
+              data: { outlet_id: id, business_type_id: bt.id },
+            });
+          }
+        }
+      }
+    }
     return { ...Outlet, password: undefined };
   }
 

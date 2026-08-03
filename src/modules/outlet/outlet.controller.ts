@@ -14,6 +14,7 @@ class CreateStoreDto {
   address?: string;
   business_license?: string;
   special_permits?: string[];
+  businessTypeIds?: string[];
 }
 
 class UpdateStoreDto {
@@ -26,6 +27,7 @@ class UpdateStoreDto {
   status?: number;
   business_license?: string;
   special_permits?: string[];
+  businessTypeIds?: string[];
 }
 
 @ApiTags('网点管理')
@@ -45,8 +47,12 @@ export class StoreController {
     @Query('keyword') keyword?: string,
     @Query('status') status?: number,
     @Query('region') region?: string,
+    @Query('province') province?: string,
+    @Query('city') city?: string,
+    @Query('district') district?: string,
+    @Query('businessType') businessType?: string,
   ) {
-    return this.storeService.findAll({ page: Number(page) || 1, pageSize: Number(pageSize) || 20, keyword, status, region });
+    return this.storeService.findAll({ page: Number(page) || 1, pageSize: Number(pageSize) || 20, keyword, status, region, province, city, district, businessType });
   }
 
   @Get('admin/overview')

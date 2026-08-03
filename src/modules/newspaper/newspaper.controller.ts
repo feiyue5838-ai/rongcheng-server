@@ -60,6 +60,7 @@ export class NewspaperController {
     });
   }
 
+
   @Get('all')
   @ApiOperation({ summary: '获取全部报纸（不分页，供管理后台统计使用）' })
   async getAllNewspapers() {
@@ -333,6 +334,12 @@ export class NewspaperController {
   @ApiOperation({ summary: '获取模板分组元数据（businessType + subType 下拉用）' })
   async getTemplateMeta() {
     return this.newspaperService.getTemplateMeta();
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: '获取报纸详情' })
+  async findOne(@Param('id') id: string) {
+    return this.newspaperService.getNewspaperById(id);
   }
 
   // ========== 版面管理 ==========

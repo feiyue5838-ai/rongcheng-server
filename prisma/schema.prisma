@@ -233,6 +233,24 @@ model outlet_notifications {
   @@index([outlet_id, is_read])
 }
 
+model business_types {
+  id    String @id @default(uuid())
+  name  String @unique  // 刻章/登报/代理记账
+  code  String @unique  // seal/newspaper/accounting
+  outlets outlet_business_types[]
+}
+
+model outlet_business_types {
+  id              String @id @default(uuid())
+  outlet_id       String
+  business_type_id String
+  outlet          outlets        @relation(fields: [outlet_id], references: [id], onDelete: Cascade)
+  business_type   business_types @relation(fields: [business_type_id], references: [id])
+
+  @@unique([outlet_id, business_type_id])
+  @@index([business_type_id])
+}
+
 model outlets {
   id                   String                 @id @default(uuid())
   name                 String
@@ -241,8 +259,10 @@ model outlets {
   password             String
   province             String?
   city                 String?
+  district             String?
   address              String?
   status               Int                    @default(1)
+  priority             Int                    @default(0)
   total_orders         Int                    @default(0)
   last_login_at        DateTime?
   last_login_ip        String?
@@ -256,6 +276,8 @@ model outlets {
   delivery_receipts    delivery_receipts[]
   assignments    order_assignments[]
   outlet_notifications outlet_notifications[]
+  outlet_business_types outlet_business_types[]
+  priority_info outlet_priority?
 }
 
 model personal_doc_categories {
@@ -359,6 +381,7 @@ model seal_orders {
   pay_price             Decimal?            @db.Decimal(10, 2)
   address_id            String?
   address_json          String?
+  license_address_json  String? // 执照地区JSON,用于派单匹配 {province,city,district}
   need_invoice          Boolean             @default(false)
   invoice_id            String?
   status                Int                 @default(1)
@@ -499,4 +522,36 @@ model users {
   questions     questions[]
   reviews       reviews[]
   seal_orders   seal_orders[]
+}
+
+// 派单全局配置
+model dispatch_config {
+  id                String    @id @default(uuid())
+  mode              String    @default("auto")  // auto=自动派单, manual=纯手动, hybrid=自动+可改
+  auto_assign       Boolean   @default(true)
+  business_type_filter Boolean @default(true)
+  created_at        DateTime  @default(now())
+  updated_at        DateTime  @updatedAt
+  updated_by        String?
+}
+
+// 网点优先级
+model outlet_priority {
+  id         String   @id @default(uuid())
+  outlet_id  String   @unique
+  priority   Int      @default(0)
+  remark     String?
+  updated_at DateTime @updatedAt
+  outlet     outlets  @relation(fields: [outlet_id], references: [id], onDelete: Cascade)
+}
+
+// 强制手动派单地区
+model forced_manual_regions {
+  id         String   @id @default(uuid())
+  province   String
+  city       String?
+  remark     String?
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  updated_by String?
 }

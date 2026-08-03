@@ -2,6 +2,7 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Inject, forwardRef } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { WechatService } from '../wechat/wechat.service';
+import { DispatchService } from '../dispatch/dispatch.service';
 import { v4 as uuidv4 } from 'uuid';
 
 // ==================== 工具函数：snake_case → camelCase ====================
@@ -52,77 +53,9 @@ function toCamelDeep(obj: any): any {
 export class OrderService {
   constructor(
     private prisma: PrismaService,
+    private dispatchService: DispatchService,
     @Inject(forwardRef(() => WechatService)) private wechatService: WechatService,
   ) {}
-
-  // ==================== 全国网点自动分配 ====================
-
-  /**
-   * 根据收货地址自动匹配最近网点
-   * 匹配规则：
-   *   1. service_area JSON 中有精确 city 匹配优先
-   *   2. 其次 province 匹配
-   *   3. 都无 → 随机分配一个活跃网点兜底
-   */
-  async autoAssignStore(address_json: string | null, admin_id?: string): Promise<{ outlet_id: string; storeName: string; matchType: string } | null> {
-    if (!address_json) return null;
-
-    let province = '', city = '';
-    try {
-      const addr = JSON.parse(address_json);
-      province = addr.province || '';
-      city = addr.city || '';
-    } catch {
-      return null;
-    }
-
-    // 查询所有启用网点
-    const stores = await this.prisma.outlets.findMany({
-      where: { status: 1 },
-      select: { id: true, name: true, service_area: true },
-    });
-
-    if (stores.length === 0) return null;
-
-    let bestStore: (typeof stores)[0] | null = null;
-    let matchType = 'fallback';
-
-    for (const Outlet of stores) {
-      let service_area: Array<{ province: string; city?: string }> = [];
-      try {
-        service_area = JSON.parse(Outlet.service_area || '[]');
-      } catch {
-        service_area = [];
-      }
-
-      // 精确城市匹配（优先级最高）
-      if (city) {
-        const cityMatch = service_area.find(s => s.city === city);
-        if (cityMatch) {
-          bestStore = Outlet;
-          matchType = `city:${city}`;
-          break; // 精确匹配直接退出
-        }
-      }
-
-      // 省份匹配（次优先，找第一个，使用归一化匹配）
-      if (!bestStore && province) {
-        const provMatch = service_area.find(s => provincesMatch(province, s.province));
-        if (provMatch) {
-          bestStore = Outlet;
-          matchType = `province:${province}`;
-        }
-      }
-    }
-
-    // 无任何匹配 → 随机选一个活跃网点兜底
-    if (!bestStore) {
-      bestStore = stores[Math.floor(Math.random() * stores.length)];
-      matchType = 'fallback:随机网点';
-    }
-
-    return { outlet_id: bestStore.id, storeName: bestStore.name, matchType };
-  }
 
   // ==================== 创建刻章订单 ====================
 
@@ -134,6 +67,7 @@ export class OrderService {
       contact_phone,
       legal_phone,
       license_region,
+      license_address_json,  // 执照地区JSON,用于派单匹配
       address_id,
       remark,
       seal_ids,
@@ -219,6 +153,7 @@ export class OrderService {
         type: type === 'company' ? '企业刻章' : type === 'personal' ? '个人印章' : type === 'electronic' ? '电子印章' : '刻章备案',
         company_name: company_name || null,
         license_region: license_region || null,
+        license_address_json: license_address_json || null,
         seal_reason: seal_reason || null,
         contact_phone: contact_phone || null,
         legal_phone: legal_phone || null,
@@ -586,8 +521,11 @@ export class OrderService {
     });
 
     // 支付成功后触发全国网点自动分配（仅未分配时）
-    if ((order.assignment_status === 0 || order.assignment_status == null) && order.address_json) {
-      const assignResult = await this.autoAssignStore(order.address_json, 'system');
+    // 根据订单类型选择派单地址：企业刻章用执照地区，个人印章用收货地址
+    const addressForDispatch = order.type === '个人印章' ? order.address_json : order.license_address_json;
+    
+    if ((order.assignment_status === 0 || order.assignment_status == null) && addressForDispatch) {
+      const assignResult = await this.dispatchService.smartAssign(addressForDispatch, order.module || 'seal', 'system');
       if (assignResult) {
         await this.prisma.order_assignments.create({
           data: {
@@ -828,10 +766,12 @@ export class OrderService {
 
     // Fix: 管理员改状态为"已支付"时，自动触发网点分配（与 completePayment 逻辑对齐）
     const isPaid = dto.status !== undefined && dto.status >= 2;
-    const needsAssign = isPaid && (order.assignment_status === 0 || order.assignment_status == null) && order.address_json;
+    // 根据订单类型选择派单地址：企业刻章用执照地区，个人印章用收货地址
+    const addressForDispatch = order.type === '个人印章' ? order.address_json : order.license_address_json;
+    const needsAssign = isPaid && (order.assignment_status === 0 || order.assignment_status == null) && addressForDispatch;
 
     if (needsAssign) {
-      const assignResult = await this.autoAssignStore(order.address_json, admin_id);
+      const assignResult = await this.dispatchService.smartAssign(addressForDispatch, order.module || 'seal', admin_id);
       if (assignResult) {
         await this.prisma.order_assignments.create({
           data: {
@@ -1027,8 +967,8 @@ export class OrderService {
     if (order.status < 2) throw new BadRequestException('订单未支付，无法分配');
     if (order.assignment_status > 0) throw new BadRequestException('订单已分配，请勿重复分配');
 
-    const Outlet = await this.prisma.outlets.findUnique({ where: { id: outlet_id } });
-    if (!Outlet) throw new NotFoundException('网点不存在');
+    const Outlet = await this.prisma.outlets.findFirst({ where: { id: outlet_id } });
+    if (!Outlet) throw new NotFoundException('网点不存在或 ID 无效');
     if (Outlet.status === 0) throw new BadRequestException('网点已被禁用');
 
     await this.prisma.$transaction([
