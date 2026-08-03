@@ -23,6 +23,7 @@ import { QuestionModule } from './modules/question/question.module';
 import { AfterSalesModule } from './modules/after-sales/after-sales.module';
 import { BookkeepingModule } from './modules/bookkeeping/bookkeeping.module';
 import { DispatchModule } from './modules/dispatch/dispatch.module';
+import { ContentModule } from './modules/content/content.module';
 import { OperationLogInterceptor } from './common/interceptors/operation-log.interceptor';
 
 @Module({
@@ -59,6 +60,7 @@ import { OperationLogInterceptor } from './common/interceptors/operation-log.int
     AfterSalesModule,
     BookkeepingModule,
     DispatchModule,
+    ContentModule,
   ],
   providers: [
     {

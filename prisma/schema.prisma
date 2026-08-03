@@ -503,6 +503,37 @@ model system_configs {
   updated_at  DateTime @updatedAt
 }
 
+model content_banners {
+  id         String   @id @default(uuid())
+  title      String
+  image      String
+  link       String?
+  sort       Int      @default(0)
+  status     Int      @default(1)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+}
+
+model content_announcements {
+  id         String   @id @default(uuid())
+  title      String
+  content    String
+  status     Int      @default(1)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+}
+
+model content_intros {
+  id         String   @id @default(uuid())
+  title      String
+  subtitle   String?
+  image      String
+  sort       Int      @default(0)
+  status     Int      @default(1)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+}
+
 model users {
   id            String        @id @default(uuid())
   openid        String?       @unique
