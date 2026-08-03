@@ -515,12 +515,15 @@ model content_banners {
 }
 
 model content_announcements {
-  id         String   @id @default(uuid())
-  title      String
-  content    String
-  status     Int      @default(1)
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
+  id           String    @id @default(uuid())
+  title        String
+  content      String
+  status       Int       @default(1)
+  published_at DateTime?
+  expired_at   DateTime?
+  operator     String?
+  created_at   DateTime  @default(now())
+  updated_at   DateTime  @updatedAt
 }
 
 model content_intros {

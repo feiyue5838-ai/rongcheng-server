@@ -44,19 +44,45 @@ export class ContentService {
   }
 
   // ==================== Announcement ====================
-  async listAnnouncements() {
+  async listAnnouncements(query?: { status?: string | number; keyword?: string }) {
+    const where: any = {};
+    if (query?.status !== undefined && query.status !== '' && query.status !== null) {
+      where.status = Number(query.status);
+    }
+    if (query?.keyword) {
+      where.OR = [
+        { title: { contains: query.keyword } },
+        { content: { contains: query.keyword } },
+      ];
+    }
     const list = await this.prisma.content_announcements.findMany({
+      where,
       orderBy: { created_at: 'desc' },
     });
     return toCamelDeep(list);
   }
 
-  async createAnnouncement(data: { title: string; content: string; status?: number }) {
+  async createAnnouncement(dto: { title: string; content: string; status?: number; publishedAt?: string; expiredAt?: string; operator?: string }) {
+    const data: any = {
+      title: dto.title,
+      content: dto.content,
+      status: dto.status ?? 1,
+    };
+    if (dto.publishedAt !== undefined) data.published_at = dto.publishedAt ? new Date(dto.publishedAt) : null;
+    if (dto.expiredAt !== undefined) data.expired_at = dto.expiredAt ? new Date(dto.expiredAt) : null;
+    if (dto.operator !== undefined) data.operator = dto.operator;
     const item = await this.prisma.content_announcements.create({ data });
     return toCamelDeep(item);
   }
 
-  async updateAnnouncement(id: string, data: Partial<{ title: string; content: string; status: number }>) {
+  async updateAnnouncement(id: string, dto: { title?: string; content?: string; status?: number; publishedAt?: string; expiredAt?: string; operator?: string }) {
+    const data: any = {};
+    if (dto.title !== undefined) data.title = dto.title;
+    if (dto.content !== undefined) data.content = dto.content;
+    if (dto.status !== undefined) data.status = dto.status;
+    if (dto.publishedAt !== undefined) data.published_at = dto.publishedAt ? new Date(dto.publishedAt) : null;
+    if (dto.expiredAt !== undefined) data.expired_at = dto.expiredAt ? new Date(dto.expiredAt) : null;
+    if (dto.operator !== undefined) data.operator = dto.operator;
     const item = await this.prisma.content_announcements.update({ where: { id }, data });
     return toCamelDeep(item);
   }
