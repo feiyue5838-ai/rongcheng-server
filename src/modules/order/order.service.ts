@@ -960,6 +960,60 @@ export class OrderService {
     };
   }
 
+  /** 已分配订单列表 */
+  async getAssignedOrders(params: { page: number; pageSize: number; module?: string; keyword?: string }) {
+    const { page, pageSize, module, keyword } = params;
+    const where: any = { assignment_status: { in: [1, 2, 3] }, status: { in: [2, 3] } };
+    if (module) where.module = module;
+    if (keyword) {
+      where.OR = [
+        { order_no: { contains: keyword } },
+        { company_name: { contains: keyword } },
+        { contact_phone: { contains: keyword } },
+      ];
+    }
+
+    const [list, total] = await Promise.all([
+      this.prisma.seal_orders.findMany({
+        where,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        orderBy: { created_at: 'desc' },
+        include: {
+          user: { select: { id: true, nickname: true, phone: true } },
+          order_items: true,
+          assignment: {
+            include: { outlet: { select: { id: true, name: true, phone: true, city: true } } },
+          },
+          delivery_receipts: true,
+        },
+      }),
+      this.prisma.seal_orders.count({ where }),
+    ]);
+
+    return {
+      list: list.map(o => toCamelDeep({
+        id: o.id,
+        orderNo: o.order_no,
+        module: o.module,
+        type: o.type,
+        companyName: o.company_name,
+        contactPhone: o.contact_phone,
+        totalPrice: Number(o.total_price) || 0,
+        payPrice: Number(o.pay_price) || 0,
+        status: o.status,
+        statusText: o.status_text,
+        payTime: o.pay_time,
+        createdAt: o.created_at,
+        user: o.user,
+        orderItems: o.order_items,
+        assignmentStatus: o.assignment_status,
+        assignment: o.assignment,
+      })),
+      pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
+    };
+  }
+
   /** 分配订单给网点 */
   async assignOrder(order_id: string, outlet_id: string, remark: string | undefined, admin_id: string) {
     const order = await this.prisma.seal_orders.findUnique({ where: { id: order_id } });

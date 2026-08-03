@@ -70,6 +70,24 @@ export class OrderController {
     });
   }
 
+  @Get('assigned')
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '已分配订单列表' })
+  async getAssignedOrders(
+    @Query('page') page?: number,
+    @Query('pageSize') pageSize?: number,
+    @Query('module') module?: string,
+    @Query('keyword') keyword?: string,
+  ) {
+    return this.orderService.getAssignedOrders({
+      page: Number(page) || 1,
+      pageSize: Number(pageSize) || 20,
+      module,
+      keyword,
+    });
+  }
+
   @Get('admin/list')
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
