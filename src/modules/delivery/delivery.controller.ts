@@ -55,6 +55,27 @@ export class DeliveryReceiptController {
     return { list };
   }
 
+  @Get('stats')
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '回执统计（管理端）' })
+  async getStats() {
+    const today = new Date();
+    const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 0, 0, 0, 0);
+    const endOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 23, 59, 59, 999);
+
+    const [total, sealCount, certificateCount, todayCount] = await Promise.all([
+      this.prisma.delivery_receipts.count(),
+      this.prisma.delivery_receipts.count({ where: { type: 'seal' } }),
+      this.prisma.delivery_receipts.count({ where: { type: 'certificate' } }),
+      this.prisma.delivery_receipts.count({
+        where: { created_at: { gte: startOfToday, lte: endOfToday } },
+      }),
+    ]);
+
+    return { total, sealCount, certificateCount, todayCount };
+  }
+
   @Get()
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
@@ -199,17 +220,17 @@ export class DeliveryReceiptController {
       include: { outlet: { select: { id: true, name: true, phone: true } } },
     });
 
-    // 更新订单状态 → 已发货
+    // 更新订单状态 → 已完成（网点交付即完单，无需客户额外确认）
     await this.prisma.seal_orders.update({
       where: { id: order_id },
-      data: { status: 4, status_text: '已发货' },
+      data: { status: 4, status_text: '已完成' },
     });
 
     // 刻章订单：更新分配状态 → 已完成（登报订单无 orderAssignment）
     if (order.module === 'seal') {
       await this.prisma.order_assignments.update({
         where: { order_id },
-        data: { status: 3, status_text: '已完成', completed_at: new Date() },
+        data: { status: 4, status_text: '已完成', completed_at: new Date() },
       });
     }
 

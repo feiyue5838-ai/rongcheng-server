@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Body, Param, Query, UseGuards, Request, ForbiddenException } from '@nestjs/common';
+import { Controller, Get, Post, Put, Body, Param, Query, UseGuards, Request, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { OrderService } from './order.service';
 import { JwtAuthGuard, AdminJwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -131,15 +131,17 @@ export class OrderController {
   @ApiOperation({ summary: '分配订单给网点' })
   async assignOrder(
     @Param('id') id: string,
-    @Body() dto: { outlet_id: string; remark?: string },
+    @Body() dto: { outlet_id?: string; outletId?: string; remark?: string },
     @Request() req: any,
   ) {
-    return this.orderService.assignOrder(id, dto.outlet_id, dto.remark, req.user.id as string);
+    const outletId = dto.outlet_id ?? dto.outletId;
+    if (!outletId) throw new BadRequestException('缺少网点ID');
+    return this.orderService.assignOrder(id, outletId, dto.remark, req.user.id as string);
   }
 
   @Put(':id/accept')
   @Log("订单", "接单", ":id/accept")
-  @UseGuards(AdminJwtAuthGuard)
+  @UseGuards(StoreJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '网点接单（管理后台代接，以网点身份）' })
   async acceptOrder(@Param('id') id: string, @Body() body: any, @Request() req: any) {
@@ -149,7 +151,7 @@ export class OrderController {
 
   @Put(':id/deliver')
   @Log("订单", "deliver", ":id/deliver")
-  @UseGuards(AdminJwtAuthGuard)
+  @UseGuards(StoreJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '网点提交交付（自动生效）' })
   async deliverOrder(

@@ -163,7 +163,14 @@ export class AuthService {
     if (!phone || !password) {
       throw new BadRequestException('手机号和密码不能为空');
     }
-    const Outlet = await this.prisma.outlets.findUnique({ where: { phone } });
+    const Outlet = await this.prisma.outlets.findUnique({
+      where: { phone },
+      include: {
+        outlet_business_types: {
+          include: { business_type: true },
+        },
+      },
+    });
     if (!Outlet) {
       throw new NotFoundException('网点账号不存在');
     }
@@ -203,6 +210,12 @@ export class AuthService {
         status: Outlet.status,
         outlet_openid: Outlet.outlet_openid || null,
         subscribe_msg: Outlet.subscribe_msg,
+        businessTypes:
+          Outlet.outlet_business_types?.map(t => ({
+            id: t.business_type.id,
+            name: t.business_type.name,
+            code: t.business_type.code,
+          })) ?? [],
       },
     };
   }

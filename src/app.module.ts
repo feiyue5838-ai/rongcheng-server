@@ -4,7 +4,7 @@ import { APP_INTERCEPTOR, APP_GUARD } from '@nestjs/core';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { CacheModule } from '@nestjs/cache-manager';
 import { Keyv } from 'keyv';
-import { createKeyv } from '@keyv/redis';
+import { Keyv as KeyvMemory } from 'keyv';
 import { AuthModule } from './modules/auth/auth.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { OrderModule } from './modules/order/order.module';
@@ -29,11 +29,11 @@ import { OperationLogInterceptor } from './common/interceptors/operation-log.int
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
-    // Redis 分布式缓存：跨 8 workers 共享，持久化，重启不丢
+    // 内存缓存（开发/无 Redis 时使用）；生产有 Redis 时改为 redis://localhost:6379
     CacheModule.registerAsync({
       isGlobal: true,
       useFactory: async () => {
-        const store = createKeyv('redis://localhost:6379', { namespace: 'rc' });
+        const store = new KeyvMemory({ namespace: 'rc' });
         return {
           stores: [store],
           ttl: 60 * 1000,

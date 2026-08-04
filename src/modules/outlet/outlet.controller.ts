@@ -37,6 +37,16 @@ export class StoreController {
 
   // ==================== 管理员接口 ====================
 
+  // 独立接口：设置网点业务授权（弹窗专用，不走完整编辑流程）
+  @Put(':id/business-types')
+  @Log("网点", "业务授权", ":id/business-types")
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '设置网点业务授权' })
+  async setBusinessTypes(@Param('id') id: string, @Body() dto: { businessTypeIds: string[] }) {
+    return this.storeService.setBusinessTypes(id, dto.businessTypeIds);
+  }
+
   @Get()
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()

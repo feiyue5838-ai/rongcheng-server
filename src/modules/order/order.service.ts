@@ -835,27 +835,64 @@ export class OrderService {
     const shanghaiNow = new Date(utc + 8 * 3600000);
     const shanghaiStart = new Date(shanghaiNow.getFullYear(), shanghaiNow.getMonth(), shanghaiNow.getDate(), 0, 0, 0, 0);
 
-    const [totalOrders, todayOrders, pendingSeal, pendingNewspaper, pendingBookkeeping, sealRev, newspaperRev, bookkeepingRev] = await Promise.all([
+    const [
+      totalOrders,
+      todayOrders,
+      pending,
+      assigned,
+      pendingSeal,
+      pendingNewspaper,
+      pendingBookkeeping,
+      sealTotal,
+      newspaperTotal,
+      bookkeepingTotal,
+      sealRev,
+      newspaperRev,
+      bookkeepingRev,
+      making,
+      todaySeal,
+    ] = await Promise.all([
       this.prisma.seal_orders.count(),
       this.prisma.seal_orders.count({ where: { created_at: { gte: shanghaiStart } } }),
-      // 待处理：与 DashboardService 口径一致，按 module 拆分统计 status in [2,3]
-      this.prisma.seal_orders.count({ where: { module: 'seal', status: { in: [2, 3] } } }),
-      this.prisma.seal_orders.count({ where: { module: 'newspaper', status: { in: [2, 3] } } }),
-      this.prisma.seal_orders.count({ where: { module: 'bookkeeping', status: { in: [2, 3] } } }),
-      // 收入：刻章/代理记账用 pay_price，登报用 total_price（与 DashboardService 双模块口径一致）
+      // 待分配：未分配且已支付/制作中（status in [2,3]）
+      this.prisma.seal_orders.count({ where: { assignment_status: 0, status: { in: [2, 3] } } }),
+      // 已分配：assignment_status > 0
+      this.prisma.seal_orders.count({ where: { assignment_status: { gt: 0 } } }),
+      // 待分配按模块拆分
+      this.prisma.seal_orders.count({ where: { module: 'seal', assignment_status: 0, status: { in: [2, 3] } } }),
+      this.prisma.seal_orders.count({ where: { module: 'newspaper', assignment_status: 0, status: { in: [2, 3] } } }),
+      this.prisma.seal_orders.count({ where: { module: 'bookkeeping', assignment_status: 0, status: { in: [2, 3] } } }),
+      // 各模块订单总数（用于统计卡）
+      this.prisma.seal_orders.count({ where: { module: 'seal' } }),
+      this.prisma.seal_orders.count({ where: { module: 'newspaper' } }),
+      this.prisma.seal_orders.count({ where: { module: 'bookkeeping' } }),
+      // 收入：刻章/代理记账用 pay_price，登报用 total_price
       this.prisma.seal_orders.aggregate({ where: { module: 'seal', status: { gte: 2 } }, _sum: { pay_price: true } }),
       this.prisma.seal_orders.aggregate({ where: { module: 'newspaper', status: { gte: 2 } }, _sum: { total_price: true } }),
       this.prisma.seal_orders.aggregate({ where: { module: 'bookkeeping', status: { gte: 2 } }, _sum: { pay_price: true } }),
+      // 制作中：网点已接单（assignment.status = 2）
+      this.prisma.order_assignments.count({ where: { status: 2 } }),
+      // 今日刻章新增
+      this.prisma.seal_orders.count({ where: { module: 'seal', created_at: { gte: shanghaiStart } } }),
     ]);
 
     return {
       totalOrders,
       todayOrders,
-      pendingOrders: pendingSeal + pendingNewspaper + pendingBookkeeping,
+      pendingOrders: pending,
+      assignedOrders: assigned,
+      pendingSeal,
+      pendingNewspaper,
+      pendingBookkeeping,
+      seal: sealTotal,
+      newspaper: newspaperTotal,
+      bookkeeping: bookkeepingTotal,
       totalRevenue:
         Number(sealRev._sum.pay_price || 0) +
         Number(newspaperRev._sum?.total_price || 0) +
-        Number(bookkeepingRev._sum?.pay_price || 0),
+        Number(bookkeepingRev._sum.pay_price || 0),
+      making,
+      todaySeal,
     };
   }
 
@@ -1046,11 +1083,14 @@ export class OrderService {
   }
 
   /** 网点接单 */
-  async acceptOrder(order_id: string, outlet_id: string) {
+  async acceptOrder(id: string, outlet_id: string) {
+    // 前端传的是 order_assignments.id，直接查分配记录
     const assignment = await this.prisma.order_assignments.findUnique({
-      where: { order_id },
+      where: { id },
     });
     if (!assignment) throw new NotFoundException('订单分配记录不存在');
+    // 取实际的 order_id
+    const order_id = assignment.order_id;
     if (assignment.outlet_id !== outlet_id) throw new BadRequestException('无权操作此订单');
     if (assignment.status === 2) throw new BadRequestException('该订单已接单');
     if (assignment.status === 3) throw new BadRequestException('该订单已交付');
@@ -1070,12 +1110,14 @@ export class OrderService {
   }
 
   /** 网点提交交付（自动生效） */
-  async deliverOrder(order_id: string, dto: { express_company: string; express_no: string; receipts: Array<{ type: string; url: string; remark?: string }>; sealImages?: Array<{ url: string; remark?: string }>; remark?: string }, outlet_id: string) {
+  async deliverOrder(id: string, dto: { express_company: string; express_no: string; receipts: Array<{ type: string; url: string; remark?: string }>; sealImages?: Array<{ url: string; remark?: string }>; remark?: string }, outlet_id: string) {
+    // 前端传的是 order_assignments.id
     const assignment = await this.prisma.order_assignments.findUnique({
-      where: { order_id },
+      where: { id },
       include: { seal_orders: true },
     });
     if (!assignment) throw new NotFoundException('订单分配记录不存在');
+    const order_id = assignment.order_id;
     if (assignment.outlet_id !== outlet_id) throw new BadRequestException('无权操作此订单');
     if (assignment.status === 1) throw new BadRequestException('请先接单再交付');
     if (assignment.status >= 3) throw new BadRequestException('该订单已交付');
@@ -1093,14 +1135,14 @@ export class OrderService {
       ),
       this.prisma.order_assignments.update({
         where: { id: assignment.id },
-        data: { status: 3, status_text: '已发货', completed_at: new Date() },
+        data: { status: 4, status_text: '已完成', completed_at: new Date() },
       }),
       this.prisma.seal_orders.update({
         where: { id: order_id },
         data: {
           status: 4,
-          status_text: '已发货',
-          assignment_status: 3,
+          status_text: '已完成',
+          assignment_status: 4,
           delivery_status: 1,
           express_company: dto.expressCompany,
           express_no: dto.expressNo,

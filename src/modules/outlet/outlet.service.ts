@@ -164,6 +164,40 @@ export class StoreService {
     return { ...Outlet, password: undefined, initPassword };
   }
 
+  /** 独立接口：设置网点业务授权 */
+  async setBusinessTypes(id: string, businessTypeIds: string[]) {
+    const outlet = await this.prisma.outlets.findUnique({ where: { id } });
+    if (!outlet) throw new NotFoundException('网点不存在');
+
+    // 先清空
+    await this.prisma.outlet_business_types.deleteMany({ where: { outlet_id: id } });
+    // 再重建
+    for (const btId of businessTypeIds) {
+      const bt = await this.prisma.business_types.findUnique({ where: { id: btId } });
+      if (bt) {
+        await this.prisma.outlet_business_types.create({
+          data: { outlet_id: id, business_type_id: bt.id },
+        });
+      }
+    }
+    // 返回更新后的完整信息
+    const updated = await this.prisma.outlets.findUnique({
+      where: { id },
+      include: {
+        outlet_business_types: { include: { business_type: true } },
+      },
+    });
+    return {
+      id: updated!.id,
+      name: updated!.name,
+      businessTypes: updated!.outlet_business_types.map(t => ({
+        id: t.business_type.id,
+        name: t.business_type.name,
+        code: t.business_type.code,
+      })),
+    };
+  }
+
   /** 编辑网点 */
   async update(id: string, data: { name?: string; contact?: string; phone?: string; province?: string; city?: string; district?: string; address?: string; status?: number; business_license?: string; special_permits?: string[]; businessTypeIds?: string[] }) {
     if (data.phone) {
