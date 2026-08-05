@@ -7,6 +7,8 @@ import { PrismaService } from '../../prisma/prisma.service';
 
 // ==================== snake → camel 转换工具 ====================
 function snakeToCamel(key: string): string {
+  // Prisma 的 _count 聚合字段保留原名（前端按 _count.sealSceneSeals 消费）
+  if (key === '_count') return '_count';
   return key.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
 }
 function toCamelDeep(obj: any): any {
