@@ -24,6 +24,7 @@ import { AfterSalesModule } from './modules/after-sales/after-sales.module';
 import { BookkeepingModule } from './modules/bookkeeping/bookkeeping.module';
 import { DispatchModule } from './modules/dispatch/dispatch.module';
 import { ContentModule } from './modules/content/content.module';
+import { MenuRoleModule } from './modules/menu-role/menu-role.module';
 import { OperationLogInterceptor } from './common/interceptors/operation-log.interceptor';
 
 @Module({
@@ -61,6 +62,7 @@ import { OperationLogInterceptor } from './common/interceptors/operation-log.int
     BookkeepingModule,
     DispatchModule,
     ContentModule,
+    MenuRoleModule,
   ],
   providers: [
     {

@@ -589,3 +589,4 @@ model forced_manual_regions {
   updated_at DateTime @updatedAt
   updated_by String?
 }
+
