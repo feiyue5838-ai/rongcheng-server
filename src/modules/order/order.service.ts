@@ -851,6 +851,12 @@ export class OrderService {
       bookkeepingRev,
       making,
       todaySeal,
+      todayNewspaper,
+      todayBookkeeping,
+      afterSalesTotal,
+      afterSalesPending,
+      afterSalesRefunding,
+      afterSalesToday,
     ] = await Promise.all([
       this.prisma.seal_orders.count(),
       this.prisma.seal_orders.count({ where: { created_at: { gte: shanghaiStart } } }),
@@ -874,6 +880,14 @@ export class OrderService {
       this.prisma.order_assignments.count({ where: { status: 2 } }),
       // 今日刻章新增
       this.prisma.seal_orders.count({ where: { module: 'seal', created_at: { gte: shanghaiStart } } }),
+      // 今日登报/代理记账新增
+      this.prisma.seal_orders.count({ where: { module: 'newspaper', created_at: { gte: shanghaiStart } } }),
+      this.prisma.seal_orders.count({ where: { module: 'bookkeeping', created_at: { gte: shanghaiStart } } }),
+      // 售后统计：status 7=售后中 8=退款中 9=已退款
+      this.prisma.seal_orders.count({ where: { status: { in: [7, 8, 9] } } }),
+      this.prisma.seal_orders.count({ where: { status: 7 } }),
+      this.prisma.seal_orders.count({ where: { status: 8 } }),
+      this.prisma.seal_orders.count({ where: { status: { in: [7, 8, 9] }, created_at: { gte: shanghaiStart } } }),
     ]);
 
     return {
@@ -893,6 +907,12 @@ export class OrderService {
         Number(bookkeepingRev._sum.pay_price || 0),
       making,
       todaySeal,
+      todayNewspaper,
+      todayBookkeeping,
+      afterSalesTotal,
+      afterSalesPending,
+      afterSalesRefunding,
+      afterSalesToday,
     };
   }
 
