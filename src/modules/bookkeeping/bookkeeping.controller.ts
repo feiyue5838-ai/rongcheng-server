@@ -1,7 +1,7 @@
-import { Controller, Get, Post, Body, Query, Param, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Query, Param, UseGuards, Request } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { BookkeepingService } from './bookkeeping.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { JwtAuthGuard, AdminJwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Log } from '../../common/decorators/log.decorator';
 
 @ApiTags('代理记账')
@@ -51,6 +51,7 @@ export class BookkeepingController {
   // ==================== 管理端 ====================
 
   @Get('orders')
+  @UseGuards(AdminJwtAuthGuard)
   @ApiOperation({ summary: '代理记账订单列表（管理端）' })
   async getOrders(
     @Query('page') page?: string,

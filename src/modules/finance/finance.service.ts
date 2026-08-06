@@ -1,0 +1,110 @@
+import { Injectable } from '@nestjs/common';
+import { PrismaService } from '../../prisma/prisma.service';
+
+@Injectable()
+export class FinanceService {
+  constructor(private prisma: PrismaService) {}
+
+  /** 资金总览：收入/手续费/退款/网点分成/平台净利 */
+  async getOverview(params: { startDate?: string; endDate?: string; days?: number }) {
+    const now = new Date();
+    let start: Date;
+    let end: Date = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    if (params.startDate && params.endDate) {
+      start = new Date(params.startDate + ' 00:00:00');
+      end = new Date(params.endDate + ' 23:59:59');
+    } else if (params.days && Number(params.days) > 0) {
+      start = new Date(now.getTime() - (Number(params.days) - 1) * 86400000);
+      start = new Date(start.getFullYear(), start.getMonth(), start.getDate());
+    } else {
+      // 默认本月
+      start = new Date(now.getFullYear(), now.getMonth(), 1);
+    }
+
+    const whereRange: any = { created_at: { gte: start, lte: end } };
+
+    const [incomeAgg, refundAgg, byModule, settleAgg, trend] = await Promise.all([
+      this.prisma.transaction_flows.aggregate({
+        where: { trade_type: 'income', ...whereRange },
+        _sum: { amount: true, fee: true },
+        _count: true,
+      }),
+      this.prisma.transaction_flows.aggregate({
+        where: { trade_type: 'refund', ...whereRange },
+        _sum: { amount: true, fee: true },
+        _count: true,
+      }),
+      this.prisma.$queryRaw`
+        SELECT module, business_type AS "businessType", COUNT(*)::int AS cnt, SUM(amount) AS amount
+        FROM transaction_flows
+        WHERE trade_type = 'income' AND created_at >= ${start} AND created_at <= ${end}
+        GROUP BY module, business_type ORDER BY amount DESC
+      `,
+      this.prisma.settlement_records.aggregate({
+        where: { created_at: { gte: start, lte: end } },
+        _sum: { outlet_amount: true, platform_amount: true, order_amount: true },
+        _count: true,
+      }),
+      this.prisma.$queryRaw`
+        SELECT to_char(created_at, 'MM-DD') AS day,
+          SUM(CASE WHEN trade_type = 'income' THEN amount ELSE 0 END) AS income,
+          SUM(CASE WHEN trade_type = 'refund' THEN amount ELSE 0 END) AS refund
+        FROM transaction_flows
+        WHERE created_at >= ${start} AND created_at <= ${end}
+        GROUP BY day ORDER BY day
+      `,
+    ]);
+
+    // 待确认结算（status=1）单独展示
+    const pendingAgg = await this.prisma.settlement_records.aggregate({
+      where: { status: 1 },
+      _sum: { outlet_amount: true, platform_amount: true },
+      _count: true,
+    });
+
+    const income = Number(incomeAgg._sum.amount || 0);
+    const incomeFee = Number(incomeAgg._sum.fee || 0);
+    const incomeCount = incomeAgg._count;
+    const refund = Number(refundAgg._sum.amount || 0);
+    const refundFee = Number(refundAgg._sum.fee || 0);
+    const refundCount = refundAgg._count;
+    const outletSettle = Number(settleAgg._sum.outlet_amount || 0);
+    const platformSettle = Number(settleAgg._sum.platform_amount || 0);
+    const settleCount = settleAgg._count;
+    const pendingOutlet = Number(pendingAgg._sum.outlet_amount || 0);
+    const pendingCount = pendingAgg._count;
+
+    const netIncome = Math.round((income - incomeFee - refund) * 100) / 100; // 资金净流入（未扣分成）
+    const platformNet = Math.round((income - incomeFee - refund - outletSettle) * 100) / 100; // 平台净利
+
+    const norm = (v: any) => (v === null || v === undefined ? 0 : Number(v));
+
+    return {
+      range: { start: start.toISOString(), end: end.toISOString() },
+      income,
+      incomeFee,
+      incomeCount,
+      refund,
+      refundFee,
+      refundCount,
+      netIncome,
+      outletSettle,
+      platformSettle,
+      settleCount,
+      pendingOutlet,
+      pendingCount,
+      platformNet,
+      byModule: ((byModule as any[]) || []).map((m: any) => ({
+        module: m.module,
+        businessType: m.businessType,
+        count: norm(m.cnt),
+        amount: norm(m.amount),
+      })),
+      trend: ((trend as any[]) || []).map((t: any) => ({
+        day: t.day,
+        income: norm(t.income),
+        refund: norm(t.refund),
+      })),
+    };
+  }
+}

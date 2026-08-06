@@ -60,11 +60,18 @@ export class BookkeepingService {
     });
 
     return packages.map(pkg => ({
-      ...pkg,
-      base_price: Number(pkg.base_price),
-      invoice_price: Number(pkg.invoice_price),
-      social_price: Number(pkg.social_price),
-      fund_price: Number(pkg.fund_price),
+      id: pkg.id,
+      name: pkg.name,
+      taxpayerType: pkg.taxpayer_type,
+      cycle: pkg.cycle,
+      basePrice: Number(pkg.base_price),
+      invoicePrice: Number(pkg.invoice_price),
+      invoicePriceNormal: Number(pkg.invoice_price_normal),
+      socialPrice: Number(pkg.social_price),
+      fundPrice: Number(pkg.fund_price),
+      sort: pkg.sort,
+      status: pkg.status,
+      createdAt: pkg.created_at,
     }));
   }
 

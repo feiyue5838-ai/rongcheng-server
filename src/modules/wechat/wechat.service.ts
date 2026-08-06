@@ -367,7 +367,51 @@ export class WechatService {
             },
           });
         }
-        return { refundId, status: 'SUCCESS', order_id: order?.id };
+        
+          // 退款成功后自动写入退款流水
+          const existRefundFlow = await this.prisma.transaction_flows.findFirst({
+            where: { order_id: order.id, trade_type: 'refund' },
+          });
+          if (!existRefundFlow && refundFee > 0) {
+            const dt = new Date();
+            const ts = String(dt.getTime()).slice(-6);
+            const ymd = dt.toISOString().slice(0, 10).replace(/-/g, '');
+            const amt = refundFee / 100;
+            let businessType = '退款';
+            if (order.module === 'seal') businessType = '刻章退款';
+            else if (order.module === 'newspaper') businessType = '登报退款';
+            else if (order.module === 'bookkeeping') businessType = '记账退款';
+            const assign = await this.prisma.order_assignments.findFirst({
+              where: { order_id: order.id },
+              include: { outlet: { select: { id: true, name: true } } },
+            });
+            await this.prisma.transaction_flows.create({
+              data: {
+                transaction_no: 'TF' + ymd + ts,
+                order_id: order.id,
+                order_no: order.order_no,
+                module: order.module,
+                business_type: businessType,
+                trade_type: 'refund',
+                user_id: order.user_id,
+                user_name: null,
+                user_phone: null,
+                amount: amt,
+                fee: 0,
+                net_amount: amt,
+                pay_method: order.pay_method || 'wechat',
+                status: 'success',
+                status_text: '退款成功',
+                transaction_id: refundId,
+                outlet_id: assign?.outlet_id || null,
+                outlet_name: assign?.outlet?.name || null,
+                remark: '微信退款回调',
+                created_at: dt,
+                updated_at: dt,
+              },
+            });
+          }
+return { refundId, status: 'SUCCESS', order_id: order?.id };
       }
 
       // 退款失败：记录日志，保留 status=8 供管理员人工处理

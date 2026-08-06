@@ -25,7 +25,13 @@ import { BookkeepingModule } from './modules/bookkeeping/bookkeeping.module';
 import { DispatchModule } from './modules/dispatch/dispatch.module';
 import { ContentModule } from './modules/content/content.module';
 import { MenuRoleModule } from './modules/menu-role/menu-role.module';
+import { SettlementModule } from './modules/settlement/settlement.module';
+import { TransactionModule } from './modules/transaction/transaction.module';
+import { FinanceModule } from './modules/finance/finance.module';
+import { RefundModule } from './modules/refund/refund.module';
+import { OutletPricingModule } from './modules/outlet-pricing/outlet-pricing.module';
 import { OperationLogInterceptor } from './common/interceptors/operation-log.interceptor';
+import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 
 @Module({
   imports: [
@@ -63,8 +69,17 @@ import { OperationLogInterceptor } from './common/interceptors/operation-log.int
     DispatchModule,
     ContentModule,
     MenuRoleModule,
+    SettlementModule,
+    TransactionModule,
+    FinanceModule,
+    RefundModule,
+    OutletPricingModule,
   ],
   providers: [
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: ResponseInterceptor,
+    },
     {
       provide: APP_INTERCEPTOR,
       useClass: OperationLogInterceptor,

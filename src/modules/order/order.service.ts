@@ -583,6 +583,70 @@ export class OrderService {
     }
 
     // 返回完整订单数据（含 assignment、receipts 等）
+
+    // ============ [payflow] 支付成功自动写入交易流水 ============
+    try {
+      // 幂等：防止极端并发下重复写入（completePayment 本身有 status>=2 提前返回保护）
+      const existFlow = await this.prisma.transaction_flows.findFirst({
+        where: { order_id: order.id, trade_type: 'income' },
+      });
+      if (!existFlow) {
+        // 查询网点（可能本次刚分配，也可能是历史已有派单）
+        let outletId = null;
+        let outletName = null;
+        const assign = await this.prisma.order_assignments.findFirst({
+          where: { order_id: order.id },
+          include: { outlet: { select: { id: true, name: true } } },
+        });
+        if (assign && assign.outlet) {
+          outletId = assign.outlet.id;
+          outletName = assign.outlet.name;
+        }
+        // 用户冗余信息
+        let userName = null;
+        let userPhone = null;
+        if (order.user_id) {
+          const u = await this.prisma.users.findUnique({
+            where: { id: order.user_id },
+            select: { nickname: true, phone: true },
+          });
+          if (u) { userName = u.nickname; userPhone = u.phone; }
+        }
+        const now = new Date();
+        const datePart = now.getFullYear() + String(now.getMonth() + 1).padStart(2, '0') + String(now.getDate()).padStart(2, '0');
+        const tno = 'TF' + datePart + String(now.getTime()).slice(-6);
+        const amount = Number(order.total_price);
+        const fee = Math.round(amount * 0.006 * 100) / 100; // 渠道费率 0.6%
+        const typeMap = { seal: '刻章', newspaper: '登报', bookkeeping: '代理记账' };
+        await this.prisma.transaction_flows.create({
+          data: {
+            transaction_no: tno,
+            order_id: order.id,
+            order_no: order.order_no,
+            module: order.module || 'seal',
+            business_type: typeMap[order.module] || order.module || '刻章',
+            trade_type: 'income',
+            user_id: order.user_id || null,
+            user_name: userName,
+            user_phone: userPhone,
+            outlet_id: outletId,
+            outlet_name: outletName,
+            amount: amount,
+            fee: fee,
+            net_amount: Math.round((amount - fee) * 100) / 100,
+            pay_method: pay.pay_method,
+            status: 'success',
+            status_text: '交易成功',
+            transaction_id: pay.transaction_id || null,
+            created_at: now,
+          },
+        });
+      }
+    } catch (e) {
+      // 流水写入失败不影响支付主流程，记录日志便于人工补录
+      console.error('[payflow] 交易流水写入失败 order_no=' + order.order_no + ':', e.message);
+    }
+
     return this.prisma.seal_orders.findFirst({
       where: { id: order.id },
       include: {

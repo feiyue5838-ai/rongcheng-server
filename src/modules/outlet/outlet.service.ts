@@ -137,10 +137,16 @@ export class StoreService {
     const initPassword = Math.random().toString().slice(2, 10);
     const hashed = await bcrypt.hash(initPassword, 10);
 
-    const { businessTypeIds, ...rest } = data;
+    const { businessTypeIds, ..._unused } = data;
     const Outlet = await this.prisma.outlets.create({
       data: {
-        ...rest,
+        name: data.name,
+        contact: data.contact,
+        phone: data.phone,
+        province: data.province,
+        city: data.city,
+        district: data.district,
+        address: data.address,
         business_license: data.business_license || null,
         special_permits: JSON.stringify(data.special_permits || []),
         password: hashed,
@@ -204,10 +210,19 @@ export class StoreService {
       const existing = await this.prisma.outlets.findFirst({ where: { phone: data.phone, NOT: { id } } });
       if (existing) throw new BadRequestException('该手机号已被其他网点使用');
     }
-    const { businessTypeIds, ...rest } = data;
-    const updateData: any = { ...rest };
-    updateData.business_license = data.business_license || null;
-    updateData.special_permits = JSON.stringify(data.special_permits || []);
+    const { businessTypeIds, ..._unused } = data;
+    const updateData: any = {
+      name: data.name,
+      contact: data.contact,
+      phone: data.phone,
+      province: data.province,
+      city: data.city,
+      district: data.district,
+      address: data.address,
+      status: data.status,
+      business_license: data.business_license || null,
+      special_permits: JSON.stringify(data.special_permits || []),
+    };
     const Outlet = await this.prisma.outlets.update({ where: { id }, data: updateData });
 
     // 更新业务类型关联

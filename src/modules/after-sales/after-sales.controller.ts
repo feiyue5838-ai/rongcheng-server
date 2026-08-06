@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Body, Param, Query, UseGuards, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { AdminJwtAuthGuard } from '@/modules/auth/guards/jwt-auth.guard';
+import { SkipWrap } from '@/common/decorators/skip-wrap.decorator';
 import { AfterSalesService } from './after-sales.service';
 
 @ApiTags('售后管理')
@@ -30,6 +31,7 @@ export class AfterSalesController {
   }
 
   @Post('orders/:id/reject')
+  @SkipWrap()
   @ApiOperation({ summary: '拒绝售后（售后→已完成）' })
   rejectAfterSales(
     @Param('id') id: string,

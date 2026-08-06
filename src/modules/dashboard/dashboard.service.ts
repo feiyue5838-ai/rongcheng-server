@@ -71,10 +71,10 @@ export class DashboardService {
       this.prisma.seal_orders.count({ where: { module: 'seal' } }),
       this.prisma.seal_orders.count({ where: { module: 'newspaper' } }),
       this.prisma.seal_orders.count({ where: { module: 'bookkeeping' } }),
-      // 待处理（status 2=已支付 3=制作中）
-      this.prisma.seal_orders.count({ where: { module: 'seal', status: { in: [2, 3] } } }),
-      this.prisma.seal_orders.count({ where: { module: 'newspaper', status: { in: [2, 3] } } }),
-      this.prisma.seal_orders.count({ where: { module: 'bookkeeping', status: { in: [2, 3] } } }),
+      // 待处理：仅 status=2（已支付/待分配/待开工），排除已发货(3)、已完成(5)、已取消(6)等
+      this.prisma.seal_orders.count({ where: { module: 'seal', status: 2 } }),
+      this.prisma.seal_orders.count({ where: { module: 'newspaper', status: 2 } }),
+      this.prisma.seal_orders.count({ where: { module: 'bookkeeping', status: 2 } }),
       // 今日新增
       this.prisma.seal_orders.count({ where: { module: 'seal', created_at: { gte: todayStart } } }),
       this.prisma.seal_orders.count({ where: { module: 'newspaper', created_at: { gte: todayStart } } }),
@@ -86,7 +86,7 @@ export class DashboardService {
       // 收入（已支付订单）
       this.prisma.seal_orders.aggregate({
         where: { module: 'seal', status: { gte: 2 } },
-        _sum: { pay_price: true },
+        _sum: { total_price: true },
       }),
       this.prisma.seal_orders.aggregate({
         where: { module: 'newspaper', status: { gte: 2 } },
@@ -105,7 +105,7 @@ export class DashboardService {
     const todayOrders = todaySealOrders + todayNewspaperOrders + todayBookkeepingOrders;
     const completedOrders = completedSealOrders + completedNewspaperOrders + completedBookkeepingOrders;
     const totalRevenue =
-      Number(sealRevenue._sum.pay_price || 0) +
+      Number(sealRevenue._sum.total_price || 0) +
       Number(newspaperRevenue._sum?.total_price || 0) +
       Number(bookkeepingRevenue._sum?.pay_price || 0);
 
@@ -132,7 +132,7 @@ export class DashboardService {
         completed_seal_orders: completedSealOrders,
         completed_newspaper_orders: completedNewspaperOrders,
         completed_bookkeeping_orders: completedBookkeepingOrders,
-        seal_revenue: Number(sealRevenue._sum.pay_price || 0),
+        seal_revenue: Number(sealRevenue._sum.total_price || 0),
         newspaper_revenue: Number(newspaperRevenue._sum?.total_price || 0),
         bookkeeping_revenue: Number(bookkeepingRevenue._sum?.pay_price || 0),
       },
@@ -177,7 +177,7 @@ export class DashboardService {
         const [sealSum, newspaperSum, bookkeepingSum] = await Promise.all([
           this.prisma.seal_orders.aggregate({
             where: { module: 'seal', status: { gte: 2 }, created_at: { gte: dayStart, lt: dayEnd } },
-            _sum: { pay_price: true },
+            _sum: { total_price: true },
           }),
           this.prisma.seal_orders.aggregate({
             where: { module: 'newspaper', status: { gte: 2 }, created_at: { gte: dayStart, lt: dayEnd } },
@@ -188,7 +188,7 @@ export class DashboardService {
             _sum: { pay_price: true },
           }),
         ]);
-        sealData.push(Math.round(Number(sealSum._sum?.pay_price ?? 0) * 100) / 100);
+        sealData.push(Math.round(Number(sealSum._sum?.total_price ?? 0) * 100) / 100);
         newspaperData.push(Math.round(Number(newspaperSum._sum?.total_price ?? 0) * 100) / 100);
         bookkeepingData.push(Math.round(Number(bookkeepingSum._sum?.pay_price ?? 0) * 100) / 100);
       }
