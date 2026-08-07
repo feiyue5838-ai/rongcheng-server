@@ -1,4 +1,4 @@
-// @ts-nocheck
+﻿// @ts-nocheck
 import { Injectable, BadRequestException, Inject, forwardRef } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '@/prisma/prisma.service';
@@ -346,7 +346,8 @@ export class WechatService {
 
       if (!outTradeNo) return null;
 
-      // 退款状态 SUCCESS → 置订单为已退款（9）
+
+      // 退款状态 SUCCESS → 置订单为已退款（9）+ 写入退款流水
       if (refundStatus === 'SUCCESS') {
         const order = await this.prisma.seal_orders.findFirst({ where: { order_no: outTradeNo } });
         if (order && order.status === 8) {
@@ -366,8 +367,6 @@ export class WechatService {
               })(),
             },
           });
-        }
-        
           // 退款成功后自动写入退款流水
           const existRefundFlow = await this.prisma.transaction_flows.findFirst({
             where: { order_id: order.id, trade_type: 'refund' },
@@ -378,9 +377,9 @@ export class WechatService {
             const ymd = dt.toISOString().slice(0, 10).replace(/-/g, '');
             const amt = refundFee / 100;
             let businessType = '退款';
-            if (order.module === 'seal') businessType = '刻章退款';
-            else if (order.module === 'newspaper') businessType = '登报退款';
-            else if (order.module === 'bookkeeping') businessType = '记账退款';
+            if (order.module === 'seal') businessType = '刻章';
+            else if (order.module === 'newspaper') businessType = '登报';
+            else if (order.module === 'bookkeeping') businessType = '代理记账';
             const assign = await this.prisma.order_assignments.findFirst({
               where: { order_id: order.id },
               include: { outlet: { select: { id: true, name: true } } },
@@ -411,7 +410,8 @@ export class WechatService {
               },
             });
           }
-return { refundId, status: 'SUCCESS', order_id: order?.id };
+        }
+        return { refundId, status: 'SUCCESS', order_id: order?.id };
       }
 
       // 退款失败：记录日志，保留 status=8 供管理员人工处理

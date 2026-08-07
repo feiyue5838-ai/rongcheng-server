@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+﻿import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
 // toCamelDeep utility（避免类型问题，直接用 any）
@@ -305,7 +305,7 @@ export class SettlementService {
     // 生成结算单号
     const count = await this.prisma.settlement_records.count();
     const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-    const recordNo = `ST${dateStr}${String(count + 1).padStart(4, '0')}`;
+    const recordNo = `ST${dateStr}${String(count + 1).padStart(4, "0")}`;
 
     const recordData: any = {
       record_no: recordNo,

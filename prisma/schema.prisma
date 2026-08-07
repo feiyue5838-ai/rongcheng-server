@@ -702,6 +702,21 @@ model refund_records {
   updated_at   DateTime @updatedAt
 }
 
+// ========== 菜单权限配置 ==========
+model menu_role_config {
+  id        String   @id @default(uuid())
+  path      String
+  path_type String   // route | page
+  roles     String[] // JSON text[]，如 ["admin","outlet"]
+  sort      Int      @default(0)
+  enabled   Boolean  @default(true)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+  updated_by String?
+
+  @@index([path])
+}
+
 // ========== 服务商合作价格配置 ==========
 model outlet_pricing {
   id            String    @id @default(uuid())

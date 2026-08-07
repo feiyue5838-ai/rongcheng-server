@@ -35,10 +35,10 @@ export class FinanceService {
         _count: true,
       }),
       this.prisma.$queryRaw`
-        SELECT module, business_type AS "businessType", COUNT(*)::int AS cnt, SUM(amount) AS amount
+        SELECT module, trade_type, business_type AS "businessType", COUNT(*)::int AS cnt, SUM(amount) AS amount
         FROM transaction_flows
-        WHERE trade_type = 'income' AND created_at >= ${start} AND created_at <= ${end}
-        GROUP BY module, business_type ORDER BY amount DESC
+        WHERE trade_type IN ('income','refund') AND created_at >= ${start} AND created_at <= ${end}
+        GROUP BY module, trade_type, business_type ORDER BY amount DESC
       `,
       this.prisma.settlement_records.aggregate({
         where: { created_at: { gte: start, lte: end } },
@@ -75,7 +75,7 @@ export class FinanceService {
     const pendingCount = pendingAgg._count;
 
     const netIncome = Math.round((income - incomeFee - refund) * 100) / 100; // 资金净流入（未扣分成）
-    const platformNet = Math.round((income - incomeFee - refund - outletSettle) * 100) / 100; // 平台净利
+    const platformNet = Math.round((income - incomeFee - refund - outletSettle - platformSettle) * 100) / 100; // 平台净利
 
     const norm = (v: any) => (v === null || v === undefined ? 0 : Number(v));
 
@@ -96,6 +96,7 @@ export class FinanceService {
       platformNet,
       byModule: ((byModule as any[]) || []).map((m: any) => ({
         module: m.module,
+        tradeType: m.trade_type,
         businessType: m.businessType,
         count: norm(m.cnt),
         amount: norm(m.amount),

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { generateTransactionNo } from '../../common/utils/sn';
 
 function toCamelDeep(obj: any): any {
   if (!obj) return obj;
@@ -37,10 +38,7 @@ export class TransactionService {
 
   /** 生成交易单号 */
   private generateTransactionNo(): string {
-    const now = new Date();
-    const datePart = formatDate(now).replace(/-/g, '');
-    const timePart = String(now.getTime()).slice(-6);
-    return `TF${datePart}${timePart}`;
+    return generateTransactionNo();
   }
 
   /** 写入交易流水 */

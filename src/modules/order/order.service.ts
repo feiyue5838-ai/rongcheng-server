@@ -3,6 +3,7 @@ import { Injectable, NotFoundException, BadRequestException, ForbiddenException,
 import { PrismaService } from '../../prisma/prisma.service';
 import { WechatService } from '../wechat/wechat.service';
 import { DispatchService } from '../dispatch/dispatch.service';
+import { generateTransactionNo } from '../../common/utils/sn';
 import { v4 as uuidv4 } from 'uuid';
 
 // ==================== 工具函数：snake_case → camelCase ====================
@@ -612,9 +613,7 @@ export class OrderService {
           });
           if (u) { userName = u.nickname; userPhone = u.phone; }
         }
-        const now = new Date();
-        const datePart = now.getFullYear() + String(now.getMonth() + 1).padStart(2, '0') + String(now.getDate()).padStart(2, '0');
-        const tno = 'TF' + datePart + String(now.getTime()).slice(-6);
+        const tno = generateTransactionNo();
         const amount = Number(order.total_price);
         const fee = Math.round(amount * 0.006 * 100) / 100; // 渠道费率 0.6%
         const typeMap = { seal: '刻章', newspaper: '登报', bookkeeping: '代理记账' };
