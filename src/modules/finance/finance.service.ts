@@ -66,7 +66,7 @@ export class FinanceService {
     const incomeFee = Number(incomeAgg._sum.fee || 0);
     const incomeCount = incomeAgg._count;
     const refund = Number(refundAgg._sum.amount || 0);
-    const refundFee = Number(refundAgg._sum.fee || 0);
+    // refundAgg._sum.fee（退款手续费）：退款交易通常免手续费，当前为0，保留供未来扩展
     const refundCount = refundAgg._count;
     const outletSettle = Number(settleAgg._sum.outlet_amount || 0);
     const platformSettle = Number(settleAgg._sum.platform_amount || 0);
@@ -85,7 +85,6 @@ export class FinanceService {
       incomeFee,
       incomeCount,
       refund,
-      refundFee,
       refundCount,
       netIncome,
       outletSettle,

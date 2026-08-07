@@ -110,11 +110,12 @@ export class DispatchService {
 
       const cityMatch = service_area.some(s => s.city === city && (s.province === province || provincesMatch(province, s.province)));
       const provMatch = !cityMatch && service_area.some(s => provincesMatch(province, s.province));
+      const hasGeoMatch = cityMatch || provMatch;
 
       if (cityMatch) score += 100;
       else if (provMatch) score += 50;
 
-      return { ...o, matchScore: score, isForcedManual };
+      return { ...o, matchScore: score, isForcedManual, hasGeoMatch };
     });
 
     return scored.sort((a, b) => b.matchScore - a.matchScore);
@@ -152,8 +153,8 @@ export class DispatchService {
 
     // 方案A:无精确城市网点时转人工派单
     // 如果最高分网点不是城市匹配(仅省份匹配或无匹配),则不自动派单
-    if (!best.isForcedManual && best.matchScore < 50) {
-      // matchScore < 50 表示连省份精确匹配都没有，只有优先级分或无匹配
+    // 只有优先级分、无地区匹配时转人工；有地区匹配（含省匹配）则自动派单
+    if (!best.isForcedManual && !best.hasGeoMatch) {
       return null;
     }
 
