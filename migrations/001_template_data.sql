@@ -329,3 +329,15 @@ END $$;
 -- FROM newspaper_categories c
 -- LEFT JOIN newspaper_templates t ON t.category_id = c.id AND t.status = 1
 -- GROUP BY c.name ORDER BY template_count DESC;
+
+-- ---------------------------------------------------
+-- 身份证挂失多版本模板(4条) 供 idcard-page 使用
+-- 56eab382-2d52-4eb3-a684-c97b5e8a6ad4 = "个人证件"大类
+-- idcard-page 仅展示名称含"身份证"的模板(本段4个版本 + 原有"身份证挂失")
+-- ---------------------------------------------------
+INSERT INTO newspaper_templates (id, name, content, sort, status, color, "desc", "templateType", category_id, created_at, updated_at) VALUES
+('f0001001-0001-0001-0001-000000000001', '身份证(简单版)', E'遗失声明\n\n本人XXX于XXXX年XX月XX日不慎遗失身份证件，证号：XXX，现声明作废。\n本人不承担因此证被他人使用而产生的任何法律责任。\n特此声明。\n\n声明人：XXX\n联系电话：XXXX', 101, 1, '#5B6FE8', '基础个人信息', 'idcard', '56eab382-2d52-4eb3-a684-c97b5e8a6ad4', NOW(), NOW()),
+('f0001002-0001-0001-0001-000000000001', '身份证(精简版)', E'本人XXX遗失身份证，证号XXX，即日起声明作废。', 102, 1, '#797EED', '精简描述', 'idcard', '56eab382-2d52-4eb3-a684-c97b5e8a6ad4', NOW(), NOW()),
+('f0001003-0001-0001-0001-000000000001', '身份证(基础版)', E'遗失声明\n\n本人XXX，身份证号码：XXX，于XXXX年XX月XX日不慎遗失身份证。\n自遗失之日起，该证件一切使用行为均与本人无关。\n特此声明。\n\n声明人：XXX\n联系电话：XXXX\n日期：XXXX年XX月XX日', 103, 1, '#968DF2', '标准格式', 'idcard', '56eab382-2d52-4eb3-a684-c97b5e8a6ad4', NOW(), NOW()),
+('f0001004-0001-0001-0001-000000000001', '身份证(律师版)', E'遗失声明\n\n本人XXX，身份证号码：XXX，于XXXX年XX月XX日在XXXX不慎遗失身份证。\n\n一、本人郑重声明：自遗失之日起，上述身份证件一切法律行为均与本人无关。\n\n二、若有单位或个人违法使用该证件从事活动，由此产生的一切法律责任由行为人自行承担，与本人无任何关系。\n\n三、本人已向公安机关报案并申请补办。\n\n特此声明！\n\n声明人：XXX\n联系电话：XXXX\n日期：XXXX年XX月XX日', 104, 1, '#B49CF7', '含法律声明', 'idcard', '56eab382-2d52-4eb3-a684-c97b5e8a6ad4', NOW(), NOW())
+ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name, content=EXCLUDED.content, color=EXCLUDED.color, "desc"=EXCLUDED."desc";
