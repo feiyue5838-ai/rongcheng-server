@@ -3,8 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { APP_INTERCEPTOR, APP_GUARD } from '@nestjs/core';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { CacheModule } from '@nestjs/cache-manager';
-import { Keyv } from 'keyv';
-import { Keyv as KeyvMemory } from 'keyv';
+import KeyvRedis from '@keyv/redis';
 import { AuthModule } from './modules/auth/auth.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { OrderModule } from './modules/order/order.module';
@@ -36,11 +35,12 @@ import { ResponseInterceptor } from './common/interceptors/response.interceptor'
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
-    // 内存缓存（开发/无 Redis 时使用）；生产有 Redis 时改为 redis://localhost:6379
+    // Redis 缓存（本地/生产均用 Redis，Windows 已装 Redis 服务 6379）
+    // 若 Redis 不可用：启动时 @keyv/redis 会按重连策略重试，服务不崩但接口无缓存
     CacheModule.registerAsync({
       isGlobal: true,
       useFactory: async () => {
-        const store = new KeyvMemory({ namespace: 'rc' });
+        const store = new KeyvRedis({ url: 'redis://localhost:6379' });
         return {
           stores: [store],
           ttl: 60 * 1000,

@@ -12,7 +12,7 @@ export class NewspaperController {
   @Get('categories')
   @ApiOperation({ summary: '获取登报分类' })
   async getCategories(@Query('skipCache') skipCache?: string) {
-    return this.newspaperService.getCategories(skipCache !== 'false');
+    return this.newspaperService.getCategories(skipCache === 'true');
   }
 
   @Post('categories')
@@ -84,7 +84,7 @@ export class NewspaperController {
       businessType,
       page ? parseInt(page, 10) : undefined,
       pageSize ? parseInt(pageSize, 10) : undefined,
-      skipCache !== 'false'
+      skipCache === 'true'
     );
   }
 
