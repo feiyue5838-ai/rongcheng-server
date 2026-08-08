@@ -11,7 +11,7 @@ module.exports = {
     autorestart: true,
     max_memory_restart: '500M',
     env: {
-      NODE_ENV: 'development',
+      NODE_ENV: 'production',
       PORT: 3001,
     },
     env_production: {
