@@ -733,3 +733,24 @@ model outlet_pricing {
   @@unique([outlet_id, business_type])
   @@index([outlet_id])
 }
+
+model faq_categories {
+  id         Int      @id @default(autoincrement())
+  name       String
+  icon       String?
+  sort       Int      @default(0)
+  status     Int      @default(1)
+  created_at DateTime @default(now())
+  updated_at DateTime @default(now())
+}
+
+model faqs {
+  id          Int      @id @default(autoincrement())
+  category_id Int
+  question    String
+  answer      String
+  sort        Int      @default(0)
+  status      Int      @default(1)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @default(now())
+}

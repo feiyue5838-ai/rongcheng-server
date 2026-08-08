@@ -19,6 +19,7 @@ import { NotificationModule } from './modules/notification/notification.module';
 import { DeliveryModule } from './modules/delivery/delivery.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { QuestionModule } from './modules/question/question.module';
+import { FaqModule } from './modules/faq/faq.module';
 import { AfterSalesModule } from './modules/after-sales/after-sales.module';
 import { BookkeepingModule } from './modules/bookkeeping/bookkeeping.module';
 import { DispatchModule } from './modules/dispatch/dispatch.module';
@@ -64,6 +65,7 @@ import { ResponseInterceptor } from './common/interceptors/response.interceptor'
     DeliveryModule,
     DashboardModule,
     QuestionModule,
+    FaqModule,
     AfterSalesModule,
     BookkeepingModule,
     DispatchModule,
