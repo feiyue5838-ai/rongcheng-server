@@ -41,6 +41,10 @@ INSERT INTO newspaper_categories (id, name, icon, sort, status, created_at, upda
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO newspaper_categories (id, name, icon, sort, status, created_at, updated_at) VALUES
+  ('B0000001-0008-0001-0001-000000000001', '环评公示', 1, 19, 1, NOW(), NOW())
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO newspaper_categories (id, name, icon, sort, status, created_at, updated_at) VALUES
   ('B0000001-0001-0001-0001-000000000001', '企业证件', 1, 6, 1, NOW(), NOW())
 ON CONFLICT (id) DO NOTHING;
 
@@ -283,44 +287,38 @@ BEGIN
 END $$;
 
 -- ---------------------------------------------------
--- 9. 法院公告/政府公告/招标/拍卖/债权/道歉/劳动/宣传 已有模板
--- 已在 fix_all.js / pg_final2.js 中正确分配，此处补充缺失的 groupConfig keys
+-- 9. 环评公示模板 (16条，B0000001-0008 分类)
 -- ---------------------------------------------------
 DO $$
 DECLARE
-  COURT TEXT := 'c46fc618-f7c9-407f-b78a-035fe35d47bd';
-  GOVERNMENT TEXT := '05d76e21-066c-4f08-85cf-a9477244d37d';
-  BIDDING TEXT := 'B0000001-0002-0001-0001-000000000001';
-  AUCTION TEXT := 'B0000001-0003-0001-0001-000000000001';
-  CREDITOR TEXT := 'B0000001-0004-0001-0001-000000000001';
-  APOLOGY TEXT := 'B0000001-0005-0001-0001-000000000001';
-  LABOR TEXT := 'B0000001-0006-0001-0001-000000000001';
-  PUBLICITY TEXT := 'B0000001-0007-0001-0001-000000000001';
-
-  -- 补充各分类缺失的 templateType keys
-  extra_arr TEXT[][] := ARRAY[
-    -- 法院公告补充 judicial (court)
-    ['司法送达公告', COURT, 'judicial', '[法院名称]依法向[当事人]送达[文书名称]，[案号]，特此公告送达，自公告之日起60日视为送达。'],
-    -- 拍卖公告补充 judicial (auction)
-    ['司法拍卖公告', AUCTION, 'judicial', '[法院名称]依法对[被执行人]名下[财产名称]进行公开拍卖，起拍价[金额]元，请有意竞买者于[日期]前报名。'],
-    -- 债权债务补充 finance_release
-    ['金融保险债权解除', CREDITOR, 'finance_release', '[保险公司名称]与[债务人]之间的[保险合同号]债权债务关系已依法解除，特此公告。'],
-    -- 登报道歉补充 other
-    ['其他道歉声明', APOLOGY, 'other', '[道歉人姓名]就[事件]向[被道歉方]公开道歉，特此声明。'],
-    -- 劳动纠纷补充 labor_injury
-    ['工伤认定公告', LABOR, 'labor_injury', '[单位名称]员工[姓名]于[日期]发生工伤事故，现申请工伤认定，特此公示。'],
-    -- 宣传稿补充 legal
-    ['普法公益宣传', PUBLICITY, 'legal', '普及法律知识，弘扬法治精神。依法治国，人人有责。']
+  ENV TEXT := 'B0000001-0008-0001-0001-000000000001';
+  env_arr TEXT[][] := ARRAY[
+    ['环境影响评价信息公示', 'env_impact', '[项目名称]环境影响评价工作正在进行，依据《环境影响评价法》，现将项目基本情况公示如下：\n一、项目名称：[名称]\n二、建设地点：[地点]\n三、建设性质：[新建/改建/扩建]\n四、主要建设内容：[内容]\n请社会各界人士提出宝贵意见。'],
+    ['建设项目环境影响后评价', 'env_impact', '[项目名称]已投入生产/运行，现依法开展环境影响后评价，主要内容包括：[评价内容]，特此公示，请监督。'],
+    ['环境影响评价变更公示', 'env_impact', '[项目名称]环境影响评价文件原批准内容为[原内容]，因[变更原因]需变更，现予以公示，请社会各界提出意见。'],
+    ['环境影响评价公众参与', 'env_impact', '[项目名称]环境影响评价工作已启动，根据《环境影响评价公众参与办法》，现公开项目基本信息，请公众积极参与并提出意见。'],
+    ['竣工环境保护验收公示', 'env_acceptance', '[项目名称]已建成并完成调试，现依法公示竣工环境保护验收报告，请公众监督。验收监测单位：[单位]，监测日期：[日期]。'],
+    ['环保设施竣工验收公告', 'env_acceptance', '[单位名称]建设的[项目名称]配套环保设施已竣工，主要处理工艺：[工艺]，处理能力：[能力]，现予以公示，请社会各界监督。'],
+    ['建设项目环保验收监测', 'env_acceptance', '[项目名称]竣工环境保护验收监测报告已完成，监测结果显示：[主要指标]，符合[标准]，特此公示，报告全文见附件。'],
+    ['环保验收调试公示', 'env_acceptance', '[项目名称]配套环境保护设施正在调试，调试起止日期：[日期1]至[日期2]，调试期间污染物排放情况：[简述]，请监督。'],
+    ['排污许可证公示', 'emission_permit', '[单位名称]依法申领排污许可证，许可证编号：[号码]，许可排放污染物：[污染物种类]，许可排放量：[总量]，特此公示。'],
+    ['排污许可变更公示', 'emission_permit', '[单位名称]排污许可证（编号：[号码]）因[变更原因]需变更，主要变更内容：[内容]，现予以公示，请社会各界监督。'],
+    ['排污许可注销公告', 'emission_permit', '[单位名称]排污许可证（编号：[号码]）因[原因]予以注销，不再持有排污许可资质，特此公告。'],
+    ['清洁生产审核公示', 'clean_production', '[单位名称]依法开展清洁生产审核，审核机构：[机构名称]，审核日期：[日期]，主要改进方案：[方案]，特此公示，请监督。'],
+    ['突发环境事件应急预案', 'clean_production', '[单位名称]已编制突发环境事件应急预案，预案编号：[号码]，有效期至[日期]，主要内容：[简要]，现予以公示，请相关单位知悉。'],
+    ['土壤污染隐患排查公示', 'clean_production', '[单位名称]依法开展土壤污染隐患排查，排查结果：[结论]，主要隐患：[内容]，整改计划：[计划]，特此公示，请监督。'],
+    ['环保行政处罚公示', 'other', '[单位名称]因违反《环境保护法》第[条款]规定，被依法处以[处罚内容]，特此公示。'],
+    ['环保设施运行公示', 'other', '[单位名称]环保设施（[设施名称]）正常运行，主要污染物排放浓度：[浓度]，排放量：[排放量]，监测日期：[日期]，特此公示，请监督。']
   ];
   arr_elem TEXT[];
-  extra_id TEXT;
+  env_id TEXT;
 BEGIN
-  FOR i IN 1..array_length(extra_arr, 1) LOOP
-    arr_elem := extra_arr[i];
-    extra_id := 'EXTRA' || lpad(i::TEXT, 3, '0') || '-0001-0001-0001-000000000001';
+  FOR i IN 1..array_length(env_arr, 1) LOOP
+    arr_elem := env_arr[i];
+    env_id := 'ENV' || lpad(i::TEXT, 3, '0') || '-0001-0001-0001-000000000001';
     INSERT INTO newspaper_templates (id, newspaper_id, category_id, name, content, sample_data, sort, status, created_at, updated_at, "templateType")
-    VALUES (extra_id, NULL, arr_elem[2], arr_elem[1], arr_elem[3], NULL, i, 1, NOW(), NOW(), arr_elem[2])
-    ON CONFLICT (id) DO NOTHING;
+    VALUES (env_id, NULL, ENV, arr_elem[1], arr_elem[2], NULL, (i % 5) + 1, 1, NOW(), NOW(), arr_elem[1])
+    ON CONFLICT (id) DO UPDATE SET content=EXCLUDED.content;
   END LOOP;
 END $$;
 
