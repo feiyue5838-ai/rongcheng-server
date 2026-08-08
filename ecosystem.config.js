@@ -10,6 +10,11 @@ module.exports = {
     autorestart: true,
     max_memory_restart: '500M',
     env: {
+      // 本地开发默认 development：dev-paid 模拟支付可用
+      // 生产部署必须显式 --env production（届时 dev-paid 返回 403 禁用）
+      NODE_ENV: 'development',
+    },
+    env_production: {
       NODE_ENV: 'production',
     },
     out_file: 'logs/pm2-out.log',
