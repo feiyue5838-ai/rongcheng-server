@@ -63,6 +63,11 @@ export class DashboardService {
       bookkeepingRevenue,
       // 待回复评价
       pendingReviews,
+      // 客户统计
+      totalCustomers,
+      activeCustomers,
+      silentCustomers,
+      vipCustomersRaw,
     ] = await Promise.all([
       // 用户
       this.prisma.users.count(),
@@ -98,7 +103,30 @@ export class DashboardService {
       }),
       // 待回复评价
       this.prisma.reviews.count({ where: { reply: null } }),
+      // 客户统计
+      this.prisma.users.count(),
+      // 活跃客户：7天内有订单
+      this.prisma.users.count({
+        where: { seal_orders: { some: { created_at: { gte: dateBeijingUTC(7) } } } },
+      }),
+      // 沉默客户：有订单历史但7天内无新单（从未下单的归入"从未下单"不在此处）
+      this.prisma.users.count({
+        where: {
+          seal_orders: { some: { created_at: { lt: dateBeijingUTC(7) } } },
+          NOT: { seal_orders: { some: { created_at: { gte: dateBeijingUTC(7) } } } },
+        },
+      }),
+      // VIP客户：累计消费≥500（原始 SQL 结果，取 [0].count）
+      this.prisma.$queryRaw`
+        SELECT COUNT(*)::int as count FROM (
+          SELECT user_id FROM seal_orders WHERE status >= 2 GROUP BY user_id
+          HAVING SUM(CASE WHEN module = 'bookkeeping' THEN pay_price ELSE total_price END) >= 500
+        ) AS vip_users
+      `,
     ]);
+
+    // $queryRaw 返回数组 [{ count: N }]
+    const vipCustomers = Array.isArray(vipCustomersRaw) ? (vipCustomersRaw[0]?.count ?? 0) : 0;
 
     const totalOrders = totalSealOrders + totalNewspaperOrders + totalBookkeepingOrders;
     const pendingOrders = pendingSealOrders + pendingNewspaperOrders + pendingBookkeepingOrders;
@@ -118,6 +146,11 @@ export class DashboardService {
       today_orders: todayOrders,
       pending_reviews: pendingReviews,
       completed_orders: completedOrders,
+      // 客户统计
+      total_customers: totalCustomers,
+      active_customers: activeCustomers,
+      silent_customers: silentCustomers,
+      vip_customers: vipCustomers,
       // 明细（方便前端拆分展示）
       _detail: {
         seal_orders: totalSealOrders,
@@ -141,7 +174,6 @@ export class DashboardService {
 
   // 近N天趋势数据（订单量或金额）
   async getTrend(type: 'order' | 'amount' = 'order', days: number = 7) {
-    const now = new Date();
     const dates: string[] = [];
     const sealData: number[] = [];
     const newspaperData: number[] = [];
@@ -157,7 +189,6 @@ export class DashboardService {
       const dayEnd = dateBeijingUTC(i - 1);
 
       if (type === 'order') {
-        // 订单量统计
         const [sealCount, newspaperCount, bookkeepingCount] = await Promise.all([
           this.prisma.seal_orders.count({
             where: { module: 'seal', created_at: { gte: dayStart, lt: dayEnd } },
@@ -173,7 +204,6 @@ export class DashboardService {
         newspaperData.push(newspaperCount);
         bookkeepingData.push(bookkeepingCount);
       } else {
-        // 金额统计（已支付订单，按创建时间统计）
         const [sealSum, newspaperSum, bookkeepingSum] = await Promise.all([
           this.prisma.seal_orders.aggregate({
             where: { module: 'seal', status: { gte: 2 }, created_at: { gte: dayStart, lt: dayEnd } },
