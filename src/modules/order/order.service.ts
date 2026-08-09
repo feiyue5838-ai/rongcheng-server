@@ -586,6 +586,7 @@ export class OrderService {
     // 返回完整订单数据（含 assignment、receipts 等）
 
     // ============ [payflow] 支付成功自动写入交易流水 ============
+    const now = new Date();
     try {
       // 幂等：防止极端并发下重复写入（completePayment 本身有 status>=2 提前返回保护）
       const existFlow = await this.prisma.transaction_flows.findFirst({

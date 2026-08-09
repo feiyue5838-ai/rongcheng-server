@@ -1,4 +1,4 @@
-import { Controller, Post, Body, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Body, HttpCode, HttpStatus, Request, UnauthorizedException } from '@nestjs/common';
 import { IsString, IsNotEmpty } from 'class-validator';
 import { ApiTags, ApiOperation, ApiBody } from '@nestjs/swagger';
 import { Throttle, SkipThrottle } from '@nestjs/throttler';
@@ -60,10 +60,16 @@ export class AuthController {
   }
 
   @Post('admin/init')
-  @Throttle({ default: { limit: 3, ttl: 3600000 } }) // 3次/小时
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: '初始化超级管理员（仅首次部署使用）' })
-  async createSuperAdmin(@Body() dto: CreateSuperAdminDto) {
+  async createSuperAdmin(@Body() dto: CreateSuperAdminDto, @Request() req: any) {
+    // 安全策略：
+    // - 系统已有管理员（adminCount > 0）时，必须带有效管理员 JWT 才能创建超管
+    // - 系统无管理员（首次部署）时，无需 JWT 即可创建第一个超管
+    const adminCount = await this.authService.getAdminCount();
+    if (adminCount > 0 && !req.user) {
+      throw new UnauthorizedException('必须以管理员身份登录后创建超管');
+    }
     return this.authService.createSuperAdmin(dto.username, dto.password);
   }
 

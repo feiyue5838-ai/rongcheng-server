@@ -145,7 +145,9 @@ export class OrderController {
   @ApiBearerAuth()
   @ApiOperation({ summary: '网点接单（管理后台代接，以网点身份）' })
   async acceptOrder(@Param('id') id: string, @Body() body: any, @Request() req: any) {
-    const outletId = body?.outletId || req.user.id;
+    // 修复：移除 body?.outletId，只允许管理员用 StoreJwtAuthGuard 的 req.user.id
+    // 防止网点 A 通过传 outletId 参数代替网点 B 接单
+    const outletId = req.user.id;
     return this.orderService.acceptOrder(id, outletId);
   }
 
@@ -159,7 +161,9 @@ export class OrderController {
     @Body() dto: { express_company: string; express_no: string; receipts: Array<{ type: string; url: string; remark?: string }>; remark?: string; outletId?: string },
     @Request() req: any,
   ) {
-    const outletId = dto?.outletId || req.user.id;
+    // 修复：移除 dto?.outletId，只允许管理员用 StoreJwtAuthGuard 的 req.user.id
+    // 防止网点 A 通过传 outletId 参数代替网点 B 交付
+    const outletId = req.user.id;
     return this.orderService.deliverOrder(id, dto, outletId);
   }
 

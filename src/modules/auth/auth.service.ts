@@ -13,6 +13,37 @@ export class AuthService {
     private wechatService: WechatService,
   ) {}
 
+  // 供 Controller 判断是否需要鉴权
+  async getAdminCount(): Promise<number> {
+    return this.prisma.admins.count();
+  }
+
+  async createSuperAdmin(username: string, password: string, requireAuth = false) {
+    if (!username || !password) {
+      throw new BadRequestException('用户名和密码不能为空');
+    }
+    const adminCount = await this.prisma.admins.count();
+    if (adminCount > 0 && requireAuth) {
+      throw new UnauthorizedException('必须以管理员身份登录后创建超管');
+    }
+    const existing = await this.prisma.admins.findUnique({ where: { username } });
+    if (existing) {
+      throw new BadRequestException('用户名已存在');
+    }
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const admin = await this.prisma.admins.create({
+      data: {
+        username,
+        password: hashedPassword,
+        nickname: '超级管理员',
+        role: 'superadmin',
+        permissions: ['*'],
+        status: 1,
+      },
+    });
+    return { id: admin.id, username: admin.username };
+  }
+
   // ==================== 小程序用户登录 ====================
 
   /**
@@ -123,35 +154,6 @@ export class AuthService {
     } catch {
       return null;
     }
-  }
-
-  // ==================== 管理员密码管理 ====================
-
-  /**
-   * 创建超级管理员（首次部署时使用）
-   */
-  async createSuperAdmin(username: string, password: string) {
-    if (!username || !password) {
-      throw new BadRequestException('用户名和密码不能为空');
-    }
-    const existing = await this.prisma.admins.findUnique({ where: { username } });
-    if (existing) {
-      throw new BadRequestException('用户名已存在');
-    }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const admin = await this.prisma.admins.create({
-      data: {
-        username,
-        password: hashedPassword,
-        nickname: '超级管理员',
-        role: 'superadmin',
-        permissions: ['*'],
-        status: 1,
-      },
-    });
-
-    return { id: admin.id, username: admin.username };
   }
 
   // ==================== 网点登录 ====================
