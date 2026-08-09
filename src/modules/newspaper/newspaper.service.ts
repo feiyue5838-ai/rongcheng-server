@@ -445,7 +445,11 @@ export class NewspaperService {
     return getTemplatesByCategory(this.prisma, NEWSPAPER_CATEGORY_IDS.GOVERNMENT, {
       prosecutorial: { name: '检察司法类公告', color: '#6D78EB' },
       admin_punish_gov: { name: '行政处罚送达催告', color: '#7F81EE', hot: true },
-      labor_arbitration: { name: '劳动仲裁送达公告', color: '#908AF1', hot: true },
+      labor_arb: { name: '劳动仲裁送达公告', color: '#908AF1', hot: true },
+      land_expropriation: { name: '土地征收公告', color: '#9A93F3' },
+      tax_notice: { name: '税务通知书公告', color: '#A196F5' },
+      administrative_licensing: { name: '行政许可公示', color: '#A99AF6' },
+      customs_notice: { name: '海关公告', color: '#B29DF7' },
       planning_permit: { name: '规划行政许可公示', color: '#A293F4' },
       notary_testament: { name: '公证遗嘱类公告', color: '#B49CF7' }
     });
