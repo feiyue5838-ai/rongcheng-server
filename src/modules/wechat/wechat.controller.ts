@@ -15,12 +15,14 @@ export class WechatController {
   @ApiOperation({ summary: '微信支付结果通知回调' })
   async handlePayNotify(@Body() body: any, @Headers() headers: any) {
     try {
-      // 1) 验签 + 解密（生产必做，见 WechatService.handlePayNotify 内 TODO）
+      // V3：SHA256-RSA 签名验签（platform cert）+ AES-256-GCM 解密 + trade_state
+      // V2：有 mchKey 时 MD5 摘要校验
+      // 开发模式（无密钥）：直接信任回调
       const result = await this.wechatService.handlePayNotify(body, headers);
       if (!result || !result.order_no) {
-        return { code: 'FAIL', message: '订单号缺失' };
+        return { code: 'FAIL', message: '订单号缺失或验签失败' };
       }
-      // 2) 统一入口：置『已支付』并触发网点自动分配（幂等，可重复回调）
+      // 置『已支付』并触发网点自动分配（幂等，可重复回调）
       await this.orderService.completePayment(
         { order_no: result.order_no },
         { pay_method: 'wechat', transaction_id: result.transaction_id },

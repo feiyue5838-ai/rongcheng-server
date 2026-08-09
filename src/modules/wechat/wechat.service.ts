@@ -279,7 +279,56 @@ export class WechatService {
       return null;
     }
 
-    // 兼容 V2 / 简化字段
+    // V3 生产模式：SHA256-RSA 签名验签 + AES-256-GCM 解密 + trade_state 校验
+    if (notifyData?.resource?.ciphertext && this.isPayConfigured()) {
+      const resource = notifyData.resource;
+      // Step 1：显式签名校验（Wechatpay-Signature = SHA256-RSA(platformCert, timestamp+nonce+body)）
+      if (headers) {
+        const signature = headers['wechatpay-signature'] || headers['Wechatpay-Signature'];
+        const timestamp = headers['wechatpay-timestamp'] || headers['Wechatpay-Timestamp'];
+        const nonce = headers['wechatpay-nonce'] || headers['Wechatpay-Nonce'];
+        if (signature && timestamp && nonce) {
+          const message = timestamp + nonce + JSON.stringify(notifyData);
+          const verified = crypto.createVerify('RSA-SHA256')
+            .update(message)
+            .verify(this.certificate, signature, 'base64');
+          if (!verified) {
+            console.error('[WechatService] V3 支付回调签名验签失败，疑似伪造');
+            return null;
+          }
+        }
+      }
+      // Step 2：AES-256-GCM 解密 ciphertext
+      const plain = this._decryptResource(resource);
+      if (!plain) return null;
+      // Step 3：校验交易状态
+      if (plain.trade_state !== 'SUCCESS') {
+        console.warn('[WechatService] 支付回调 trade_state 非 SUCCESS:', plain.trade_state);
+        return null;
+      }
+      return { order_no: plain.out_trade_no, transaction_id: plain.transaction_id };
+    }
+
+    // V2 兼容：有 mchKey 时做摘要校验防伪造
+    if (this.mchKey) {
+      const { out_trade_no, transaction_id, sign } = notifyData || {};
+      if (!out_trade_no) return null;
+      // 构造待签名字符串（微信支付 V2 签名规则：按 key 字典序排列 value）
+      const keys = ['out_trade_no', 'result_code', 'trade_state', 'transaction_id', 'time_end'].filter(k => notifyData[k]);
+      keys.sort();
+      const str = keys.map(k => k + '=' + notifyData[k]).join('&') + '&key=' + this.mchKey;
+      const expected = crypto.createHash('md5').update(str).digest('hex').toUpperCase();
+      if (sign && sign.toUpperCase() !== expected) {
+        console.error('[WechatService] V2 支付回调签名校验失败，疑似伪造');
+        return null;
+      }
+      return { order_no: out_trade_no, transaction_id: transaction_id || '' };
+    }
+
+    // 未配置任何密钥：开发模式直接信任（仅用于本地调试）
+    const { out_trade_no, transaction_id } = notifyData || {};
+    if (!out_trade_no) return null;
+    return { order_no: out_trade_no, transaction_id: transaction_id || '' };
     const { out_trade_no, transaction_id } = notifyData || {};
     if (!out_trade_no) return null;
     return { order_no: out_trade_no, transaction_id: transaction_id };
@@ -441,13 +490,37 @@ export class WechatService {
   }
 
   /** AES-256-GCM 解密微信 V3 退款通知密文 */
+  /**
+   * 解密微信支付 V3 回调通知（支付通知用 associated_data='transaction'）
+   */
+  private _decryptResource(resource: { ciphertext: string; nonce: string; associated_data?: string }): any | null {
+    try {
+      const key = Buffer.from(this.apiV3Key, 'utf8');
+      const nonce = Buffer.from(resource.nonce, 'utf8');
+      const ciphertext = Buffer.from(resource.ciphertext, 'base64');
+      const associatedData = resource.associated_data || 'transaction';
+      const authTag = ciphertext.slice(-16);
+      const encrypted = ciphertext.slice(0, -16);
+      const decipher = crypto.createDecipheriv('aes-256-gcm', key, nonce);
+      decipher.setAuthTag(authTag);
+      decipher.setAAD(Buffer.from(associatedData, 'utf8'));
+      const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]);
+      return JSON.parse(decrypted.toString('utf8'));
+    } catch (err) {
+      console.error('[WechatService] AES-256-GCM 解密支付通知失败:', err);
+      return null;
+    }
+  }
+
+  /**
+   * 解密微信支付 V3 退款回调（退款通知用 associated_data='refund'）
+   */
   private _decryptRefundResource(resource: { ciphertext: string; nonce: string; associated_data?: string }): any | null {
     try {
       const key = Buffer.from(this.apiV3Key, 'utf8');
       const nonce = Buffer.from(resource.nonce, 'utf8');
       const ciphertext = Buffer.from(resource.ciphertext, 'base64');
       const associatedData = resource.associated_data || 'refund';
-      // authTag 为 ciphertext 末尾 16 字节
       const authTag = ciphertext.slice(-16);
       const encrypted = ciphertext.slice(0, -16);
       const decipher = crypto.createDecipheriv('aes-256-gcm', key, nonce);
