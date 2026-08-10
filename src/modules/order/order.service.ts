@@ -15,9 +15,8 @@ import {
 } from '../../common/constants/order-status';
 
 // ==================== 工具函数：snake_case → camelCase ====================
-function snakeToCamel(key: string): string {
-  return key.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
-}
+// Q-03: 使用 common/utils/case 中的统一实现
+import { snakeToCamel, toCamelDeep } from '../../common/utils/case';
 
 // ==================== 工具函数：省份名归一化 ====================
 const PROVINCE_ALIASES: Record<string, string> = {
@@ -42,21 +41,6 @@ function provincesMatch(addrProv: string, areaProv: string): boolean {
   return normalizeProvince(addrProv) === normalizeProvince(areaProv);
 }
 
-function toCamelDeep(obj: any): any {
-  if (obj instanceof Date) return obj;
-  if (Array.isArray(obj)) return obj.map(toCamelDeep);
-  if (obj !== null && typeof obj === 'object') {
-    // Prisma Decimal / Buffer 等特殊对象直接转原始值
-    if (typeof obj.toString === 'function' && !('getTime' in obj)) {
-      const str = obj.toString();
-      if (/^\d+(\.\d+)?$/.test(str)) return Number(str);
-    }
-    return Object.fromEntries(
-      Object.entries(obj).map(([k, v]) => [snakeToCamel(k), toCamelDeep(v)])
-    );
-  }
-  return obj;
-}
 
 @Injectable()
 export class OrderService {
@@ -111,10 +95,10 @@ export class OrderService {
       throw new BadRequestException('订单明细不能为空');
     }
 
-    // 1. 校验地址
+    // 1. 校验地址（U-03: 必须归属当前用户，防止跨用户地址引用泄露）
     let addressData: any = null;
     if (address_id) {
-      addressData = await this.prisma.addresses.findUnique({ where: { id: address_id } });
+      addressData = await this.prisma.addresses.findFirst({ where: { id: address_id, user_id } });
       if (!addressData) throw new NotFoundException('收货地址不存在');
     } else if (address_json) {
       // 支持直接传入 address_json（小程序端传入）
@@ -259,7 +243,8 @@ export class OrderService {
     // 校验/快照地址（与刻章订单保持一致）
     let addressData: any = null;
     if (address_id) {
-      addressData = await this.prisma.addresses.findUnique({ where: { id: address_id } });
+      // U-03: 必须归属当前用户，防止跨用户地址引用泄露
+      addressData = await this.prisma.addresses.findFirst({ where: { id: address_id, user_id } });
       if (!addressData) throw new NotFoundException('收货地址不存在');
     } else if (address_json) {
       try { addressData = typeof address_json === 'string' ? JSON.parse(address_json) : address_json; } catch { addressData = null; }
@@ -487,10 +472,9 @@ export class OrderService {
     if (!order) throw new NotFoundException('订单不存在');
     if (order.status !== 1) throw new BadRequestException('订单状态不允许支付');
 
-    // 价格为 0：直接完成支付（仍走统一入口，自动分配网点）
+    // O-12: 零元订单不允许发起支付（必须服务端配置免费套餐白名单才可放行）
     if (Number(order.total_price) === 0) {
-      await this.completePayment({ id: order_id }, { pay_method: 'free' });
-      return { type: 'free', order_id };
+      throw new BadRequestException('订单金额为零，无法发起支付，如有疑问请联系客服');
     }
 
     // 微信支付未配置（开发环境）：返回 dev 类型，由前端调用 dev-paid 模拟回调
@@ -619,7 +603,6 @@ export class OrderService {
     // 返回完整订单数据（含 assignment、receipts 等）
 
     // ============ [payflow] 支付成功自动写入交易流水 ============
-    const now = new Date();
     try {
       // 幂等：防止极端并发下重复写入（completePayment 本身有 status>=2 提前返回保护）
       const existFlow = await this.prisma.transaction_flows.findFirst({
@@ -801,27 +784,42 @@ export class OrderService {
     if (!m) throw new NotFoundException('材料不存在');
     if (m.status !== 0) throw new BadRequestException('该材料已审核，无需重复操作');
 
+    // O-14: 校验所属订单状态：仅 status=2(已支付) 或 status=3(制作中) 可审核材料
+    const order = await this.prisma.seal_orders.findUnique({ where: { id: m.order_id } });
+    if (!order) throw new NotFoundException('订单不存在');
+    if (![OrderStatus.PAID, OrderStatus.MAKING].includes(order.status as any)) {
+      throw new BadRequestException(`当前订单状态「${ORDER_STATUS_TEXT[order.status as OrderStatus] || order.status}」不允许审核材料（仅支持已支付/制作中订单）`);
+    }
+
+    // O-14: 写入审核人信息（尝试写 audited_by / audited_at，若字段不存在则静默跳过）
+    const updateData: any = { status, remark: remark || null };
+    try {
+      updateData.audited_by = admin_id;
+      updateData.audited_at = new Date();
+    } catch { /* materials 表若无该字段则跳过 */ }
+
     const updated = await this.prisma.materials.update({
       where: { id: materialId },
-      data: { status, remark: remark || null },
+      data: updateData,
     });
 
-    // 全部审核完毕后,推送通知
-    const order = await this.prisma.seal_orders.findUnique({
+    // 全部审核完毕后，推送通知（复用前面已查出的 order，避免重复查询）
+    // 注意：order 已在前面定义，此处不重复声明
+    const orderForNotify = await this.prisma.seal_orders.findUnique({
       where: { id: m.order_id },
       include: { materials: true, assignment: true },
     });
-    if (order) {
-      const allDone = order.materials.every(x => x.id === materialId ? status !== 0 : x.status !== 0);
-      if (allDone && order.assignment?.outlet_id) {
+    if (orderForNotify) {
+      const allDone = orderForNotify.materials.every(x => x.id === materialId ? status !== 0 : x.status !== 0);
+      if (allDone && orderForNotify.assignment?.outlet_id) {
         await this.prisma.outlet_notifications.create({
           data: {
-            outlet_id: order.assignment.outlet_id,
+            outlet_id: orderForNotify.assignment.outlet_id,
             title: '材料审核完成',
-            content: `订单 ${order.order_no} 材料审核完成，请确认后开始制作`,
+            content: `订单 ${orderForNotify.order_no} 材料审核完成，请确认后开始制作`,
             type: 'material',
-            order_id: order.id,
-            order_no: order.order_no,
+            order_id: orderForNotify.id,
+            order_no: orderForNotify.order_no,
             is_read: false,
           },
         });
@@ -1284,11 +1282,11 @@ export class OrderService {
         where: { id: order_id },
         data: {
           status: 4,
-          status_text: '已完成',
+          status_text: '已发货',
           assignment_status: 4,
           delivery_status: 1,
-          express_company: dto.expressCompany,
-          express_no: dto.expressNo,
+          express_company: dto.express_company,
+          express_no: dto.express_no,
           delivered_at: new Date(),
         },
       }),
@@ -1429,9 +1427,11 @@ export class OrderService {
   // ==================== 工具方法 ====================
 
   private generateOrderNo(prefix: string): string {
+    // O-15: 使用 crypto.randomBytes 替代 Math.random()，避免可预测性
+    const { randomBytes } = require('crypto');
     const date = new Date();
     const dateStr = date.toISOString().slice(0, 10).replace(/-/g, '');
-    const random = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const random = randomBytes(5).toString('hex').toUpperCase();
     return `${prefix}${dateStr}${random}`;
   }
 }

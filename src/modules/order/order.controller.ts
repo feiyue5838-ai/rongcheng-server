@@ -4,6 +4,8 @@ import { OrderService } from './order.service';
 import { JwtAuthGuard, AdminJwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { StoreJwtAuthGuard } from '../auth/guards/Outlet-jwt-auth.guard';
 import { Log } from '../../common/decorators/log.decorator';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { RolesGuard } from '../../common/guards/roles.guard';
 
 @ApiTags('订单')
 @Controller('orders')
@@ -107,7 +109,8 @@ export class OrderController {
 
   @Put('admin/materials/:id/audit')
   @Log("订单", "材料", "admin/materials/:id/audit")
-  @UseGuards(AdminJwtAuthGuard)
+  @UseGuards(AdminJwtAuthGuard, RolesGuard)
+  @Roles('superadmin')
   @ApiBearerAuth()
   @ApiOperation({ summary: '管理端：审核材料（通过/驳回）' })
   async auditMaterial(@Param('id') id: string, @Body() body: { status: number; remark?: string }, @Request() req) {
@@ -163,6 +166,10 @@ export class OrderController {
   ) {
     // 修复：移除 dto?.outletId，只允许管理员用 StoreJwtAuthGuard 的 req.user.id
     // 防止网点 A 通过传 outletId 参数代替网点 B 交付
+    // S-04: receipts 必须是非空数组
+    if (!Array.isArray(dto.receipts) || dto.receipts.length === 0) {
+      throw new BadRequestException('交付凭证不能为空');
+    }
     const outletId = req.user.id;
     return this.orderService.deliverOrder(id, dto, outletId);
   }
