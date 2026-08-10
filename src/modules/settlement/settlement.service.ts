@@ -415,6 +415,73 @@ export class SettlementService {
     return results;
   }
 
+  /** 根据周期类型与起算日计算结算周期起止日期（字符串 YYYY-MM-DD） */
+  private calcPeriod(today: Date, cycle: string, startDay: number): { periodStart: string; periodEnd: string } {
+    const fmt = (d: Date) => d.toISOString().slice(0, 10);
+    if (cycle === 'daily') {
+      const y = new Date(today);
+      y.setDate(y.getDate() - 1); // 昨天整天
+      return { periodStart: fmt(y), periodEnd: fmt(y) };
+    }
+    if (cycle === 'weekly') {
+      const offset = (today.getDay() - startDay + 7) % 7; // 距离上一个 startDay 的天数
+      const lastStart = new Date(today);
+      lastStart.setDate(lastStart.getDate() - offset - 7); // 上周的 startDay
+      const lastEnd = new Date(lastStart);
+      lastEnd.setDate(lastEnd.getDate() + 6); // 上周的 startDay+6（即上周日/上周六）
+      return { periodStart: fmt(lastStart), periodEnd: fmt(lastEnd) };
+    }
+    if (cycle === 'monthly') {
+      const y = today.getFullYear();
+      const m = today.getMonth(); // 0-11
+      const firstPrev = new Date(y, m - 1, 1); // 上月1号
+      const lastPrev = new Date(y, m, 0); // 上月最后一天
+      return { periodStart: fmt(firstPrev), periodEnd: fmt(lastPrev) };
+    }
+    return { periodStart: '', periodEnd: '' };
+  }
+
+  /** 判断今天是否应执行该周期的结算 */
+  private shouldRunToday(today: Date, cycle: string, startDay: number): boolean {
+    if (cycle === 'daily') return true;
+    if (cycle === 'weekly') return today.getDay() === startDay;
+    if (cycle === 'monthly') return today.getDate() === 1;
+    return false;
+  }
+
+  /**
+   * 定时任务入口：遍历所有启用且配置了自动结算周期的网点，
+   * 按各自周期（天/周/月 + 周几起算）生成「待确认」结算单。
+   * 不自动打款（status=1 待确认），打款需人工在后台确认。
+   */
+  async runScheduledSettlement() {
+    const outlets: any[] = await this.prisma.outlets.findMany({
+      where: { status: 1, settlement_cycle: { not: null } },
+      select: { id: true, name: true, settlement_cycle: true, settlement_weekly_start_day: true },
+    });
+    const today = new Date();
+    const results: any[] = [];
+    for (const o of outlets) {
+      const cycle = o.settlement_cycle as string;
+      const startDay = o.settlement_weekly_start_day ?? 1;
+      if (!this.shouldRunToday(today, cycle, startDay)) continue;
+      const { periodStart, periodEnd } = this.calcPeriod(today, cycle, startDay);
+      if (!periodStart) continue;
+      try {
+        await this.generateRecord({
+          outletId: o.id,
+          periodStart,
+          periodEnd,
+          userId: 'system-scheduler',
+        });
+        results.push({ outletId: o.id, outletName: o.name, cycle, periodStart, periodEnd, ok: true });
+      } catch (err: any) {
+        results.push({ outletId: o.id, outletName: o.name, cycle, periodStart, periodEnd, ok: false, error: err?.message });
+      }
+    }
+    return results;
+  }
+
   /** 更新结算状态 */
   async updateStatus(id: string, status: number, userId?: string, remark?: string) {
     // F-14: 明确合法的结算状态值，禁止任意数字映射到有效文本

@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { APP_INTERCEPTOR, APP_GUARD } from '@nestjs/core';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { CacheModule } from '@nestjs/cache-manager';
@@ -50,6 +51,7 @@ import { ResponseInterceptor } from './common/interceptors/response.interceptor'
     }),
     // ⚠️ 压测/大并发时临时调高；生产环境可根据实际流量调回 500-1000
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 10000 }]),
+    ScheduleModule.forRoot(),
     PrismaModule,
     AuthModule,
     OrderModule,

@@ -118,7 +118,7 @@ export class StoreService {
   }
 
   /** 新增网点 */
-  async create(data: { name: string; contact: string; phone: string; province?: string; city?: string; district?: string; address?: string; business_license?: string; special_permits?: string[]; businessTypeIds?: string[] }) {
+  async create(data: { name: string; contact: string; phone: string; province?: string; city?: string; district?: string; address?: string; business_license?: string; special_permits?: string[]; businessTypeIds?: string[]; settlementCycle?: string; settlementWeeklyStartDay?: number }) {
     const existing = await this.prisma.outlets.findUnique({ where: { phone: data.phone } });
     if (existing) throw new BadRequestException('该手机号已被注册');
 
@@ -139,6 +139,8 @@ export class StoreService {
         special_permits: JSON.stringify(data.special_permits || []),
         password: hashed,
         status: 1,
+        settlement_cycle: data.settlementCycle ?? null,
+        settlement_weekly_start_day: data.settlementWeeklyStartDay ?? 1,
       },
     });
 
@@ -193,7 +195,7 @@ export class StoreService {
   }
 
   /** 编辑网点 */
-  async update(id: string, data: { name?: string; contact?: string; phone?: string; province?: string; city?: string; district?: string; address?: string; status?: number; business_license?: string; special_permits?: string[]; businessTypeIds?: string[] }) {
+  async update(id: string, data: { name?: string; contact?: string; phone?: string; province?: string; city?: string; district?: string; address?: string; status?: number; business_license?: string; special_permits?: string[]; businessTypeIds?: string[]; settlementCycle?: string; settlementWeeklyStartDay?: number }) {
     if (data.phone) {
       const existing = await this.prisma.outlets.findFirst({ where: { phone: data.phone, NOT: { id } } });
       if (existing) throw new BadRequestException('该手机号已被其他网点使用');
@@ -211,6 +213,8 @@ export class StoreService {
     if (data.status !== undefined) updateData.status = data.status;
     if (data.business_license !== undefined) updateData.business_license = data.business_license || null;
     if (data.special_permits !== undefined) updateData.special_permits = JSON.stringify(data.special_permits || []);
+    if (data.settlementCycle !== undefined) updateData.settlement_cycle = data.settlementCycle; // 允许设为 null 关闭自动结算
+    if (data.settlementWeeklyStartDay !== undefined) updateData.settlement_weekly_start_day = data.settlementWeeklyStartDay;
     if (Object.keys(updateData).length === 0) {
       // 无任何字段变更，直接返回现有数据
       return this.findOne(id);

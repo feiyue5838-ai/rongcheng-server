@@ -280,6 +280,8 @@ model outlets {
   outlet_business_types outlet_business_types[]
   priority_info outlet_priority?
   settlement_records settlement_records[]
+  settlement_cycle           String?  // 自动结算周期: 'daily' | 'weekly' | 'monthly'，null=不自动结算（手动）
+  settlement_weekly_start_day Int?     @default(1) // 周几起算 0-6（0=周日，1=周一），仅 weekly 生效
 }
 
 model personal_doc_categories {
