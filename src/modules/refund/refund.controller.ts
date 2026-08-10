@@ -12,7 +12,8 @@ export class RefundController {
   @Post('apply')
   @ApiOperation({ summary: '发起退款申请' })
   async apply(@Body() body: { orderId: string; amount?: number; reason?: string }, @Request() req: any) {
-    return this.refundService.apply(body.orderId, body.amount, body.reason, req.user?.userId);
+    // F-06: JWT payload 中字段名是 id，而非 userId
+    return this.refundService.apply(body.orderId, body.amount, body.reason, req.user?.id);
   }
 
   @Get('list')
@@ -24,12 +25,14 @@ export class RefundController {
   @Post(':id/review')
   @ApiOperation({ summary: '审核退款申请' })
   async review(@Param('id') id: string, @Body() body: { status: 2 | 4; reviewNote?: string }, @Request() req: any) {
-    return this.refundService.review(id, body.status, body.reviewNote, req.user?.userId);
+    // F-06: JWT payload 中字段名是 id，而非 userId
+    return this.refundService.review(id, body.status, body.reviewNote, req.user?.id);
   }
 
   @Post(':id/execute')
   @ApiOperation({ summary: '执行退款' })
   async execute(@Param('id') id: string, @Request() req: any) {
-    return this.refundService.execute(id, req.user?.userId);
+    // F-06: JWT payload 中字段名是 id，而非 userId
+    return this.refundService.execute(id, req.user?.id);
   }
 }

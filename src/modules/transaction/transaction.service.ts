@@ -1,28 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { generateTransactionNo } from '../../common/utils/sn';
+import { parseDateParam } from '../../common/utils/date';
+import { toCamelDeep } from '../../common/utils/case';
 
-function toCamelDeep(obj: any): any {
-  if (!obj) return obj;
-  if (Array.isArray(obj)) return obj.map(toCamelDeep);
-  // Prisma Decimal 优先（typeof === 'object'）
-  if (typeof obj === 'object' && 's' in obj && 'e' in obj && 'd' in obj) {
-    return Number(obj);
-  }
-  // Date 对象直接转 ISO 字符串（避免被递归成空对象）
-  if (obj instanceof Date) {
-    return obj.toISOString();
-  }
-  if (typeof obj === 'object') {
-    const entries = Object.entries(obj);
-    const camelEntries = entries.map(([k, v]) => {
-      const camelKey = k.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
-      return [camelKey, toCamelDeep(v)];
-    });
-    return Object.fromEntries(camelEntries);
-  }
-  return obj;
-}
+
 
 function formatDate(date) {
   const d = new Date(date);
@@ -109,10 +91,21 @@ export class TransactionService {
     if (params.tradeType) where.trade_type = params.tradeType;
     if (params.status) where.status = params.status;
     if (params.outletId) where.outlet_id = params.outletId;
+    // F-12: 日期参数严格校验，无效格式返回 400
     if (params.startDate || params.endDate) {
       where.created_at = {};
-      if (params.startDate) where.created_at.gte = new Date(params.startDate + ' 00:00:00');
-      if (params.endDate) where.created_at.lte = new Date(params.endDate + ' 23:59:59');
+      if (params.startDate) {
+        const d = parseDateParam(params.startDate, 'startDate');
+        if (d) where.created_at.gte = d;
+      }
+      if (params.endDate) {
+        const d = parseDateParam(params.endDate, 'endDate');
+        if (d) {
+          const end = new Date(d);
+          end.setHours(23, 59, 59, 999);
+          where.created_at.lte = end;
+        }
+      }
     }
     if (params.keyword) {
       where.OR = [
@@ -146,6 +139,10 @@ export class TransactionService {
     startDate?: string;
     endDate?: string;
   }) {
+    // F-12: 日期参数严格校验，无效格式抛 BadRequestException
+    if (params.startDate) parseDateParam(params.startDate, 'startDate');
+    if (params.endDate) parseDateParam(params.endDate, 'endDate');
+
     const today = formatDate(new Date());
     const yesterday = formatDate(new Date(Date.now() - 86400000));
     const firstOfMonth = formatDate(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
@@ -153,8 +150,18 @@ export class TransactionService {
     // 通用日期条件
     const buildDateWhere = (start, end) => {
       const where: any = { status: 'success' };
-      if (start) where.created_at = { ...(where.created_at || {}), gte: new Date(start + ' 00:00:00') };
-      if (end) where.created_at = { ...(where.created_at || {}), lte: new Date(end + ' 23:59:59') };
+      if (start) {
+        const d = parseDateParam(start, 'date');
+        if (d) where.created_at = { ...(where.created_at || {}), gte: d };
+      }
+      if (end) {
+        const d = parseDateParam(end, 'date');
+        if (d) {
+          const e = new Date(d);
+          e.setHours(23, 59, 59, 999);
+          where.created_at = { ...(where.created_at || {}), lte: e };
+        }
+      }
       return where;
     };
 

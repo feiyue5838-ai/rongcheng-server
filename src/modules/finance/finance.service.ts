@@ -23,6 +23,7 @@ export class FinanceService {
 
     const whereRange: any = { created_at: { gte: start, lte: end } };
 
+    // F-08: settleAgg 仅统计已付款(status=3)的结算单，避免「待确认」状态重复计入
     const [incomeAgg, refundAgg, byModule, settleAgg, trend] = await Promise.all([
       this.prisma.transaction_flows.aggregate({
         where: { trade_type: 'income', ...whereRange },
@@ -41,7 +42,7 @@ export class FinanceService {
         GROUP BY module, trade_type, business_type ORDER BY amount DESC
       `,
       this.prisma.settlement_records.aggregate({
-        where: { created_at: { gte: start, lte: end } },
+        where: { created_at: { gte: start, lte: end }, status: 3 }, // F-08: 仅统计已付款结算
         _sum: { outlet_amount: true, platform_amount: true, order_amount: true },
         _count: true,
       }),
@@ -75,7 +76,10 @@ export class FinanceService {
     const pendingCount = pendingAgg._count;
 
     const netIncome = Math.round((income - incomeFee - refund) * 100) / 100; // 资金净流入（未扣分成）
-    const platformNet = Math.round((income - incomeFee - refund - outletSettle - platformSettle) * 100) / 100; // 平台净利
+    // F-08: 平台净利公式修正
+    // 原公式误减了 platformSettle（平台自己的分成额），造成重复扣减
+    // 正确逻辑：收入 - 手续费 - 退款 - 已付网点分成 = 平台净利
+    const platformNet = Math.round((income - incomeFee - refund - outletSettle) * 100) / 100;
 
     const norm = (v: any) => (v === null || v === undefined ? 0 : Number(v));
 

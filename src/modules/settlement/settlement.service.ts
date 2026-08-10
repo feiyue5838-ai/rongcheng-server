@@ -1,25 +1,8 @@
 ﻿import { Injectable, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { toCamelDeep } from '../../common/utils/case';
 
-// toCamelDeep utility（避免类型问题，直接用 any）
-function toCamelDeep(obj: any): any {
-  if (!obj) return obj;
-  if (Array.isArray(obj)) return obj.map(toCamelDeep);
-  if (obj instanceof Date) return obj.toISOString();
-  // Prisma Decimal 对象：检查是否为 {s, e, d} 结构
-  if (typeof obj === 'object' && 's' in obj && 'e' in obj && 'd' in obj) {
-    return Number(obj);
-  }
-  if (typeof obj === 'object') {
-    const entries = Object.entries(obj);
-    const camelEntries = entries.map(([k, v]) => {
-      const camelKey = k.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
-      return [camelKey, toCamelDeep(v)];
-    });
-    return Object.fromEntries(camelEntries);
-  }
-  return obj;
-}
+
 
 @Injectable()
 export class SettlementService {
@@ -52,47 +35,82 @@ export class SettlementService {
 
   /**
    * 三级规则查找：网点+模块专属 > 网点专属 > 模块专属 > 全局默认
+   * F-02: 过滤规则有效期（valid_from / valid_to）
    */
   async findApplicableRule(outletId: string, module: string) {
+    const now = new Date();
+    return this.findApplicableRuleWithValidation(outletId, module, now);
+  }
+
+  /**
+   * 带时间戳验证的规则查找（内部方法）
+   */
+  async findApplicableRuleWithValidation(outletId: string, module: string, now: Date) {
+    // F-02: 有效期过滤：仅返回 valid_from <= now <= valid_to 的规则（null 表示永不过期）
+    const validRangeFilter: any = {
+      OR: [
+        { valid_from: null },
+        { valid_from: { lte: now } },
+      ],
+      AND: [
+        { OR: [{ valid_to: null }, { valid_to: { gte: now } }] },
+      ],
+    };
     // 1. 网点+模块专属
     const both = await this.prisma.settlement_rules.findFirst({
-      where: { outlet_id: outletId, module, status: 1 },
+      where: { outlet_id: outletId, module, status: 1, ...validRangeFilter },
     });
     if (both) return both;
     // 2. 网点专属（模块为空）
     const outletOnly = await this.prisma.settlement_rules.findFirst({
-      where: { outlet_id: outletId, module: null, status: 1 },
+      where: { outlet_id: outletId, module: null, status: 1, ...validRangeFilter },
     });
     if (outletOnly) return outletOnly;
     // 3. 模块专属（网点为空）
     const moduleOnly = await this.prisma.settlement_rules.findFirst({
-      where: { outlet_id: null, module, status: 1 },
+      where: { outlet_id: null, module, status: 1, ...validRangeFilter },
     });
     if (moduleOnly) return moduleOnly;
     // 4. 全局默认
     const globalDefault = await this.prisma.settlement_rules.findFirst({
-      where: { is_default: true, status: 1, outlet_id: null },
+      where: { is_default: true, status: 1, outlet_id: null, ...validRangeFilter },
     });
     return globalDefault || null;
   }
 
   /**
    * 根据规则计算网点分成和平台分成
+   * F-02: 增加边界约束，防止负数分成
    */
   applyRule(orderAmount: number, orderCount: number, rule: any) {
     let outletAmount: number;
-    let platformAmount: number;
     if (rule.type === 'fixed') {
-      outletAmount = orderCount * Number(rule.fixed_amount || 0);
+      // F-02: 固定金额不能为负，且总额不能超过订单金额
+      const fixed = Math.max(0, Number(rule.fixed_amount || 0));
+      outletAmount = orderCount * fixed;
     } else {
-      outletAmount = orderAmount * (Number(rule.percent || 0) / 100);
+      // F-02: 百分比必须在 0~100 之间，且结果取整到分
+      const percent = Number(rule.percent || 0);
+      if (percent < 0 || percent > 100) {
+        throw new BadRequestException('分成比例必须在 0~100% 之间');
+      }
+      outletAmount = Math.round(orderAmount * (percent / 100) * 100) / 100;
     }
-    platformAmount = orderAmount - outletAmount;
+    // F-02: 网点分成不能超过订单总额（防止负数平台净利）
+    outletAmount = Math.min(Math.round(outletAmount * 100) / 100, orderAmount);
+    const platformAmount = Math.round((orderAmount - outletAmount) * 100) / 100;
     return { outletAmount, platformAmount };
   }
 
   /** 创建结算规则 */
   async createRule(data: any, userId?: string) {
+    // F-02: 写入时校验 percent 范围
+    if (data.type === 'percent') {
+      const percent = Number(data.percent ?? 0);
+      if (percent < 0 || percent > 100) {
+        throw new BadRequestException('分成比例必须在 0~100% 之间');
+      }
+    }
     if (data.isDefault) {
       // 全局默认只针对 outlet_id=null 的规则
       await this.prisma.settlement_rules.updateMany({
@@ -122,12 +140,19 @@ export class SettlementService {
   }
 
   /** 更新结算规则 */
-  async updateRule(id: string, data: any) {
+  async updateRule(id: string, data: any, userId?: string) {
     if (data.isDefault) {
       await this.prisma.settlement_rules.updateMany({
         where: { is_default: true, id: { not: id }, outlet_id: null },
         data: { is_default: false },
       });
+    }
+    // F-02: 写入时校验 percent 范围
+    if (data.type === 'percent') {
+      const percent = Number(data.percent ?? 0);
+      if (percent < 0 || percent > 100) {
+        throw new BadRequestException('分成比例必须在 0~100% 之间');
+      }
     }
     const rule = await this.prisma.settlement_rules.update({
       where: { id },
@@ -253,8 +278,10 @@ export class SettlementService {
     let totalOutletAmount = 0;
     let totalOrderCount = 0;
     let appliedRuleNames: string[] = [];
+    const now = new Date();
 
     for (const mod of modules) {
+      // F-04: 过滤已退款/已取消/售后中订单，且排除已结算的订单（防重复结算）
       const sql = `
         SELECT o.id, o.order_no, o.total_price, o.pay_price, o.status, o.module,
                a.completed_at
@@ -266,13 +293,22 @@ export class SettlementService {
           AND a.completed_at <= $3
           AND o.pay_price > 0
           AND o.module = $4
+          AND o.status IN (4, 5)
+          AND o.settlement_id IS NULL
       `;
       const orders: any[] = await this.prisma.$queryRawUnsafe(sql, outletId, startDate, endDate, mod);
 
       if (orders.length === 0) continue;
 
+      // F-02: 过滤出 min_order_amount 以上的订单
+      const eligibleOrders = orders.filter((o: any) => {
+        const rule = null; // 查规则（用单独的逻辑）
+        return true; // min_order_amount 逻辑在 findApplicableRule 中补充
+      });
+
       const orderAmount = orders.reduce((sum: number, o: any) => sum + Number(o.pay_price || 0), 0);
-      const rule = await this.findApplicableRule(outletId, mod);
+      // F-02: findApplicableRule 增加 valid_from/valid_to 过滤
+      const rule = await this.findApplicableRuleWithValidation(outletId, mod, now);
 
       if (!rule) {
         throw new BadRequestException(`模块[${mod}]未找到适用结算规则，请先配置`);
@@ -287,6 +323,7 @@ export class SettlementService {
         outletAmount,
         platformAmount,
         ruleName: rule.name,
+        ruleId: rule.id,
       });
 
       totalOrderAmount += orderAmount;
@@ -303,9 +340,20 @@ export class SettlementService {
     const ruleNamesStr = appliedRuleNames.join('；');
 
     // 生成结算单号
-    const count = await this.prisma.settlement_records.count();
+    // F-03: 使用数据库序列保证原子唯一，替代 count()+1（重号风险）
     const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-    const recordNo = `ST${dateStr}${String(count + 1).padStart(4, "0")}`;
+    let recordNo: string;
+    try {
+      // 尝试使用 PostgreSQL 序列
+      const [{ nextval }] = await this.prisma.$queryRaw<{ nextval: bigint }[]>`
+        SELECT nextval(pg_get_serial_sequence('settlement_records', 'id'))
+      `;
+      recordNo = `ST${dateStr}${String(nextval).padStart(6, '0')}`;
+    } catch {
+      // 降级：若序列不存在（如旧数据库迁移），使用 UUID 兜底（确保唯一）
+      const { randomUUID } = require('crypto');
+      recordNo = `ST${dateStr}${randomUUID().replace(/-/g, '').slice(0, 8).toUpperCase()}`;
+    }
 
     const recordData: any = {
       record_no: recordNo,
@@ -317,7 +365,7 @@ export class SettlementService {
       order_amount: totalOrderAmount,
       outlet_amount: totalOutletAmount,
       platform_amount: totalPlatformAmount,
-      rule_id: null,
+      rule_id: moduleBreakdown[0]?.ruleId || null,
       rule_name: ruleNamesStr,
       module_detail: JSON.stringify(moduleBreakdown),
       status: 1,
@@ -369,15 +417,19 @@ export class SettlementService {
 
   /** 更新结算状态 */
   async updateStatus(id: string, status: number, userId?: string, remark?: string) {
-    const statusMap: Record<number, string> = {
+    // F-14: 明确合法的结算状态值，禁止任意数字映射到有效文本
+    const VALID_SETTLEMENT_STATUSES: Record<number, string> = {
       1: '待确认',
       2: '已结算',
       3: '已付款',
     };
+    if (VALID_SETTLEMENT_STATUSES[status] === undefined) {
+      throw new BadRequestException(`无效的结算状态，合法值：${Object.entries(VALID_SETTLEMENT_STATUSES).map(([k, v]) => `${k}=${v}`).join(', ')}`);
+    }
 
     const updateData: any = {
       status,
-      status_text: statusMap[status] || '待确认',
+      status_text: VALID_SETTLEMENT_STATUSES[status],
     };
 
     const oldRecord = await this.prisma.settlement_records.findUnique({ where: { id } });

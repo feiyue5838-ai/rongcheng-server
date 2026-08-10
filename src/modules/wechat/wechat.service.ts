@@ -25,12 +25,13 @@ export class WechatService {
   ) {
     this.appId = this.config.get<string>('WECHAT_APP_ID') || '';
     this.appSecret = this.config.get<string>('WECHAT_APP_SECRET') || '';
-    this.mchId = this.config.get<string>('WECHAT_MCH_ID') || '';
-    this.mchKey = this.config.get<string>('WECHAT_MCH_KEY') || '';
-    this.privateKey = this.config.get<string>('WECHAT_PRIVATE_KEY') || '';
-    this.certificate = this.config.get<string>('WECHAT_CERTIFICATE') || '';
-    this.apiV3Key = this.config.get<string>('WECHAT_API_V3_KEY') || '';
-    this.serialNo = this.config.get<string>('WECHAT_MCH_SERIAL_NO') || '';
+    // W-05/W-04: 修正 env 变量名（.env 中使用 WECHAT_PAY_* 前缀）
+    this.mchId = this.config.get<string>('WECHAT_PAY_MCHID') || '';
+    this.mchKey = this.config.get<string>('WECHAT_PAY_APIV3_KEY') || '';
+    this.privateKey = this.config.get<string>('WECHAT_PAY_PRIVATE_KEY') || '';
+    this.certificate = this.config.get<string>('WECHAT_PAY_CERTIFICATE') || '';
+    this.apiV3Key = this.config.get<string>('WECHAT_PAY_APIV3_KEY') || '';
+    this.serialNo = this.config.get<string>('WECHAT_PAY_SERIAL_NO') || '';
   }
 
   // ==================== 小程序登录 ====================
@@ -199,7 +200,11 @@ export class WechatService {
     refundFee: number;  // 单位：分
     reason?: string;
   }): Promise<{ refundId: string; status: string }> {
+    // W-03: 退款未配置时 fail-closed，生产环境直接报错
     if (!this.isRefundConfigured()) {
+      if (process.env.NODE_ENV === 'production' || process.env.ALLOW_MOCK_PAY !== 'true') {
+        throw new BadRequestException('退款通道未配置（需配置 WECHAT_API_V3_KEY / WECHAT_PRIVATE_KEY / WECHAT_MCH_SERIAL_NO）');
+      }
       console.warn('[WechatService] 微信退款未配置，使用模拟退款结果（开发环境）');
       return { refundId: `mock_refund_${Date.now()}`, status: 'SUCCESS' };
     }
@@ -363,32 +368,22 @@ export class WechatService {
       let refundId = '';
       let refundFee = 0;
 
-      if (notifyData?.plaintext) {
-        // 开发/测试模式：前端或测试脚本直接传明文
-        const p = notifyData.plaintext;
-        refundStatus = p.refund_status;
-        outTradeNo = p.out_trade_no;
-        outRefundNo = p.out_refund_no || '';
-        refundId = p.refund_id || '';
-        refundFee = Number(p.refund || p.refund_fee || 0);
-      } else if (notifyData?.resource?.ciphertext) {
-        // 生产模式：用 apiV3Key 解密
-        if (!this.isRefundConfigured()) return null;
-        const decrypted = this._decryptRefundResource(notifyData.resource);
-        if (!decrypted) return null;
-        refundStatus = decrypted.refund_status;
-        outTradeNo = decrypted.out_trade_no;
-        outRefundNo = decrypted.out_refund_no || '';
-        refundId = decrypted.refund_id || '';
-        refundFee = Number(decrypted.refund || 0);
-      } else {
-        // 兜底：V2 简化字段
-        refundStatus = notifyData?.refund_status;
-        outTradeNo = notifyData?.out_trade_no;
-        outRefundNo = notifyData?.out_refund_no || '';
-        refundId = notifyData?.refund_id || '';
-        refundFee = Number(notifyData?.refund_fee || 0);
+      // W-02: 仅接受 resource.ciphertext 路径（V3 格式），删除 plaintext 明文注入和 V2 兜底
+      if (!notifyData?.resource?.ciphertext) {
+        console.warn('[WechatService] 退款回调仅接受 V3 ciphertext 格式，拒绝明文/旧版格式');
+        return null;
       }
+      if (!this.isRefundConfigured()) {
+        console.error('[WechatService] 退款未配置，拒绝处理回调');
+        return null;
+      }
+      const decrypted = this._decryptRefundResource(notifyData.resource);
+      if (!decrypted) return null;
+      refundStatus = decrypted.refund_status;
+      outTradeNo = decrypted.out_trade_no;
+      outRefundNo = decrypted.out_refund_no || '';
+      refundId = decrypted.refund_id || '';
+      refundFee = Number(decrypted.refund || 0);
 
       if (!outTradeNo) return null;
 

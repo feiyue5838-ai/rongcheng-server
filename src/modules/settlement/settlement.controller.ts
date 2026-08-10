@@ -8,6 +8,7 @@ import {
   Query,
   Param,
   UseGuards,
+  Request,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { SettlementService } from './settlement.service';
@@ -38,8 +39,9 @@ export class SettlementController {
 
   @Post('rules')
   @ApiOperation({ summary: '创建结算规则' })
-  async createRule(@Body() body: any, @Query('userId') userId?: string) {
-    const rule = await this.settlementService.createRule(body, userId);
+  async createRule(@Body() body: any, @Request() req: any) {
+    // F-05: 操作人从 JWT 取，不用前端 query 参数
+    const rule = await this.settlementService.createRule(body, req.user?.id);
     return { code: 0, data: rule };
   }
 
@@ -48,9 +50,10 @@ export class SettlementController {
   async updateRule(
     @Param('id') id: string,
     @Body() body: any,
-    @Query('userId') userId?: string,
+    @Request() req: any,
   ) {
-    const rule = await this.settlementService.updateRule(id, body);
+    // F-05: 操作人从 JWT 取
+    const rule = await this.settlementService.updateRule(id, body, req.user?.id);
     return { code: 0, data: rule };
   }
 
@@ -110,23 +113,22 @@ export class SettlementController {
 
   @Post('records')
   @ApiOperation({ summary: '生成本周期结算记录' })
-  async generateRecord(@Body() body: any, @Query('userId') userId?: string) {
+  async generateRecord(@Body() body: any, @Request() req: any) {
+    // F-05: 操作人从 JWT 取
     const record = await this.settlementService.generateRecord({
       ...body,
-      userId,
+      userId: req.user?.id,
     });
     return { code: 0, data: record };
   }
 
   @Post('records/auto-generate')
   @ApiOperation({ summary: '批量自动生成结算记录' })
-  async autoGenerateRecords(
-    @Body() body: any,
-    @Query('userId') userId?: string,
-  ) {
+  async autoGenerateRecords(@Body() body: any, @Request() req: any) {
+    // F-05: 操作人从 JWT 取
     const results = await this.settlementService.autoGenerateRecords({
       ...body,
-      userId,
+      userId: req.user?.id,
     });
     return { code: 0, data: results };
   }
@@ -136,12 +138,13 @@ export class SettlementController {
   async updateStatus(
     @Param('id') id: string,
     @Body() body: { status: number; remark?: string },
-    @Query('userId') userId?: string,
+    @Request() req: any,
   ) {
+    // F-05: 操作人从 JWT 取
     const record = await this.settlementService.updateStatus(
       id,
       body.status,
-      userId,
+      req.user?.id,
       body.remark,
     );
     return { code: 0, data: record };

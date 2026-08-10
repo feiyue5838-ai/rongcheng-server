@@ -73,17 +73,19 @@ export class RefundService {
     if (!rec) throw new NotFoundException('退款记录不存在');
     if (rec.status !== 2) throw new BadRequestException('仅已通过状态可执行退款');
     // 调 orderService.refundOrder 发起微信退款
-    const result: any = await this.orderService.refundOrder(rec.order_id, operatorId, Number(rec.amount), rec.reason || '审核通过退款');
+    await this.orderService.refundOrder(rec.order_id, operatorId, Number(rec.amount), rec.reason || '审核通过退款');
+    // F-10: 退款执行后先置「退款中」(status=2)，由微信退款回调 handleRefundNotify 统一推进到「已退款」(status=3)
+    // 这样台账与订单状态保持一致
     const dt = new Date();
     const updated = await this.prisma.refund_records.update({
       where: { id },
       data: {
-        status: 3,
-        status_text: '已退款',
+        status: 2,
+        status_text: '退款中',
         refunded_at: dt,
         updated_at: dt,
       },
     });
-    return { id: updated.id, status: updated.status, orderResult: result };
+    return { id: updated.id, status: updated.status };
   }
 }
