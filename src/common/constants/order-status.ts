@@ -46,12 +46,12 @@ export const TERMINAL_STATUSES = [
 
 /** 合法状态流转表 */
 export const VALID_STATUS_TRANSITIONS: Record<number, number[]> = {
-  [OrderStatus.PENDING_PAYMENT]: [OrderStatus.PAID, OrderStatus.COMPLETED, OrderStatus.CANCELLED],
+  [OrderStatus.PENDING_PAYMENT]: [OrderStatus.PAID, OrderStatus.CANCELLED],
   [OrderStatus.PAID]: [OrderStatus.IN_PRODUCTION, OrderStatus.SHIPPED, OrderStatus.COMPLETED, OrderStatus.AFTER_SALES, OrderStatus.REFUNDING],
   [OrderStatus.IN_PRODUCTION]: [OrderStatus.SHIPPED, OrderStatus.COMPLETED, OrderStatus.AFTER_SALES, OrderStatus.REFUNDING],
   [OrderStatus.SHIPPED]: [OrderStatus.COMPLETED, OrderStatus.AFTER_SALES, OrderStatus.REFUNDING],
   [OrderStatus.AFTER_SALES]: [OrderStatus.COMPLETED, OrderStatus.REFUNDING],
-  [OrderStatus.REFUNDING]: [OrderStatus.REFUNDED],
+  [OrderStatus.REFUNDING]: [OrderStatus.REFUNDED, OrderStatus.PAID, OrderStatus.AFTER_SALES, OrderStatus.IN_PRODUCTION, OrderStatus.SHIPPED],
   [OrderStatus.COMPLETED]: [], // 终态
   [OrderStatus.CANCELLED]: [], // 终态
   [OrderStatus.REFUNDED]: [],  // 终态

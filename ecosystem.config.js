@@ -13,6 +13,7 @@ module.exports = {
     env: {
       NODE_ENV: 'production',
       PORT: 3001,
+      TZ: 'Asia/Shanghai',
     },
     env_production: {
       NODE_ENV: 'production',
