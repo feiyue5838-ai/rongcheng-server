@@ -3,24 +3,8 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { PrismaService } from '../../prisma/prisma.service';
 import * as bcrypt from 'bcryptjs';
 import { REGION_MAP, provinceToRegion } from '../../common/region';
-
-function snakeToCamel(key: string): string {
-  return key.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
-}
-function toCamelDeep(obj: any): any {
-  if (obj instanceof Date) return obj;
-  if (Array.isArray(obj)) return obj.map(toCamelDeep);
-  if (obj !== null && typeof obj === 'object') {
-    if (typeof obj.toString === 'function' && !('getTime' in obj)) {
-      const str = obj.toString();
-      if (/^\d+(\.\d+)?$/.test(str)) return Number(str);
-    }
-    return Object.fromEntries(
-      Object.entries(obj).map(([k, v]) => [snakeToCamel(k), toCamelDeep(v)])
-    );
-  }
-  return obj;
-}
+import { randomBytes } from 'crypto';
+import { toCamelDeep } from '../../common/utils/case';
 
 @Injectable()
 export class StoreService {
@@ -31,6 +15,11 @@ export class StoreService {
   /** 绑定网点负责人微信 openid（用于订阅消息通知） */
   async bindOpenid(outlet_id: string, openid: string) {
     if (!openid) throw new BadRequestException('openid 不能为空');
+    // S-05: 唯一性校验 — 同一 openid 不能绑定到其他网点
+    const existing = await this.prisma.outlets.findFirst({
+      where: { outlet_openid: openid, NOT: { id: outlet_id } },
+    });
+    if (existing) throw new BadRequestException('该微信号已绑定其他网点，请先解绑后再试');
     await this.prisma.outlets.update({
       where: { id: outlet_id },
       data: { outlet_openid: openid },
@@ -134,7 +123,7 @@ export class StoreService {
     const existing = await this.prisma.outlets.findUnique({ where: { phone: data.phone } });
     if (existing) throw new BadRequestException('该手机号已被注册');
 
-    const initPassword = Math.random().toString().slice(2, 10);
+    const initPassword = randomBytes(6).toString('base64url').slice(0, 12);
     const hashed = await bcrypt.hash(initPassword, 10);
 
     const { businessTypeIds, ..._unused } = data;
@@ -211,18 +200,22 @@ export class StoreService {
       if (existing) throw new BadRequestException('该手机号已被其他网点使用');
     }
     const { businessTypeIds, ..._unused } = data;
-    const updateData: any = {
-      name: data.name,
-      contact: data.contact,
-      phone: data.phone,
-      province: data.province,
-      city: data.city,
-      district: data.district,
-      address: data.address,
-      status: data.status,
-      business_license: data.business_license || null,
-      special_permits: JSON.stringify(data.special_permits || []),
-    };
+    // S-09: 修复静默清空字段 — 只在字段显式传入时才更新，避免未提交字段被覆盖
+    const updateData: any = {};
+    if (data.name !== undefined) updateData.name = data.name;
+    if (data.contact !== undefined) updateData.contact = data.contact;
+    if (data.phone !== undefined) updateData.phone = data.phone;
+    if (data.province !== undefined) updateData.province = data.province;
+    if (data.city !== undefined) updateData.city = data.city;
+    if (data.district !== undefined) updateData.district = data.district;
+    if (data.address !== undefined) updateData.address = data.address;
+    if (data.status !== undefined) updateData.status = data.status;
+    if (data.business_license !== undefined) updateData.business_license = data.business_license || null;
+    if (data.special_permits !== undefined) updateData.special_permits = JSON.stringify(data.special_permits || []);
+    if (Object.keys(updateData).length === 0) {
+      // 无任何字段变更，直接返回现有数据
+      return this.findOne(id);
+    }
     const Outlet = await this.prisma.outlets.update({ where: { id }, data: updateData });
 
     // 更新业务类型关联
@@ -242,15 +235,19 @@ export class StoreService {
     return { ...Outlet, password: undefined };
   }
 
-  /** 删除网点 */
+  /** 删除网点（S-10: 改为软删除，防止历史数据外键断裂） */
   async remove(id: string) {
     const assignment = await this.prisma.order_assignments.findFirst({
       where: { outlet_id: id, status: { in: [1, 2] } },
     });
     if (assignment) throw new BadRequestException('该网点存在未完成的订单，无法删除');
 
-    await this.prisma.outlets.delete({ where: { id } });
-    return { message: '删除成功' };
+    // S-10: 软删除（status=-1），保留历史数据外键完整性
+    await this.prisma.outlets.update({
+      where: { id },
+      data: { status: -1 },
+    });
+    return { message: '删除成功（已软删除）' };
   }
 
   /** 重置网点密码 */
@@ -258,10 +255,13 @@ export class StoreService {
     const Outlet = await this.prisma.outlets.findUnique({ where: { id } });
     if (!Outlet) throw new NotFoundException('网点不存在');
 
-    const newPassword = Math.random().toString().slice(2, 10);
+    // S-07: 使用 crypto.randomBytes 替代 Math.random()，12位强随机
+    const newPassword = randomBytes(6).toString('base64url').slice(0, 12);
     const hashed = await bcrypt.hash(newPassword, 10);
     await this.prisma.outlets.update({ where: { id }, data: { password: hashed } });
 
+    // S-08: 明文密码通过返回值返回给管理员后，由管理员转告网点；
+    // 拦截器会对此返回值做敏感字段脱敏（见 operation-log.interceptor.ts）
     return { password: newPassword };
   }
 
@@ -400,10 +400,11 @@ export class StoreService {
 
   /** 网点统计 */
   async getStoreStats(outlet_id: string) {
+    // S-11: 统计口径统一：completed = status=4（网点完成交付，即 assignment.status=4）
     const [pending, processing, completed, todayTotal] = await Promise.all([
       this.prisma.order_assignments.count({ where: { outlet_id, status: 1 } }),
       this.prisma.order_assignments.count({ where: { outlet_id, status: 2 } }),
-      this.prisma.order_assignments.count({ where: { outlet_id, status: 3 } }),
+      this.prisma.order_assignments.count({ where: { outlet_id, status: 4 } }),
       this.prisma.order_assignments.count({
         where: {
           outlet_id,
@@ -436,7 +437,8 @@ export class StoreService {
       if (!stat[g.outlet_id]) stat[g.outlet_id] = { pending: 0, processing: 0, completed: 0, today: 0 };
       if (g.status === 1) stat[g.outlet_id].pending += g._count._all;
       else if (g.status === 2) stat[g.outlet_id].processing += g._count._all;
-      else if (g.status === 3) stat[g.outlet_id].completed += g._count._all;
+      // S-11: completed 统计 assignment.status=4（网点完成交付），而非 status=3
+      else if (g.status === 4) stat[g.outlet_id].completed += g._count._all;
     }
     for (const t of todayRows) {
       if (stat[t.outlet_id]) stat[t.outlet_id].today += 1;
@@ -532,7 +534,7 @@ export class StoreService {
     // 检查订单状态
     const order = await this.prisma.seal_orders.findUnique({
       where: { id: order_id },
-      select: { status: true, module: true },
+      select: { status: true, module: true, remark: true },
     });
     if (!order) {
       throw new NotFoundException('订单不存在');
@@ -541,10 +543,24 @@ export class StoreService {
       throw new BadRequestException('只能完成制作中的订单');
     }
 
+    // S-03: remark 字段被系统用作 JSON 元数据容器（退款/售后/记账等），
+    // 网点备注不能直接覆盖，只能合并到 outlet_remark 字段
+    // 为避免 DB 变更，此处将网点提交的 remark 追加到现有 remark 中
+    let finalRemark = order.remark || '';
+    if (remark) {
+      try {
+        const obj = JSON.parse(order.remark || '{}');
+        obj.outletRemark = remark;
+        finalRemark = JSON.stringify(obj);
+      } catch {
+        // remark 不是 JSON：追加文本（保留原内容）
+        finalRemark = (order.remark || '') + ' [网点:' + remark + ']';
+      }
+    }
     // 状态保持 3，但标记为制作完成（等待发货或上传回执）
     await this.prisma.seal_orders.update({
       where: { id: order_id },
-      data: { status_text: '制作完成待发货', remark },
+      data: { status_text: '制作完成待发货', remark: finalRemark },
     });
 
     // 同步更新分配记录状态（管理后台按 assignment 统计，避免状态不一致）
@@ -557,7 +573,7 @@ export class StoreService {
   }
 
   /** 网点发货 */
-  async shipOrder(outlet_id: string, order_id: string, trackingNo?: string, remark?: string) {
+  async shipOrder(outlet_id: string, order_id: string, expressCompany: string | undefined, trackingNo: string | undefined, remark?: string) {
     // 验证订单归属
     const assignment = await this.prisma.order_assignments.findFirst({
       where: { order_id, outlet_id },
@@ -569,23 +585,46 @@ export class StoreService {
     // 检查订单状态
     const order = await this.prisma.seal_orders.findUnique({
       where: { id: order_id },
-      select: { status: true, module: true },
+      select: { status: true, module: true, remark: true },
     });
     if (!order) {
       throw new NotFoundException('订单不存在');
     }
-    if (order.status !== 3 && order.status !== 3.5) {
-      throw new BadRequestException('只能发制作中或制作完成的订单');
+    // S-06: 移除 status !== 3.5 的死条件（3.5 状态从未存在）
+    if (order.status !== 3) {
+      throw new BadRequestException('只能发制作中的订单');
     }
 
-    // 更新订单状态为已发货
+    // S-02: 强制要求物流单号
+    if (!trackingNo?.trim()) {
+      throw new BadRequestException('请填写物流单号');
+    }
+    if (!expressCompany?.trim()) {
+      throw new BadRequestException('请选择快递公司');
+    }
+
+    // S-03: remark 合并（同 completeOrder 逻辑）
+    let finalRemark = order.remark || '';
+    if (remark) {
+      try {
+        const obj = JSON.parse(order.remark || '{}');
+        obj.outletRemark = remark;
+        finalRemark = JSON.stringify(obj);
+      } catch {
+        finalRemark = (order.remark || '') + ' [网点:' + remark + ']';
+      }
+    }
+
+    // S-02: 写入 express_company + express_no + delivery_status
     await this.prisma.seal_orders.update({
       where: { id: order_id },
       data: {
         status: 4,
         status_text: '已发货',
-        express_no: trackingNo,
-        remark,
+        express_company: expressCompany?.trim(),
+        express_no: trackingNo?.trim(),
+        delivery_status: 1,
+        remark: finalRemark,
       },
     });
 

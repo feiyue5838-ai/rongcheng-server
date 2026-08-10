@@ -160,8 +160,19 @@ export class StoreController {
   @UseGuards(StoreJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '网点发货' })
-  async shipOrder(@Param('id') order_id: string, @Body() body: { trackingNo?: string; remark?: string }, @Request() req: any) {
-    return this.storeService.shipOrder(req.user.id, order_id, body.trackingNo, body.remark);
+  async shipOrder(@Param('id') order_id: string, @Body() body: { expressCompany?: string; trackingNo?: string; remark?: string }, @Request() req: any) {
+    // S-02: 强制传入快递公司和单号（之前 controller 签名就缺了 expressCompany）
+    return this.storeService.shipOrder(req.user.id, order_id, body.expressCompany, body.trackingNo, body.remark);
+  }
+
+  // S-10: 网点自助改密（之前无路由暴露 changePassword）
+  @Put('me/password')
+  @Log("网点", "改密", "me/password")
+  @UseGuards(StoreJwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '网点端：修改登录密码' })
+  async changePassword(@Body() body: { oldPassword: string; newPassword: string }, @Request() req: any) {
+    return this.storeService.changePassword(req.user.id, body.oldPassword, body.newPassword);
   }
 
   @Put('me/bind-openid')
