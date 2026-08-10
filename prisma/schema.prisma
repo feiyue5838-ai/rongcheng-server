@@ -213,8 +213,9 @@ model order_items {
   image         String?
   created_at    DateTime       @default(now())
   seal_orders   seal_orders    @relation(fields: [order_id], references: [id], onDelete: Cascade)
-  package seal_packages? @relation(fields: [package_id], references: [id])
-  seal         seals?         @relation(fields: [seal_id], references: [id])
+  // 注意：seal_id / package_id 仅作业务标识（前端硬编码 s1-s47 / p1-p7 等），
+  // 不关联 seals / seal_packages 表（后者 id 为 uuid，与前端业务 id 不匹配）。
+  // 故去掉外键约束，避免下单时外键校验失败导致 500。
 }
 
 model outlet_notifications {
@@ -431,7 +432,6 @@ model seal_packages {
   updated_at          DateTime @updatedAt
   images              String[]
   region_prices       Json?
-  order_items         order_items[]
   seal_scene_packages seal_scene_packages[]
 }
 
@@ -485,7 +485,6 @@ model seals {
   sort             Int                @default(0)
   created_at       DateTime           @default(now())
   updated_at       DateTime @updatedAt
-  order_items      order_items[]
   seal_scene_seals seal_scene_seals[]
   seal_categories  seal_categories?   @relation(fields: [category_id], references: [id])
 }

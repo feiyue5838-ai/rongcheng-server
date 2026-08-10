@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Inject, forwardRef } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { SEAL_PRICE_MAP, getSealPrice } from './seal-prices.constant';
 import { WechatService } from '../wechat/wechat.service';
 import { DispatchService } from '../dispatch/dispatch.service';
 import { generateTransactionNo } from '../../common/utils/sn';
@@ -78,14 +79,17 @@ export class OrderService {
     } = dto;
 
     // ── 边界校验 ───────────────────────────────
-    // B1: 价格边界（items.price 必须为正数）
+    // B1: 明细校验 —— 不再信任前端传入的 price，只校验每项必须有合法的印章/套餐标识
     if (!items || items.length === 0) {
       throw new BadRequestException('订单明细不能为空');
     }
     for (const item of items) {
-      const price = Number(item.price);
-      if (isNaN(price) || price <= 0) {
-        throw new BadRequestException('商品价格必须大于0');
+      const priceKey = item.package_id || item.seal_id;
+      if (!priceKey) {
+        throw new BadRequestException('订单明细缺少印章或套餐标识');
+      }
+      if (getSealPrice(priceKey) === null) {
+        throw new BadRequestException('包含无效的印章或套餐：' + priceKey);
       }
     }
     // B10: 必填字段
@@ -122,21 +126,27 @@ export class OrderService {
       if (defaultAddr) addressData = defaultAddr;
     }
 
-    // 2. 计算总价
+    // 2. 计算总价（服务端计价，忽略前端传入的 price，防止抓包篡改金额）
     let total_price = 0;
     const order_items: any[] = [];
 
-    // 从 items（小程序端传入的订单明细）计算总价
+    // 从 items 按 seal_id / package_id 查服务端价格表重算总价
     if (items && items.length > 0) {
       for (const item of items) {
-        total_price += Number(item.price) * (item.quantity || 1);
+        const priceKey = item.package_id || item.seal_id;
+        const serverPrice = getSealPrice(priceKey);
+        if (serverPrice === null) {
+          throw new BadRequestException('无效的印章或套餐：' + priceKey);
+        }
+        const qty = Number(item.quantity) || 1;
+        total_price += serverPrice * qty;
         order_items.push({
           item_type: item.item_type || 'seal',
           seal_id: item.seal_id || null,
           package_id: item.package_id || null,
           name: item.name,
-          price: item.price,
-          quantity: item.quantity || 1,
+          price: serverPrice, // 用服务端价格，覆盖前端传入 price
+          quantity: qty,
           image: item.image || null,
         });
       }

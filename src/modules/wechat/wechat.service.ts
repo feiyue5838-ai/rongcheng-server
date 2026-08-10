@@ -329,9 +329,6 @@ export class WechatService {
     const { out_trade_no, transaction_id } = notifyData || {};
     if (!out_trade_no) return null;
     return { order_no: out_trade_no, transaction_id: transaction_id || '' };
-    const { out_trade_no, transaction_id } = notifyData || {};
-    if (!out_trade_no) return null;
-    return { order_no: out_trade_no, transaction_id: transaction_id };
   }
 
   /**
