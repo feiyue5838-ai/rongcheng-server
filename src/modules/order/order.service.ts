@@ -404,6 +404,39 @@ export class OrderService {
     return JSON.stringify(obj);
   }
 
+  /**
+   * 用户申请退款（已支付订单）
+   * 将订单置为「售后中」(status=7)，由管理员在售后模块审核后发起微信退款。
+   * 仅限 已支付(2)/制作中(3)/已发货(4)；与状态机 VALID_STATUS_TRANSITIONS 一致。
+   * 注意：此处写入 remark.refundRequest，不触碰 remark.refund 数组（refundOrder 用其累计已退金额）。
+   */
+  async requestRefund(order_id: string, user_id: string, reason?: string) {
+    const order = await this.prisma.seal_orders.findFirst({ where: { id: order_id, user_id } });
+    if (!order) throw new NotFoundException('订单不存在');
+    const allowed = [OrderStatus.PAID, OrderStatus.IN_PRODUCTION, OrderStatus.SHIPPED];
+    if (!allowed.includes(order.status as any)) {
+      throw new BadRequestException('当前订单状态不可申请退款');
+    }
+    return this.prisma.seal_orders.update({
+      where: { id: order_id },
+      data: {
+        status: OrderStatus.AFTER_SALES,
+        status_text: ORDER_STATUS_TEXT[OrderStatus.AFTER_SALES],
+        remark: this.appendRefundRequest(order.remark, {
+          reason,
+          requestedAt: new Date().toISOString(),
+        }),
+      },
+    });
+  }
+
+  private appendRefundRequest(remark: string | null, data: any): string {
+    let obj: any = {};
+    try { obj = JSON.parse(remark || '{}'); } catch { obj = {}; }
+    obj.refundRequest = data;
+    return JSON.stringify(obj);
+  }
+
   // ==================== 订单列表（用户端） ====================
 
   async getMyOrders(user_id: string, query: any) {
