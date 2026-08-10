@@ -3,6 +3,15 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 
+/** U-07: 允许的 MIME 类型与对应服务端扩展名（防止客户端伪造扩展名） */
+const MIME_EXT_MAP: Record<string, string> = {
+  'image/jpeg': '.jpg',
+  'image/png': '.png',
+  'image/gif': '.gif',
+  'image/webp': '.webp',
+  'application/pdf': '.pdf',
+};
+
 @Injectable()
 export class UploadService {
   private uploadDir: string;
@@ -41,7 +50,8 @@ export class UploadService {
     }
 
     // 生成唯一文件名
-    const ext = path.extname(file.originalname);
+    // U-07: 扩展名由服务端 MIME 检测决定，而非客户端原始文件名
+    const ext = MIME_EXT_MAP[file.mimetype] || '.bin';
     const filename = `${uuidv4()}${ext}`;
     const filePath = path.join(targetDir, filename);
 

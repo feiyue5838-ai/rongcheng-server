@@ -20,7 +20,9 @@ export class AdminController {
   }
 
   @Get('admins')
-  @ApiOperation({ summary: '管理员列表' })
+  @UseGuards(RolesGuard)
+  @Roles('superadmin')
+  @ApiOperation({ summary: '管理员列表（仅 superadmin）' })
   async getAdmins(@Query() query: any) {
     return this.adminService.getAdmins(query);
   }
@@ -39,8 +41,9 @@ export class AdminController {
   @Roles('superadmin')
   @ApiOperation({ summary: '更新管理员（仅 superadmin）' })
   @Log('管理员', '更新管理员', '管理员 {id}')
-  async updateAdmin(@Param('id') id: string, @Body() dto: any) {
-    return this.adminService.updateAdmin(id, dto);
+  async updateAdmin(@Param('id') id: string, @Body() dto: any, @Request() req: any) {
+    // U-06: 传入当前管理员 ID，用于校验不能修改自己
+    return this.adminService.updateAdmin(id, dto, req.user?.id);
   }
 
   @Delete('admins/:id')
@@ -48,12 +51,14 @@ export class AdminController {
   @Roles('superadmin')
   @ApiOperation({ summary: '删除管理员（仅 superadmin）' })
   @Log('管理员', '删除管理员', '管理员 {id}')
-  async deleteAdmin(@Param('id') id: string) {
-    return this.adminService.deleteAdmin(id);
+  async deleteAdmin(@Param('id') id: string, @Request() req: any) {
+    return this.adminService.deleteAdmin(id, req.user?.id);
   }
 
   @Get('logs')
-  @ApiOperation({ summary: '操作日志' })
+  @UseGuards(RolesGuard)
+  @Roles('superadmin')
+  @ApiOperation({ summary: '操作日志（仅 superadmin）' })
   async getLogs(@Query() query: any) {
     return this.adminService.getLogs(query);
   }

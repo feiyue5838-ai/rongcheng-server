@@ -1,19 +1,7 @@
 // @ts-nocheck
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-
-function snakeToCamel(s: string) {
-  return s.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
-}
-function toCamelDeep(obj: any): any {
-  if (obj === null || obj === undefined) return obj;
-  if (Array.isArray(obj)) return obj.map(toCamelDeep);
-  if (obj instanceof Date) return obj;
-  if (typeof obj === 'object') return Object.fromEntries(
-    Object.entries(obj).map(([k, v]) => [snakeToCamel(k), toCamelDeep(v)]),
-  );
-  return obj;
-}
+import { toCamelDeep } from '../../common/utils/case';
 
 @Injectable()
 export class UserService {
@@ -28,7 +16,17 @@ export class UserService {
 
   /** 更新用户信息 */
   async updateProfile(user_id: string, dto: any) {
-    return this.prisma.users.update({ where: { id: user_id }, data: dto });
+    // U-02: 白名单过滤，防止 Mass Assignment
+    const updateData: any = {};
+    if (dto.nickname !== undefined) updateData.nickname = dto.nickname;
+    if (dto.realname !== undefined) updateData.realname = dto.realname;
+    if (dto.phone !== undefined) updateData.phone = dto.phone;
+    if (dto.avatar !== undefined) updateData.avatar = dto.avatar;
+    // 禁止客户端修改：id / openid / status / created_at 等敏感字段
+    if (Object.keys(updateData).length === 0) {
+      return this.prisma.users.findUnique({ where: { id: user_id } });
+    }
+    return this.prisma.users.update({ where: { id: user_id }, data: updateData });
   }
 
   /** 获取收货地址列表 */
@@ -59,6 +57,9 @@ export class UserService {
 
   /** 更新收货地址 */
   async updateAddress(user_id: string, address_id: string, dto: any) {
+    // U-01: 必须校验 address_id 归属，防止 IDOR
+    const count = await this.prisma.addresses.count({ where: { id: address_id, user_id } });
+    if (count === 0) throw new NotFoundException('地址不存在');
     const data = this._normalizeAddressDto(dto);
     if (!Object.keys(data).length) throw new Error('无有效地址字段');
     if (data.is_default) {
@@ -72,6 +73,9 @@ export class UserService {
 
   /** 删除收货地址 */
   async deleteAddress(user_id: string, address_id: string) {
+    // U-01: 必须校验 address_id 归属，防止 IDOR
+    const count = await this.prisma.addresses.count({ where: { id: address_id, user_id } });
+    if (count === 0) throw new NotFoundException('地址不存在');
     return this.prisma.addresses.delete({ where: { id: address_id } });
   }
 
@@ -100,7 +104,16 @@ export class UserService {
 
   /** 添加发票 */
   async addInvoice(user_id: string, dto: any) {
-    return this.prisma.invoices.create({ data: { ...dto, user_id } });
+    // U-02: 白名单过滤（addInvoice 同理）
+    const data: any = { user_id };
+    if (dto.title !== undefined) data.title = dto.title;
+    if (dto.taxNo !== undefined) data.tax_no = dto.taxNo;
+    if (dto.bank !== undefined) data.bank = dto.bank;
+    if (dto.account !== undefined) data.account = dto.account;
+    if (dto.address !== undefined) data.address = dto.address;
+    if (dto.phone !== undefined) data.phone = dto.phone;
+    if (dto.type !== undefined) data.type = dto.type;
+    return this.prisma.invoices.create({ data });
   }
 
   /** 管理端：用户列表 */

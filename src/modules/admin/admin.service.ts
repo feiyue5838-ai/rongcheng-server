@@ -1,25 +1,8 @@
 // @ts-nocheck
-﻿import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import * as bcrypt from 'bcryptjs';
-
-function snakeToCamel(key: string): string {
-  return key.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
-}
-function toCamelDeep(obj: any): any {
-  if (obj instanceof Date) return obj;
-  if (Array.isArray(obj)) return obj.map(toCamelDeep);
-  if (obj !== null && typeof obj === 'object') {
-    if (typeof obj.toString === 'function' && !('getTime' in obj)) {
-      const str = obj.toString();
-      if (/^\d+(\.\d+)?$/.test(str)) return Number(str);
-    }
-    return Object.fromEntries(
-      Object.entries(obj).map(([k, v]) => [snakeToCamel(k), toCamelDeep(v)])
-    );
-  }
-  return obj;
-}
+import { toCamelDeep } from '../../common/utils/case';
 
 @Injectable()
 export class AdminService {
@@ -43,7 +26,7 @@ export class AdminService {
     ]);
     return {
       list: admins.map(a => toCamelDeep(a)),
-      pagination: { page: Number(page), pageSize: Number(pageSize), total, totalPages: Math.ceil(total / Number(pageSize)) },
+      pagination: { page: Number(page), pageSize: Number(pageSize), total, totalPages: Math.ceil(total / pageSize) },
     };
   }
 
@@ -52,7 +35,7 @@ export class AdminService {
     const existing = await this.prisma.admins.findUnique({ where: { username: dto.username } });
     if (existing) throw new BadRequestException('用户名已存在');
     const hashedPassword = await bcrypt.hash(dto.password, 10);
-    // ⚠ 白名单字段：拒绝 role / permissions / status 来自客户端
+    // 白名单字段：拒绝 role / permissions / status 来自客户端
     const created = await this.prisma.admins.create({
       data: {
         username: dto.username,
@@ -60,7 +43,7 @@ export class AdminService {
         password: hashedPassword,
         role: 'admin',         // 默认角色，不允许客户端指定
         permissions: [],       // 默认空权限
-        status: 1,             // 默认启用
+        status: 1,            // 默认启用
       },
       select: { id: true, username: true, nickname: true, role: true, status: true, last_login_at: true, created_at: true },
     });
@@ -68,9 +51,32 @@ export class AdminService {
   }
 
   /** 更新管理员 */
-  async updateAdmin(id: string, dto: any) {
+  async updateAdmin(id: string, dto: any, currentAdminId?: string) {
     const admin = await this.prisma.admins.findUnique({ where: { id } });
     if (!admin) throw new NotFoundException('管理员不存在');
+
+    // U-06: 禁止修改自己的 role / status（防止超管降权自己）
+    if (id === currentAdminId) {
+      if (dto.role !== undefined) throw new BadRequestException('不能修改自己的角色');
+      if (dto.status !== undefined) throw new BadRequestException('不能修改自己的状态');
+    }
+
+    // U-06: 降级最后一个 superadmin 时必须阻止
+    if (dto.role && dto.role !== 'superadmin' && admin.role === 'superadmin') {
+      const superAdminCount = await this.prisma.admins.count({
+        where: { role: 'superadmin', status: 1 },
+      });
+      if (superAdminCount <= 1) {
+        throw new BadRequestException('必须保留至少一个超级管理员');
+      }
+    }
+
+    // U-06: role 白名单校验
+    const VALID_ROLES = ['admin', 'superadmin'];
+    if (dto.role !== undefined && !VALID_ROLES.includes(dto.role)) {
+      throw new BadRequestException('非法角色，合法值为：admin 或 superadmin');
+    }
+
     // 允许更新：nickname / password / role / status
     const data: any = {};
     if (dto.nickname !== undefined) data.nickname = dto.nickname;
@@ -82,7 +88,22 @@ export class AdminService {
   }
 
   /** 删除管理员 */
-  async deleteAdmin(id: string) {
+  async deleteAdmin(id: string, currentAdminId?: string) {
+    // U-06: 不能删除自己
+    if (currentAdminId && id === currentAdminId) {
+      throw new BadRequestException('不能删除自己的账号');
+    }
+    // 不能删除最后一个 superadmin
+    const admin = await this.prisma.admins.findUnique({ where: { id } });
+    if (!admin) throw new NotFoundException('管理员不存在');
+    if (admin.role === 'superadmin') {
+      const superAdminCount = await this.prisma.admins.count({
+        where: { role: 'superadmin', status: 1 },
+      });
+      if (superAdminCount <= 1) {
+        throw new BadRequestException('必须保留至少一个超级管理员');
+      }
+    }
     return this.prisma.admins.delete({ where: { id } });
   }
 
@@ -130,7 +151,7 @@ export class AdminService {
       }),
       this.prisma.operation_logs.count({ where }),
     ]);
-    // 单独查 admins 补回 admin 信息（operation_logs.admin_id 无 Prisma 关系）
+    // 单独查 admins 补回 admin 信息
     const adminIds = [...new Set(logs.map((l: any) => l.admin_id).filter(Boolean))];
     let adminMap: Record<string, any> = {};
     if (adminIds.length) {
@@ -141,7 +162,7 @@ export class AdminService {
       adminMap = Object.fromEntries(admins.map(a => [a.id, a]));
     }
     const list = logs.map((l: any) => toCamelDeep({ ...l, admin: adminMap[l.admin_id] ? toCamelDeep(adminMap[l.admin_id]) : null }));
-    return { list, pagination: { page: Number(page), pageSize: Number(pageSize), total, totalPages: Math.ceil(total / Number(pageSize)) } };
+    return { list, pagination: { page: Number(page), pageSize: Number(pageSize), total, totalPages: Math.ceil(total / pageSize) } };
   }
 
   /** 系统总览数据 */
@@ -160,26 +181,10 @@ export class AdminService {
       this.prisma.seal_orders.count({ where: { status: 5 } }),
       this.prisma.seal_orders.aggregate({ _sum: { pay_price: true }, where: { status: { in: [2, 3, 4, 5] } } }),
       this.prisma.reviews.count({ where: { reply: null } }),
-      // 收入拆分：刻章
-      this.prisma.seal_orders.aggregate({
-        _sum: { pay_price: true },
-        where: { status: { in: [2, 3, 4, 5] }, module: 'seal' },
-      }),
-      // 收入拆分：登报
-      this.prisma.seal_orders.aggregate({
-        _sum: { total_price: true },
-        where: { status: { in: [2, 3, 4, 5] }, module: 'newspaper' },
-      }),
-      // 收入拆分：代理记账（pay_price 字段）
-      this.prisma.seal_orders.aggregate({
-        _sum: { pay_price: true },
-        where: { status: { in: [2, 3, 4, 5] }, module: 'bookkeeping' },
-      }),
+      this.prisma.seal_orders.aggregate({ _sum: { pay_price: true }, where: { status: { in: [2, 3, 4, 5] }, module: 'seal' } }),
+      this.prisma.seal_orders.aggregate({ _sum: { total_price: true }, where: { status: { in: [2, 3, 4, 5] }, module: 'newspaper' } }),
+      this.prisma.seal_orders.aggregate({ _sum: { pay_price: true }, where: { status: { in: [2, 3, 4, 5] }, module: 'bookkeeping' } }),
     ]);
-
-    const sealRevenue = sealRevenueAgg._sum.pay_price || 0;
-    const newspaperRevenue = newspaperRevenueAgg._sum.total_price || 0;
-    const bookkeepingRevenue = bookkeepingRevenueAgg._sum.pay_price || 0;
 
     return {
       totalUsers,
@@ -191,9 +196,9 @@ export class AdminService {
       totalRevenue: totalRevenue._sum.pay_price || 0,
       pendingReviews,
       _detail: {
-        sealRevenue,
-        newspaperRevenue,
-        bookkeepingRevenue,
+        sealRevenue: sealRevenueAgg._sum.pay_price || 0,
+        newspaperRevenue: newspaperRevenueAgg._sum.total_price || 0,
+        bookkeepingRevenue: bookkeepingRevenueAgg._sum.pay_price || 0,
       },
     };
   }
@@ -203,9 +208,7 @@ export class AdminService {
       where: { id: admin_id },
       select: { id: true, username: true, nickname: true, role: true, permissions: true, status: true, created_at: true },
     });
-    if (!admin) {
-      throw new NotFoundException('管理员不存在');
-    }
+    if (!admin) throw new NotFoundException('管理员不存在');
     return admin;
   }
 }

@@ -109,7 +109,16 @@ export class OperationLogInterceptor implements NestInterceptor {
 
   private safeStringify(obj: any, maxLen: number): string {
     try {
-      const s = JSON.stringify(obj);
+      // S-08: 敏感字段脱敏，防止密码/openid/token 明文写入日志
+      const SENSITIVE_KEYS = /password|token|secret|openid|phone|idCard|realname|license/i;
+      const redact = (val: any, key: string): any => {
+        if (SENSITIVE_KEYS.test(key)) return '***';
+        if (val === null || val === undefined) return val;
+        if (typeof val === 'string' && val.length > 200) return val.slice(0, 200) + '...';
+        if (typeof val === 'object') return JSON.parse(JSON.stringify(val, (k, v) => redact(v, k)));
+        return val;
+      };
+      const s = JSON.stringify(obj, (k, v) => redact(v, k));
       return s.length > maxLen ? s.slice(0, maxLen) + '...' : s;
     } catch {
       return '';
