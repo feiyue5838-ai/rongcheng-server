@@ -172,16 +172,18 @@ export class OrderController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '客户确认签收' })
-  async signOrder(@Param('id') id: string) {
-    return this.orderService.signOrder(id);
+  async signOrder(@Param('id') id: string, @Request() req) {
+    // O-05: 传递 user_id 做归属校验，防止 IDOR
+    return this.orderService.signOrder(id, req.user.id);
   }
 
   @Get(':id/delivery-info')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '订单交付信息' })
-  async getDeliveryInfo(@Param('id') id: string) {
-    return this.orderService.getDeliveryInfo(id);
+  async getDeliveryInfo(@Param('id') id: string, @Request() req) {
+    // O-06: 传递 user_id 做归属校验，防止 IDOR 信息泄露
+    return this.orderService.getDeliveryInfo(id, req.user.id);
   }
 
   // ==================== 网点端接口 ====================
@@ -210,9 +212,13 @@ export class OrderController {
   @ApiBearerAuth()
   @ApiOperation({ summary: '发起微信支付（获取支付参数）' })
   async createPayOrder(@Param('id') id: string, @Request() req, @Body() body: { openid?: string }) {
-    // 与 createSealOrder 一致：开发期容忍匿名用户，上线前恢复 JWT 鉴权
     const user_id = req.user?.id || '00000000-0000-0000-0000-000000000000';
-    const openid = body.openid || req.user?.user?.openid || '';
+    // O-07: openid 必须从 JWT payload 取，禁止客户端传入
+    // req.user.user.openid 来自微信登录后写入 JWT 的 openid
+    const openid = req.user?.user?.openid;
+    if (!openid) {
+      throw new BadRequestException('用户未完成微信授权，无法发起支付');
+    }
     return this.orderService.createPayOrder(id, user_id, openid);
   }
 
@@ -221,10 +227,12 @@ export class OrderController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   // 仅开发/测试环境可用；生产环境 NODE_ENV=production 时控制器拦截返回 403
+  // O-08: 改为 fail-closed，显式 ENABLE_DEV_PAY 开关
   @ApiOperation({ summary: '【开发专用】模拟微信支付回调（生产环境禁用）' })
   async devConfirmPaid(@Param('id') id: string, @Request() req) {
-    if (process.env.NODE_ENV === 'production') {
-      throw new ForbiddenException('生产环境不允许模拟支付');
+    // O-08: fail-closed，必须显式配置 ENABLE_DEV_PAY=true 才允许
+    if (process.env.ENABLE_DEV_PAY !== 'true') {
+      throw new ForbiddenException('模拟支付未启用（ENABLE_DEV_PAY=true 开启）');
     }
     const user_id = req.user?.id || '00000000-0000-0000-0000-000000000000';
     return this.orderService.devConfirmPaid(id, user_id);

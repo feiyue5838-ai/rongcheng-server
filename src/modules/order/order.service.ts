@@ -6,6 +6,13 @@ import { WechatService } from '../wechat/wechat.service';
 import { DispatchService } from '../dispatch/dispatch.service';
 import { generateTransactionNo } from '../../common/utils/sn';
 import { v4 as uuidv4 } from 'uuid';
+import {
+  OrderStatus,
+  ORDER_STATUS_TEXT,
+  TERMINAL_STATUSES,
+  VALID_STATUS_TRANSITIONS,
+  REFUNDABLE_STATUSES,
+} from '../../common/constants/order-status';
 
 // ==================== 工具函数：snake_case → camelCase ====================
 function snakeToCamel(key: string): string {
@@ -354,21 +361,31 @@ export class OrderService {
   async refundOrder(order_id: string, operatorId?: string, amount?: number, reason?: string) {
     const order = await this.prisma.seal_orders.findUnique({ where: { id: order_id } });
     if (!order) throw new NotFoundException('订单不存在');
-    if (![2, 3, 4, 7].includes(order.status)) {
+    // O-09: 使用统一状态常量
+    if (!REFUNDABLE_STATUSES.includes(order.status as any)) {
       throw new BadRequestException('仅「已支付 / 制作中 / 已发货」或「售后中」订单可发起退款');
     }
 
-    const totalFee = Math.round(Number(order.total_price) * 100);
-    const refundFee = amount ? Math.round(Number(amount) * 100) : totalFee;
-    if (refundFee <= 0) {
-      throw new BadRequestException('退款金额必须大于 0');
+    // O-09: 退款金额上限校验
+    const paid = Math.round(Number(order.pay_price ?? order.total_price) * 100);
+    // 累加历史退款（从 remark.refund 数组中提取已退金额）
+    let alreadyRefunded = 0;
+    try {
+      const remarkData = JSON.parse(order.remark || '{}');
+      if (remarkData.refund && Array.isArray(remarkData.refund)) {
+        alreadyRefunded = remarkData.refund.reduce((sum: number, r: any) => sum + (Number(r.refundFee) || 0), 0);
+      }
+    } catch { /* ignore */ }
+    const refundFee = amount ? Math.round(Number(amount) * 100) : paid;
+    if (refundFee <= 0) throw new BadRequestException('退款金额必须大于 0');
+    if (alreadyRefunded + refundFee > paid) {
+      throw new BadRequestException(`退款金额超限。订单实付${paid / 100}元，已退${alreadyRefunded / 100}元，剩余可退${(paid - alreadyRefunded) / 100}元`);
     }
 
-    let transaction_id: string | undefined;
-    try {
-      const r = JSON.parse(order.remark || '{}');
-      transaction_id = r.transaction_id;
-    } catch { /* ignore */ }
+    // O-10: transaction_id 应从 order.transaction_id 独立列读取，而非从 remark JSON
+    const transaction_id = order.transaction_id || undefined;
+    // totalFee 为订单实付金额（分）
+    const totalFee = paid;
 
     const wechatRes = await this.wechatService.refundOrder({
       outTradeNo: order.order_no,
@@ -378,12 +395,12 @@ export class OrderService {
       reason: '客户申请退款',
     });
 
-    // 发起退款后进入「退款中」，真实退款由微信回调更新为「已退款」(9)
+    // O-03: 使用统一状态常量
     const updated = await this.prisma.seal_orders.update({
       where: { id: order_id },
       data: {
-        status: 8,
-        status_text: '退款中',
+        status: OrderStatus.REFUNDING,
+        status_text: ORDER_STATUS_TEXT[OrderStatus.REFUNDING],
         remark: this.appendRefundRemark(order.remark, {
           refundId: wechatRes.refundId,
           refundFee,
@@ -514,22 +531,28 @@ export class OrderService {
     const order = await this.prisma.seal_orders.findFirst({ where });
     if (!order) throw new NotFoundException('订单不存在');
 
-    // 幂等：微信可能重复推送回调，已支付则直接返回，避免重复分配
-    if (order.status >= 2) return order;
-
-    await this.prisma.seal_orders.update({
-      where: { id: order.id },
+    // O-11: 幂等处理 — 使用条件更新保证原子性，避免先读后写竞态
+    const now = new Date();
+    const result = await this.prisma.seal_orders.updateMany({
+      where: { id: order.id, status: OrderStatus.PENDING_PAYMENT }, // 仅未支付订单可更新
       data: {
-        status: 2,
-        status_text: '已支付',
-        // 修复：支付完成时记录实付金额，否则 pay_price 永久为 null，
-        // 导致营收统计（sum pay_price）严重低估且订单详情缺实付金额
+        status: OrderStatus.PAID,
+        status_text: ORDER_STATUS_TEXT[OrderStatus.PAID],
         pay_price: order.total_price,
-        pay_time: new Date(),
+        pay_time: now,
         pay_method: pay.pay_method,
         transaction_id: pay.transaction_id || null,
       },
     });
+
+    if (result.count === 0) {
+      // 订单状态已变更（并发回调或已取消/退款）
+      if (TERMINAL_STATUSES.includes(order.status as any) || [OrderStatus.REFUNDING, OrderStatus.PAID].includes(order.status as any)) {
+        // O-11: 异常入账告警（钱收了但订单异常），需要人工介入
+        console.error(`[completePayment] 异常入账告警: order=${order.order_no}, current_status=${order.status}, pay_method=${pay.pay_method}`);
+      }
+      return order;
+    }
 
     // 支付成功后触发全国网点自动分配（仅未分配时）
     // 根据订单类型选择派单地址：企业刻章用执照地区，个人印章用收货地址
@@ -813,49 +836,36 @@ export class OrderService {
     const order = await this.prisma.seal_orders.findUnique({ where: { id: order_id } });
     if (!order) throw new NotFoundException('订单不存在');
 
-    // B5: 状态值范围校验
-    const VALID_STATUSES = [1, 2, 3, 4, 5, 6, 7, 8];
+    // O-03/O-04: 使用统一状态常量，修复三套冲突枚举
+    const VALID_STATUSES = Object.values(OrderStatus).filter(v => typeof v === 'number') as number[];
     if (dto.status !== undefined && !VALID_STATUSES.includes(Number(dto.status))) {
-      throw new BadRequestException('无效的订单状态，合法值：1-待支付 2-已支付 3-制作中 4-已发货 5-已完成 6-已取消 7-退款中 8-已退款');
+      throw new BadRequestException(`无效的订单状态，合法值：${VALID_STATUSES.map(s => `${s}-${ORDER_STATUS_TEXT[s as OrderStatus]}`).join(', ')}`);
     }
 
-    // B6: 状态机约束 — 防止管理员随意跳状态（如未付款改已完成）
-    const TERMINAL_STATUSES = [5, 6, 7, 8];
+    // B6: 状态机约束 — 使用统一状态流转表
     if (dto.status !== undefined) {
       const from = order.status;
       const to = Number(dto.status);
-      if (TERMINAL_STATUSES.includes(from)) {
-        throw new BadRequestException(`订单已在终态（${from}），无法变更状态`);
+      if (TERMINAL_STATUSES.includes(from as any)) {
+        throw new BadRequestException(`订单已在终态（${from}-${ORDER_STATUS_TEXT[from as OrderStatus] || '未知'}），无法变更状态`);
       }
-      // 合法的状态跳转：正向递增 或 特定逆向（1→6取消 / 2,3,4→7/8退款 / 任意→5完成须已付款）
-      const validTransitions: Record<number, number[]> = {
-        1: [2, 5, 6],
-        2: [3, 4, 5, 7, 8],
-        3: [4, 5, 7, 8],
-        4: [5, 7, 8],
-      };
-      const allowed = validTransitions[from] || [];
+      const allowed = VALID_STATUS_TRANSITIONS[from] || [];
       if (!allowed.includes(to)) {
-        throw new BadRequestException(`状态 ${from}→${to} 非法。允许：1→2/5/6，2→3/4/5/7/8，3→4/5/7/8，4→5/7/8`);
+        throw new BadRequestException(`状态 ${from}→${to} 非法。允许的流转：${JSON.stringify(VALID_STATUS_TRANSITIONS)}`);
       }
       // 完成订单（终态5）须已付款
-      if (to === 5 && from < 2) {
+      if (to === OrderStatus.COMPLETED && from < OrderStatus.PAID) {
         throw new BadRequestException('未付款订单不能标记为已完成');
       }
     }
-
-    const statusMap: Record<number, string> = {
-      1: '待支付', 2: '已支付', 3: '制作中', 4: '已发货',
-      5: '已完成', 6: '已取消', 7: '退款中', 8: '已退款',
-    };
 
     // Fix: 使用 { ...order, ...dto } 而非 { ...dto }
     // 避免 dto 未传入 remark 时，{ ...dto } 会产生 remark: undefined，Prisma 将 DB remark 覆盖为 null
     const updateData: any = { ...order, ...dto };
     if (dto.status !== undefined) {
-      updateData.status_text = statusMap[dto.status] || '未知状态';
+      updateData.status_text = ORDER_STATUS_TEXT[dto.status as OrderStatus] || '未知状态';
       // 状态变更为已支付及以上时,补齐 pay_time/pay_price,避免影响营收统计与趋势图
-      if (dto.status >= 2 && order.status < 2) {
+      if (dto.status >= OrderStatus.PAID && order.status < OrderStatus.PAID) {
         if (!order.pay_time) updateData.pay_time = new Date();
         if (order.pay_price == null || Number(order.pay_price) === 0) {
           updateData.pay_price = order.total_price;
@@ -864,7 +874,7 @@ export class OrderService {
     }
 
     // Fix: 管理员改状态为"已支付"时，自动触发网点分配（与 completePayment 逻辑对齐）
-    const isPaid = dto.status !== undefined && dto.status >= 2;
+    const isPaid = dto.status !== undefined && dto.status >= OrderStatus.PAID;
     // 根据订单类型选择派单地址：企业刻章用执照地区，个人印章用收货地址
     const addressForDispatch = order.type === '个人印章' ? order.address_json : order.license_address_json;
     const needsAssign = isPaid && (order.assignment_status === 0 || order.assignment_status == null) && addressForDispatch;
@@ -1181,6 +1191,20 @@ export class OrderService {
     if (!Outlet) throw new NotFoundException('网点不存在或 ID 无效');
     if (Outlet.status === 0) throw new BadRequestException('网点已被禁用');
 
+    // O-13: 校验网点业务资质与订单模块匹配
+    const module = order.module || 'seal';
+    const ok = await this.prisma.outlet_business_types.findFirst({
+      where: { outlet_id, business_type: { code: module } },
+    });
+    if (!ok) {
+      const bt = await this.prisma.business_types.findFirst({ where: { code: module } });
+      throw new BadRequestException(`该网点无「${bt?.name || module}」业务资质，无法分配此订单`);
+    }
+    // O-13: 禁止向已退款/已取消订单分配
+    if (order.status >= OrderStatus.REFUNDING) {
+      throw new BadRequestException('已退款/售后中订单不可分配');
+    }
+
     await this.prisma.$transaction([
       this.prisma.order_assignments.create({
         data: {
@@ -1278,18 +1302,30 @@ export class OrderService {
   }
 
   /** 客户确认签收 → 订单完成 */
-  async signOrder(order_id: string) {
+  // O-05: 客户签收接口添加归属校验，防止 IDOR
+  async signOrder(order_id: string, user_id: string) {
+    // 必须传 user_id 并校验归属，防止任意用户签收他人订单
+    if (!user_id) throw new BadRequestException('用户未登录');
     const order = await this.prisma.seal_orders.findUnique({
       where: { id: order_id },
       include: { assignment: true },
     });
     if (!order) throw new NotFoundException('订单不存在');
+    // O-05: 归属校验
+    if (order.user_id && order.user_id !== user_id) {
+      throw new NotFoundException('订单不存在'); // 不暴露订单存在性
+    }
     if (order.delivery_status !== 1) throw new BadRequestException('订单未交付，无法签收');
 
     await this.prisma.$transaction([
       this.prisma.seal_orders.update({
         where: { id: order_id },
-        data: { delivery_status: 2, status: 5, status_text: '已完成', signed_at: new Date() },
+        data: {
+          delivery_status: 2,
+          status: OrderStatus.COMPLETED,
+          status_text: ORDER_STATUS_TEXT[OrderStatus.COMPLETED],
+          signed_at: new Date(),
+        },
       }),
       ...(order.assignment ? [
         this.prisma.order_assignments.update({
@@ -1302,8 +1338,8 @@ export class OrderService {
     return { message: '签收成功' };
   }
 
-  /** 订单交付信息 */
-  async getDeliveryInfo(order_id: string) {
+  // O-06: 交付信息接口添加归属校验，防止 IDOR 信息泄露
+  async getDeliveryInfo(order_id: string, user_id?: string) {
     const order = await this.prisma.seal_orders.findUnique({
       where: { id: order_id },
       include: {
@@ -1314,6 +1350,10 @@ export class OrderService {
       },
     });
     if (!order) throw new NotFoundException('订单不存在');
+    // O-06: 归属校验（如果传入了 user_id 则校验）
+    if (user_id && order.user_id && order.user_id !== user_id) {
+      throw new NotFoundException('订单不存在'); // 不暴露订单存在性
+    }
 
     return {
       delivery_status: order.delivery_status,
