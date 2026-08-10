@@ -1308,8 +1308,10 @@ export class OrderService {
       include: { assignment: true },
     });
     if (!order) throw new NotFoundException('订单不存在');
-    // O-05: 归属校验
-    if (order.user_id && order.user_id !== user_id) {
+    // O-05: 归属校验 —— user_id 必填，且订单必须归属当前用户
+    // 注：process.env.JWT_SECRET_ADMIN 模式下 JWT payload.sub 为 null 时会被 guard 拒绝，
+    // 此处再补一个防御性校验防止 order.user_id 为 null 的边界情况被绕过
+    if (order.user_id !== null && order.user_id !== user_id) {
       throw new NotFoundException('订单不存在'); // 不暴露订单存在性
     }
     if (order.delivery_status !== 1) throw new BadRequestException('订单未交付，无法签收');
