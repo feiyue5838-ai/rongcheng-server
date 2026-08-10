@@ -809,6 +809,31 @@ export class OrderService {
       throw new BadRequestException('无效的订单状态，合法值：1-待支付 2-已支付 3-制作中 4-已发货 5-已完成 6-已取消 7-退款中 8-已退款');
     }
 
+    // B6: 状态机约束 — 防止管理员随意跳状态（如未付款改已完成）
+    const TERMINAL_STATUSES = [5, 6, 7, 8];
+    if (dto.status !== undefined) {
+      const from = order.status;
+      const to = Number(dto.status);
+      if (TERMINAL_STATUSES.includes(from)) {
+        throw new BadRequestException(`订单已在终态（${from}），无法变更状态`);
+      }
+      // 合法的状态跳转：正向递增 或 特定逆向（1→6取消 / 2,3,4→7/8退款 / 任意→5完成须已付款）
+      const validTransitions: Record<number, number[]> = {
+        1: [2, 5, 6],
+        2: [3, 4, 5, 7, 8],
+        3: [4, 5, 7, 8],
+        4: [5, 7, 8],
+      };
+      const allowed = validTransitions[from] || [];
+      if (!allowed.includes(to)) {
+        throw new BadRequestException(`状态 ${from}→${to} 非法。允许：1→2/5/6，2→3/4/5/7/8，3→4/5/7/8，4→5/7/8`);
+      }
+      // 完成订单（终态5）须已付款
+      if (to === 5 && from < 2) {
+        throw new BadRequestException('未付款订单不能标记为已完成');
+      }
+    }
+
     const statusMap: Record<number, string> = {
       1: '待支付', 2: '已支付', 3: '制作中', 4: '已发货',
       5: '已完成', 6: '已取消', 7: '退款中', 8: '已退款',
