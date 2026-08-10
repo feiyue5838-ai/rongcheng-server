@@ -231,4 +231,32 @@ export class DashboardService {
       bookkeeping: bookkeepingData,
     });
   }
+
+  async customerAction(dto: { action: string; segment: string }) {
+    const segment = dto.segment;
+    const d7 = new Date(Date.now() - 7 * 24 * 3600 * 1000);
+    let count = 0;
+    if (segment === 'active') {
+      count = await this.prisma.users.count({
+        where: { seal_orders: { some: { created_at: { gte: d7 } } } },
+      });
+    } else if (segment === 'silent') {
+      count = await this.prisma.users.count({
+        where: {
+          seal_orders: { some: { created_at: { lt: d7 } } },
+          NOT: { seal_orders: { some: { created_at: { gte: d7 } } } },
+        },
+      });
+    } else if (segment === 'vip') {
+      const rows: any[] = await this.prisma.$queryRaw`
+        SELECT COUNT(*)::int AS count FROM (
+          SELECT user_id FROM seal_orders WHERE status >= 2
+          GROUP BY user_id
+          HAVING SUM(CASE WHEN module='bookkeeping' THEN pay_price ELSE total_price END) >= 500
+        ) AS vip_users`;
+      count = Number(rows[0]?.count ?? 0);
+    }
+    // TODO: 接入微信订阅消息/模板消息，向该 segment 客户批量推送
+    return { success: true, action: dto.action, segment, count };
+  }
 }

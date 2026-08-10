@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Query, Body, UseGuards, Request } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AdminJwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { DashboardService } from './dashboard.service';
@@ -26,5 +26,13 @@ export class DashboardController {
   ) {
     const daysNum = Math.min(Math.max(parseInt(days, 10) || 7, 1), 30);
     return this.dashboardService.getTrend(type, daysNum);
+  }
+
+  @Post('customer-action')
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '客户运营动作（推送/唤醒/客服），预留微信推送集成' })
+  async customerAction(@Body() body: { action: string; segment: string }) {
+    return this.dashboardService.customerAction(body);
   }
 }
