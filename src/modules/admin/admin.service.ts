@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import * as bcrypt from 'bcryptjs';
@@ -127,7 +126,7 @@ export class AdminService {
   async getLogModules() {
     if (this._logModulesCache) return this._logModulesCache;
     const rows = await this.prisma.operation_logs.groupBy({ by: ['module'], _count: true, orderBy: { _count: { module: 'desc' } } });
-    this._logModulesCache = rows.map(r => r.module);
+    this._logModulesCache = rows.map(r => r.module).filter((m): m is string => m !== null);
     return this._logModulesCache;
   }
 

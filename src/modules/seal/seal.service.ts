@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Injectable, NotFoundException, Inject } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from '@nestjs/cache-manager';

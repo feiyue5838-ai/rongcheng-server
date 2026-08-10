@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Inject, forwardRef } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { SEAL_PRICE_MAP, getSealPrice } from './seal-prices.constant';
@@ -417,7 +416,7 @@ export class OrderService {
       this.prisma.seal_orders.findMany({
         where,
         include: {
-          order_items: { include: { seal: true } },
+          order_items: true,
           reviews: true,
         },
         orderBy: { created_at: 'desc' },
@@ -448,7 +447,7 @@ export class OrderService {
       where,
       include: {
         user: { select: { id: true, nickname: true, phone: true } },
-        order_items: { include: { seal: true, package: true } },
+        order_items: true,
         materials: true,
         reviews: { include: { user: { select: { nickname: true, avatar: true } } } },
         assignment: { include: { outlet: { select: { id: true, name: true, phone: true, service_area: true } } } },
@@ -610,8 +609,8 @@ export class OrderService {
       });
       if (!existFlow) {
         // 查询网点（可能本次刚分配，也可能是历史已有派单）
-        let outletId = null;
-        let outletName = null;
+        let outletId: string | null = null;
+        let outletName: string | null = null;
         const assign = await this.prisma.order_assignments.findFirst({
           where: { order_id: order.id },
           include: { outlet: { select: { id: true, name: true } } },
@@ -621,8 +620,8 @@ export class OrderService {
           outletName = assign.outlet.name;
         }
         // 用户冗余信息
-        let userName = null;
-        let userPhone = null;
+        let userName: string | null = null;
+        let userPhone: string | null = null;
         if (order.user_id) {
           const u = await this.prisma.users.findUnique({
             where: { id: order.user_id },
@@ -667,7 +666,7 @@ export class OrderService {
       where: { id: order.id },
       include: {
         user: { select: { id: true, nickname: true, phone: true } },
-        order_items: { include: { seal: true } },
+        order_items: true,
         assignment: {
           include: {
             outlet: { select: { id: true, name: true, phone: true, address: true } },
@@ -720,7 +719,7 @@ export class OrderService {
         where,
         include: {
           user: { select: { id: true, nickname: true, phone: true } },
-          order_items: { include: { seal: true } },
+          order_items: true,
           assignment: { include: { outlet: { select: { id: true, name: true } } } },
           delivery_receipts: true,
         },
@@ -787,7 +786,7 @@ export class OrderService {
     // O-14: 校验所属订单状态：仅 status=2(已支付) 或 status=3(制作中) 可审核材料
     const order = await this.prisma.seal_orders.findUnique({ where: { id: m.order_id } });
     if (!order) throw new NotFoundException('订单不存在');
-    if (![OrderStatus.PAID, OrderStatus.MAKING].includes(order.status as any)) {
+    if (![OrderStatus.PAID, OrderStatus.IN_PRODUCTION].includes(order.status as any)) {
       throw new BadRequestException(`当前订单状态「${ORDER_STATUS_TEXT[order.status as OrderStatus] || order.status}」不允许审核材料（仅支持已支付/制作中订单）`);
     }
 
@@ -1400,25 +1399,25 @@ export class OrderService {
 
     return {
       order_id: assignment.order_id,
-      order_no: assignment.order.order_no,
-      type: assignment.order.type,
-      module: assignment.order.module,
-      company_name: assignment.order.company_name,
-      contact_phone: assignment.order.contact_phone,
+      order_no: assignment.seal_orders.order_no,
+      type: assignment.seal_orders.type,
+      module: assignment.seal_orders.module,
+      company_name: assignment.seal_orders.company_name,
+      contact_phone: assignment.seal_orders.contact_phone,
       status: assignment.status,
       status_text: statusMap[assignment.status] ?? assignment.status_text,
       assigned_at: assignment.assigned_at,
       accepted_at: assignment.accepted_at,
       completed_at: assignment.completed_at,
-      user: assignment.order.user,
-      order_items: assignment.order.order_items,
+      user: assignment.seal_orders.user,
+      order_items: assignment.seal_orders.order_items,
       Outlet: assignment.outlet,
       // 快递信息
-      express_company: assignment.order.express_company,
-      express_no: assignment.order.express_no,
-      delivered_at: assignment.order.delivered_at,
-      signed_at: assignment.order.signed_at,
-      delivery_status: assignment.order.delivery_status,
+      express_company: assignment.seal_orders.express_company,
+      express_no: assignment.seal_orders.express_no,
+      delivered_at: assignment.seal_orders.delivered_at,
+      signed_at: assignment.seal_orders.signed_at,
+      delivery_status: assignment.seal_orders.delivery_status,
       // 交付凭证
       receipts,
     };

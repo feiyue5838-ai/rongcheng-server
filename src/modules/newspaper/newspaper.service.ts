@@ -1,4 +1,3 @@
-﻿// @ts-nocheck
 import { Injectable, Inject, NotFoundException, BadRequestException } from '@nestjs/common';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from '@nestjs/cache-manager';
@@ -229,7 +228,7 @@ export class NewspaperService {
         icon: dto.icon || null,
         sort: dto.sort ?? 0,
         status: dto.status ?? 1,
-        sub_types: dto.sub_types ?? null,
+        sub_types: dto.subTypes,
       },
     });
     await this.invalidateCache();
@@ -241,7 +240,7 @@ export class NewspaperService {
     if (dto.icon !== undefined) data.icon = dto.icon;
     if (dto.sort !== undefined) data.sort = dto.sort;
     if (dto.status !== undefined) data.status = dto.status;
-    if (dto.sub_types !== undefined) data.sub_types = dto.sub_types;
+    if (dto.subTypes !== undefined) data.sub_types = dto.subTypes;
     const result = await this.prisma.newspaper_categories.update({ where: { id }, data });
     await this.invalidateCache();
     return toCamelDeep(result);
@@ -333,7 +332,7 @@ export class NewspaperService {
       const result = await this.prisma.newspaper_templates.delete({ where: { id } });
       await this.invalidateCache();
       return toCamelDeep(result);
-    } catch (e: unknown) {
+    } catch (e: any) {
       if (e.code === 'P2025') {
         throw new NotFoundException('该模板不存在或已被删除');
       }
@@ -368,10 +367,27 @@ export class NewspaperService {
   }
   async adminDeletePersonalDocCategory(id: string) { return this.prisma.personal_doc_categories.delete({ where: { id } }); }
   async adminCreatePersonalDocItem(dto: CreatePersonalDocItemDto) {
-    return this.prisma.personal_doc_items.create({ data: dto });
+    return this.prisma.personal_doc_items.create({
+      data: {
+        name: dto.name,
+        category_id: dto.categoryId,
+        desc: dto.desc,
+        sort: dto.sort ?? 0,
+        status: dto.status ?? 1,
+      } as any,
+    });
   }
   async adminUpdatePersonalDocItem(id: string, dto: UpdatePersonalDocItemDto) {
-    return this.prisma.personal_doc_items.update({ where: { id }, data: dto });
+    return this.prisma.personal_doc_items.update({
+      where: { id },
+      data: {
+        name: dto.name,
+        category_id: dto.categoryId,
+        desc: dto.desc,
+        sort: dto.sort ?? 0,
+        status: dto.status ?? 1,
+      } as any,
+    });
   }
   async adminDeletePersonalDocItem(id: string) { return this.prisma.personal_doc_items.delete({ where: { id } }); }
 
@@ -577,9 +593,9 @@ export class NewspaperService {
       newspaper_id: newspaperId,
       name: dto.name,
       category: dto.category || null,
-      list_price: dto.list_price ? Number(dto.list_price) : 0,
-      deadline_time: dto.deadline_time || null,
-      publish_cycle: dto.publish_cycle || null,
+      list_price: dto.listPrice ? Number(dto.listPrice) : 0,
+      deadline_time: dto.deadlineTime || null,
+      publish_cycle: dto.publishCycle || null,
       sort: dto.sort ? Number(dto.sort) : 0,
       status: dto.status !== undefined ? Number(dto.status) : 1,
       remark: dto.remark || null,
@@ -592,9 +608,9 @@ export class NewspaperService {
     const data: any = {};
     if (dto.name !== undefined) data.name = dto.name;
     if (dto.category !== undefined) data.category = dto.category;
-    if (dto.list_price !== undefined) data.list_price = Number(dto.list_price);
-    if (dto.deadline_time !== undefined) data.deadline_time = dto.deadline_time;
-    if (dto.publish_cycle !== undefined) data.publish_cycle = dto.publish_cycle;
+    if (dto.listPrice !== undefined) data.list_price = Number(dto.listPrice);
+    if (dto.deadlineTime !== undefined) data.deadline_time = dto.deadlineTime;
+    if (dto.publishCycle !== undefined) data.publish_cycle = dto.publishCycle;
     if (dto.sort !== undefined) data.sort = Number(dto.sort);
     if (dto.status !== undefined) data.status = Number(dto.status);
     if (dto.remark !== undefined) data.remark = dto.remark;

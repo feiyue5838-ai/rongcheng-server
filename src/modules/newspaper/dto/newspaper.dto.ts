@@ -93,6 +93,16 @@ export class CreateNewspaperDto {
   @IsString()
   city?: string;
 
+  @ApiPropertyOptional({ description: '大区' })
+  @IsOptional()
+  @IsString()
+  region?: string;
+
+  @ApiPropertyOptional({ description: '省份代码' })
+  @IsOptional()
+  @IsString()
+  provinceCode?: string;
+
   @ApiProperty({ description: '单价（元/字）', example: 0.5 })
   @IsNumber()
   @Min(0)
