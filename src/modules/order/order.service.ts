@@ -572,7 +572,7 @@ export class OrderService {
 
     // 支付成功后触发全国网点自动分配（仅未分配时）
     // 根据订单类型选择派单地址：企业刻章用执照地区，个人印章用收货地址
-    const addressForDispatch = order.type === '个人印章' ? order.address_json : order.license_address_json;
+    const addressForDispatch = (order.type === '个人印章' || order.type === '电子印章') ? order.address_json : order.license_address_json;
     
     if ((order.assignment_status === 0 || order.assignment_status == null) && addressForDispatch) {
       const assignResult = await this.dispatchService.smartAssign(addressForDispatch, order.module || 'seal', 'system');
@@ -906,7 +906,7 @@ export class OrderService {
     // Fix: 管理员改状态为"已支付"时，自动触发网点分配（与 completePayment 逻辑对齐）
     const isPaid = dto.status !== undefined && dto.status >= OrderStatus.PAID;
     // 根据订单类型选择派单地址：企业刻章用执照地区，个人印章用收货地址
-    const addressForDispatch = order.type === '个人印章' ? order.address_json : order.license_address_json;
+    const addressForDispatch = (order.type === '个人印章' || order.type === '电子印章') ? order.address_json : order.license_address_json;
     const needsAssign = isPaid && (order.assignment_status === 0 || order.assignment_status == null) && addressForDispatch;
 
     if (needsAssign) {
