@@ -23,10 +23,19 @@ async function bootstrap() {
     credentials: true,
   });
 
+  // A-06: 开启代理信任，使 req.ip 在反代后返回真实 IP
+  app.set('trust proxy', 1);
+
   // 移除 X-Powered-By: Express 头（信息泄露防护）
   app.disable('x-powered-by');
 
-  app.useGlobalPipes(new ValidationPipe());
+  // U-08: 开启 ValidationPipe 白名单，防止 Mass Assignment
+  app.useGlobalPipes(new ValidationPipe({
+    whitelist: true,
+    forbidNonWhitelisted: true,
+    transform: true,
+    transformOptions: { enableImplicitConversion: false },
+  }));
 
   // 禁止 API 响应被浏览器/代理缓存，确保管理后台总能拿到最新排序数据（解决排序刷新无效问题）
   app.use('/api', (req: any, res: any, next: any) => {

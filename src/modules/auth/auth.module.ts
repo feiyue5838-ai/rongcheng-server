@@ -10,14 +10,16 @@ import { StoreJwtStrategy } from './strategies/Outlet-jwt.strategy';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { WechatModule } from '../wechat/wechat.module';
 import { UserModule } from '../user/user.module';
+import { JWT_SECRET, JWT_SECRET_ADMIN, JWT_SECRET_OUTLET } from '../../common/config/jwt.config';
 
 @Module({
   imports: [
     PassportModule.register({ defaultStrategy: 'jwt' }),
+    // A-03: 三类主体使用独立密钥
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
-        secret: configService.get<string>('JWT_SECRET') || 'rongcheng-jwt-secret-2024',
+        secret: JWT_SECRET,
         signOptions: { expiresIn: configService.get<string>('JWT_EXPIRES_IN') || '7d' },
       }),
       inject: [ConfigService],
@@ -31,3 +33,6 @@ import { UserModule } from '../user/user.module';
   exports: [AuthService],
 })
 export class AuthModule {}
+
+// 导出独立密钥供各 Strategy 使用
+export { JWT_SECRET, JWT_SECRET_ADMIN, JWT_SECRET_OUTLET };

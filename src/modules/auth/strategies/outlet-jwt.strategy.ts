@@ -4,6 +4,7 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { JWT_SECRET_OUTLET } from '../../../common/config/jwt.config';
 
 @Injectable()
 export class StoreJwtStrategy extends PassportStrategy(Strategy, 'Outlet-jwt') {
@@ -14,7 +15,7 @@ export class StoreJwtStrategy extends PassportStrategy(Strategy, 'Outlet-jwt') {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      secretOrKey: config.get<string>('JWT_SECRET') || 'rongcheng-jwt-secret-2024',
+      secretOrKey: JWT_SECRET_OUTLET,
     });
   }
 

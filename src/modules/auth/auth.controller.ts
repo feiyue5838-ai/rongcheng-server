@@ -1,4 +1,4 @@
-import { Controller, Post, Body, HttpCode, HttpStatus, Request, UnauthorizedException } from '@nestjs/common';
+import { Controller, Post, Body, HttpCode, HttpStatus, Request, Ip, UnauthorizedException } from '@nestjs/common';
 import { IsString, IsNotEmpty } from 'class-validator';
 import { ApiTags, ApiOperation, ApiBody } from '@nestjs/swagger';
 import { Throttle, SkipThrottle } from '@nestjs/throttler';
@@ -55,8 +55,8 @@ export class AuthController {
       },
     },
   })
-  async adminLogin(@Body() dto: AdminLoginDto) {
-    return this.authService.adminLogin(dto.username, dto.password);
+  async adminLogin(@Body() dto: AdminLoginDto, @Ip() ip: string) {
+    return this.authService.adminLogin(dto.username, dto.password, ip);
   }
 
   @Post('admin/init')
