@@ -34,15 +34,17 @@ export class AdminService {
     const existing = await this.prisma.admins.findUnique({ where: { username: dto.username } });
     if (existing) throw new BadRequestException('用户名已存在');
     const hashedPassword = await bcrypt.hash(dto.password, 10);
-    // 白名单字段：拒绝 role / permissions / status 来自客户端
+    // role 白名单校验
+    const VALID_ROLES = ['admin', 'superadmin'];
+    const role = dto.role && VALID_ROLES.includes(dto.role) ? dto.role : 'admin';
     const created = await this.prisma.admins.create({
       data: {
         username: dto.username,
         nickname: dto.nickname || null,
         password: hashedPassword,
-        role: 'admin',         // 默认角色，不允许客户端指定
-        permissions: [],       // 默认空权限
-        status: 1,            // 默认启用
+        role,
+        permissions: [],
+        status: 1,
       },
       select: { id: true, username: true, nickname: true, role: true, status: true, last_login_at: true, created_at: true },
     });
