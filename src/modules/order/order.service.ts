@@ -94,6 +94,34 @@ export class OrderService {
       throw new BadRequestException('订单明细不能为空');
     }
 
+    // ── 材料字段类型隔离校验 ──────────────────────────────
+    // 防止用户切换产品类型后误用其他类型的材料，造成网点收到错误证件
+    let materialsInput: any = dto.materials;
+    if (typeof materialsInput === 'string') {
+      try { materialsInput = JSON.parse(materialsInput); } catch { materialsInput = null; }
+    }
+    if (materialsInput && typeof materialsInput === 'object') {
+      const m = materialsInput;
+      if (type === 'personal') {
+        if (m.license)          throw new BadRequestException('个人印章订单不得上传营业执照');
+        if (m.idCardFront)      throw new BadRequestException('个人印章订单不得上传身份证（正面）');
+        if (m.idCardBack)       throw new BadRequestException('个人印章订单不得上传身份证（反面）');
+        if (m.legalPhoto)       throw new BadRequestException('个人印章订单不得上传法人照片');
+        if (m.professionalCert) throw new BadRequestException('个人印章订单不得上传职业资格证书');
+      } else if (type === 'electronic') {
+        if (m.license)          throw new BadRequestException('电子印章订单不得上传营业执照');
+        if (m.idCardFront)      throw new BadRequestException('电子印章订单不得上传身份证（正面）');
+        if (m.idCardBack)       throw new BadRequestException('电子印章订单不得上传身份证（反面）');
+        if (m.legalPhoto)       throw new BadRequestException('电子印章订单不得上传法人照片');
+        if (m.professionalCert) throw new BadRequestException('电子印章订单不得上传职业资格证书');
+        if (m.signature)        throw new BadRequestException('电子印章订单不得上传个人签名');
+        if (m.handheldIdPhoto)  throw new BadRequestException('电子印章订单不得上传手持证件照');
+      }
+      // company 模式无额外限制（营业执照+法人证件均合法）
+    } else {
+      materialsInput = null;
+    }
+
     // 1. 校验地址（U-03: 必须归属当前用户，防止跨用户地址引用泄露）
     let addressData: any = null;
     if (address_id) {
@@ -179,10 +207,7 @@ export class OrderService {
     // 支付成功。
 
     // 5. 持久化用户上传的材料（前端已在下单前上传至 /api/upload/user-material 拿到 URL）
-    let materialsInput: any = dto.materials;
-    if (typeof materialsInput === 'string') {
-      try { materialsInput = JSON.parse(materialsInput); } catch { materialsInput = null; }
-    }
+    // 注：materialsInput 已在「材料字段类型隔离校验」段解析完毕，此处复用
     if (materialsInput && typeof materialsInput === 'object') {
       const typeMap: Record<string, string> = {
         license: 'license',
@@ -196,7 +221,7 @@ export class OrderService {
       };
       const toCreate: { order_id: string; type: string; url: string }[] = [];
       for (const key of Object.keys(typeMap)) {
-        const val = materialsInput[key];
+        const val = (materialsInput as any)[key];
         if (!val) continue;
         if (Array.isArray(val)) {
           for (const u of val) {
