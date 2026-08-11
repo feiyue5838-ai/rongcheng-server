@@ -196,7 +196,8 @@ export class SettlementService {
     const where: any = {};
 
     if (outletId) where.outlet_id = outletId;
-    if (status) where.status = status;
+    const s = status !== undefined && status !== null ? Number(status) : NaN;
+    if (!Number.isNaN(s)) where.status = s;
     if (startDate || endDate) {
       where.period_start = {};
       if (startDate) where.period_start.gte = new Date(startDate);

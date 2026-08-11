@@ -443,7 +443,8 @@ export class OrderService {
     const { page = 1, pageSize = 10, module, status } = query;
     const where: any = { user_id };
     if (module) where.module = module;
-    if (status) where.status = Number(status);
+    const s = status !== undefined && status !== null ? Number(status) : NaN;
+    if (!Number.isNaN(s)) where.status = s;
 
     const [orders, total] = await Promise.all([
       this.prisma.seal_orders.findMany({
@@ -733,7 +734,8 @@ export class OrderService {
     const where: any = {};
 
     if (module) where.module = module;
-    if (status) where.status = Number(status);
+    const s = status !== undefined && status !== null ? Number(status) : NaN;
+    if (!Number.isNaN(s)) where.status = s;
     if (keyword) {
       where.OR = [
         { order_no: { contains: keyword } },

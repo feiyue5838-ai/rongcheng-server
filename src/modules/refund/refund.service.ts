@@ -40,7 +40,8 @@ export class RefundService {
     const page = params.page || 1;
     const pageSize = Math.min(params.pageSize || 20, 100);
     const where: any = {};
-    if (params.status) where.status = params.status;
+    const s = params.status !== undefined && params.status !== null ? Number(params.status) : NaN;
+    if (!Number.isNaN(s)) where.status = s;
     const [items, total] = await Promise.all([
       this.prisma.refund_records.findMany({
         where,
