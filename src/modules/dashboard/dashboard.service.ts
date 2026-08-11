@@ -29,7 +29,9 @@ function todayBeijingUTC(): Date {
 function dateBeijingUTC(n: number): Date {
   const bj = getBeijingNow();
   const d = new Date(bj.getFullYear(), bj.getMonth(), bj.getDate() - n);
-  return new Date(d.getTime() - 8 * 3600 * 1000);
+  // d = 北京时间当天 00:00，new Date(y,m,d) 把年月日当本地时间(UTC+8)解释，
+  // d.getTime() 等价于北京时间 00:00 的 UTC 毫秒数，直接返回即可（不要多减 8h）
+  return d;
 }
 
 @Injectable()
