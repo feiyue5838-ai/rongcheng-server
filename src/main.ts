@@ -37,7 +37,7 @@ async function bootstrap() {
     transformOptions: { enableImplicitConversion: false },
   }));
 
-  // 禁止 API 响应被浏览器/代理缓存，确保管理后台总能拿到最新排序数据（解决排序刷新无效问题）
+  // 禁止 API 响应被浏览器/代理缓存，确保管理后台总能拿到最新排序数据
   app.use('/api', (req: any, res: any, next: any) => {
     res.setHeader('Cache-Control', 'no-store');
     next();

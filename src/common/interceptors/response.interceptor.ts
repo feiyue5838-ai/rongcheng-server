@@ -24,7 +24,7 @@ export class ResponseInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
     const skip = this.reflector.get(SKIP_WRAP_KEY, context.getHandler());
     if (skip) return next.handle();
-    return next.handle().pipe(map((data) => this.wrap(data)));
+    return next.handle().pipe(map(data => this.wrap(data)));
   }
 
   private wrap(data: any): any {

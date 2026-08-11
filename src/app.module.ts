@@ -24,6 +24,7 @@ import { FaqModule } from './modules/faq/faq.module';
 import { AfterSalesModule } from './modules/after-sales/after-sales.module';
 import { BookkeepingModule } from './modules/bookkeeping/bookkeeping.module';
 import { DispatchModule } from './modules/dispatch/dispatch.module';
+
 import { ContentModule } from './modules/content/content.module';
 import { MenuRoleModule } from './modules/menu-role/menu-role.module';
 import { SettlementModule } from './modules/settlement/settlement.module';
@@ -71,7 +72,7 @@ import { ResponseInterceptor } from './common/interceptors/response.interceptor'
     AfterSalesModule,
     BookkeepingModule,
     DispatchModule,
-    ContentModule,
+ContentModule,
     MenuRoleModule,
     SettlementModule,
     TransactionModule,
