@@ -78,9 +78,30 @@ export class OrderService {
     seals.forEach(s => priceMap.set(s.id, { name: s.name, price: Number(s.price) || 0, region_prices: s.region_prices }));
     packages.forEach(p => priceMap.set(p.id, { name: p.name, price: Number(p.price) || 0, region_prices: p.region_prices }));
 
-    const getDbPrice = (id: string): number | null => {
+    // 区域定价解析函数（与 seal.service.ts resolveRegionPrice 逻辑一致）
+    const resolveRegionPrice = (obj: { price: number; region_prices: any }, region: string): number => {
+      if (!region) return obj.price;
+      const regionPrices = typeof obj.region_prices === 'object' && obj.region_prices !== null ? obj.region_prices : {};
+      const parts = region.split(/\s+/).filter(Boolean);
+      const city = parts.length > 1 ? parts[parts.length - 1] : region;
+      const province = parts.length > 1 ? parts[0] : '';
+      // 优先精确匹配市级
+      if (regionPrices[city] !== undefined) return Number(regionPrices[city]);
+      const fuzzyCityKey = Object.keys(regionPrices).find((k) => k === city || k.startsWith(city));
+      if (fuzzyCityKey !== undefined) return Number(regionPrices[fuzzyCityKey]);
+      // 回退省级
+      if (province) {
+        if (regionPrices[province] !== undefined) return Number(regionPrices[province]);
+        const fuzzyProvKey = Object.keys(regionPrices).find((k) => k === province || k.startsWith(province));
+        if (fuzzyProvKey !== undefined) return Number(regionPrices[fuzzyProvKey]);
+      }
+      return obj.price;
+    };
+
+    const getDbPrice = (id: string, region?: string): number | null => {
       const item = priceMap.get(id);
-      return item ? item.price : null;
+      if (!item) return null;
+      return resolveRegionPrice(item, region || license_region || '');
     };
 
     // ── 边界校验 ───────────────────────────────
