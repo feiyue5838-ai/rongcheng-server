@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Inject, forwardRef } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { SEAL_PRICE_MAP, getSealPrice } from './seal-prices.constant';
+// 废弃硬编码价目表，改为从数据库读取价格
+// import { SEAL_PRICE_MAP, getSealPrice } from './seal-prices.constant';
 import { WechatService } from '../wechat/wechat.service';
 import { DispatchService } from '../dispatch/dispatch.service';
 import { generateTransactionNo } from '../../common/utils/sn';
@@ -68,8 +69,22 @@ export class OrderService {
       address_json,
     } = dto;
 
+    // ── 从数据库加载印章/套餐价格（废弃硬编码价目表）─────────────────
+    const [seals, packages] = await Promise.all([
+      this.prisma.seals.findMany({ select: { id: true, name: true, price: true, region_prices: true } }),
+      this.prisma.seal_packages.findMany({ select: { id: true, name: true, price: true, region_prices: true } }),
+    ]);
+    const priceMap = new Map<string, { name: string; price: number; region_prices: any }>();
+    seals.forEach(s => priceMap.set(s.id, { name: s.name, price: Number(s.price) || 0, region_prices: s.region_prices }));
+    packages.forEach(p => priceMap.set(p.id, { name: p.name, price: Number(p.price) || 0, region_prices: p.region_prices }));
+
+    const getDbPrice = (id: string): number | null => {
+      const item = priceMap.get(id);
+      return item ? item.price : null;
+    };
+
     // ── 边界校验 ───────────────────────────────
-    // B1: 明细校验 —— 不再信任前端传入的 price，只校验每项必须有合法的印章/套餐标识
+    // B1: 明细校验 —— 从数据库校验印章/套餐是否存在并获取价格
     if (!items || items.length === 0) {
       throw new BadRequestException('订单明细不能为空');
     }
@@ -78,7 +93,7 @@ export class OrderService {
       if (!priceKey) {
         throw new BadRequestException('订单明细缺少印章或套餐标识');
       }
-      if (getSealPrice(priceKey) === null) {
+      if (getDbPrice(priceKey) === null) {
         throw new BadRequestException('包含无效的印章或套餐：' + priceKey);
       }
     }
@@ -144,15 +159,15 @@ export class OrderService {
       if (defaultAddr) addressData = defaultAddr;
     }
 
-    // 2. 计算总价（服务端计价，忽略前端传入的 price，防止抓包篡改金额）
+    // 2. 计算总价（服务端计价，从数据库读取价格，忽略前端传入的 price，防止抓包篡改金额）
     let total_price = 0;
     const order_items: any[] = [];
 
-    // 从 items 按 seal_id / package_id 查服务端价格表重算总价
+    // 从 items 按 seal_id / package_id 查数据库价格重算总价
     if (items && items.length > 0) {
       for (const item of items) {
         const priceKey = item.package_id || item.seal_id;
-        const serverPrice = getSealPrice(priceKey);
+        const serverPrice = getDbPrice(priceKey);
         if (serverPrice === null) {
           throw new BadRequestException('无效的印章或套餐：' + priceKey);
         }
