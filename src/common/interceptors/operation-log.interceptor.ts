@@ -47,7 +47,7 @@ export class OperationLogInterceptor implements NestInterceptor {
           const user_agent = (req.headers?.['user-agent'] as string) || null;
 
           // 解析 target
-          const target = this.resolveTarget(meta.target, req, data);
+          const target = this.resolveTarget(meta.target, req, data ?? {});
 
           await this.prisma.operation_logs.create({
             data: {
@@ -77,7 +77,7 @@ export class OperationLogInterceptor implements NestInterceptor {
     let result = template;
 
     // 优先取真实路由参数（req.params 已有 Express 已解析的值）
-    const src = req.params ?? {};
+    const src = (req.params && typeof req.params === 'object') ? req.params : {};
 
     // 风格 1: :paramName（Express 路由参数语法，有前缀 /）
     // 示例: "admin/:id" → "admin/abc123"
@@ -114,7 +114,7 @@ export class OperationLogInterceptor implements NestInterceptor {
         if (SENSITIVE_KEYS.test(key)) return '***';
         if (val === null || val === undefined) return val;
         if (typeof val === 'string' && val.length > 200) return val.slice(0, 200) + '...';
-        if (typeof val === 'object') return JSON.parse(JSON.stringify(val, (k, v) => redact(v, k)));
+        if (val !== null && typeof val === 'object') return JSON.parse(JSON.stringify(val, (k, v) => redact(v, k)));
         return val;
       };
       const s = JSON.stringify(obj, (k, v) => redact(v, k));

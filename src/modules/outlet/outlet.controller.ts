@@ -1,32 +1,111 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Request } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { IsString, IsOptional, IsArray, IsNumber, MinLength, IsPhoneNumber, IsInt, Min, Max } from 'class-validator';
+import { Type } from 'class-transformer';
 import { StoreService } from './Outlet.service';
 import { AdminJwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { StoreJwtAuthGuard } from '../auth/guards/Outlet-jwt-auth.guard';
 import { Log } from '../../common/decorators/log.decorator';
 
 class CreateStoreDto {
+  @IsString()
+  @MinLength(1)
   name: string;
+
+  @IsString()
+  @MinLength(1)
   contact: string;
+
+  @IsString()
+  @MinLength(1)
   phone: string;
+
+  @IsString()
+  @IsOptional()
   province?: string;
+
+  @IsString()
+  @IsOptional()
   city?: string;
+
+  @IsString()
+  @IsOptional()
+  district?: string;
+
+  @IsString()
+  @IsOptional()
   address?: string;
+
+  @IsString()
+  @IsOptional()
   business_license?: string;
+
+  @IsArray()
+  @IsOptional()
   special_permits?: string[];
+
+  @IsArray()
+  @IsOptional()
   businessTypeIds?: string[];
+
+  @IsString()
+  @IsOptional()
+  region?: string;
+
+  @IsString()
+  @IsOptional()
+  settlementCycle?: string;
+
+  @IsInt()
+  @Min(1)
+  @Max(7)
+  @Type(() => Number)
+  @IsOptional()
+  settlementWeeklyStartDay?: number;
 }
 
 class UpdateStoreDto {
+  @IsString()
+  @IsOptional()
   name?: string;
+
+  @IsString()
+  @IsOptional()
   contact?: string;
+
+  @IsString()
+  @IsOptional()
   phone?: string;
+
+  @IsString()
+  @IsOptional()
   province?: string;
+
+  @IsString()
+  @IsOptional()
   city?: string;
+
+  @IsString()
+  @IsOptional()
   address?: string;
+
+  @IsInt()
+  @Min(0)
+  @Max(1)
+  @Type(() => Number)
+  @IsOptional()
   status?: number;
+
+  @IsString()
+  @IsOptional()
   business_license?: string;
+
+  @IsArray()
+  @IsOptional()
   special_permits?: string[];
+
+  @IsArray()
+  @IsOptional()
   businessTypeIds?: string[];
 }
 

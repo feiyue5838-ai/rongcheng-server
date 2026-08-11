@@ -6,7 +6,7 @@ export class MenuRoleService {
   constructor(private prisma: PrismaService) {}
 
   private toCamel(row: any): any {
-    if (!row) return row
+    if (!row) return null
     return {
       id: row.id,
       path: row.path,
@@ -27,28 +27,38 @@ export class MenuRoleService {
     return rows.map(r => this.toCamel(r))
   }
 
-  async upsert(id: string | null, data: { path: string; pathType: string; roles: string[]; sort: number; enabled: boolean; updatedBy?: string }) {
-    const roles = '{' + data.roles.map(r => '"' + r + '"').join(',') + '}'
+  async upsert(id: string | null, data: { path: string; pathType: string; roles?: string[]; sort?: number; enabled?: boolean; updatedBy?: string }) {
+    const path = data.path ?? ''
+    const pathType = data.pathType ?? 'page'
+    const sort = data.sort ?? 0
+    const enabled = data.enabled !== undefined ? data.enabled : true
     if (id) {
-      await this.prisma.$executeRawUnsafe(
-        `UPDATE menu_role_config SET path=$1, path_type=$2, roles=$3::text[], sort=$4, enabled=$5, updated_by=$6, updated_at=NOW() WHERE id=$7`,
-        data.path, data.pathType, roles, data.sort, data.enabled, data.updatedBy || null, id
-      )
+      await this.prisma.menu_role_config.update({
+        where: { id },
+        data: { path, path_type: pathType, roles: data.roles || [], sort, enabled, updated_by: data.updatedBy || null },
+      })
       const rows = await this.prisma.$queryRawUnsafe<any[]>(
         'SELECT * FROM menu_role_config WHERE id = $1', id
       )
-      return this.toCamel(rows[0])
+      return rows[0] ? this.toCamel(rows[0]) : null
     } else {
       try {
-        await this.prisma.$executeRawUnsafe(
-          `INSERT INTO menu_role_config (id, path, path_type, roles, sort, enabled, updated_by) VALUES (gen_random_uuid(), $1, $2, $3::text[], $4, $5, $6)`,
-          data.path, data.pathType, roles, data.sort, data.enabled, data.updatedBy || null
-        )
+        await this.prisma.menu_role_config.create({
+          data: {
+            path,
+            path_type: pathType,
+            roles: data.roles || [],
+            sort,
+            enabled,
+            updated_by: data.updatedBy || null,
+            updated_at: new Date(),
+          },
+        })
       } catch (_) { /* ignore duplicate */ }
       const rows = await this.prisma.$queryRawUnsafe<any[]>(
-        'SELECT * FROM menu_role_config WHERE path = $1', data.path
+        'SELECT * FROM menu_role_config WHERE path = $1 AND path_type = $2', path, pathType
       )
-      return this.toCamel(rows[0])
+      return rows[0] ? this.toCamel(rows[0]) : null
     }
   }
 
