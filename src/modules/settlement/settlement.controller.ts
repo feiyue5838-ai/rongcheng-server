@@ -133,6 +133,14 @@ export class SettlementController {
     return { code: 0, data: results };
   }
 
+  @Post('records/trigger-scheduled')
+  @ApiOperation({ summary: '手动触发定时结算（测试/人工触发）' })
+  async triggerScheduledSettlement(@Request() req: any) {
+    // 操作人从 JWT 取，admin 可手动触发任意网点的定时结算
+    const results = await this.settlementService.runScheduledSettlement();
+    return { code: 0, data: results, message: `共 ${results.length} 个网点命中定时条件` };
+  }
+
   @Put('records/:id/status')
   @ApiOperation({ summary: '更新结算状态' })
   async updateStatus(

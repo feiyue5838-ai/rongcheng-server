@@ -48,7 +48,13 @@ export class StoreService {
         { phone: { contains: keyword } },
       ];
     }
-    if (status !== undefined) where.status = Number(status);
+    // 默认查询营业中和歇业网点（避免 Prisma 空 where 报错）
+    const statusVal = status !== undefined && status !== null ? Number(status) : NaN;
+    if (!Number.isNaN(statusVal)) {
+      where.status = statusVal;
+    } else {
+      where.status = { in: [0, 1] };
+    }
     if (params.province) {
       where.province = params.province;
     }
@@ -85,7 +91,7 @@ export class StoreService {
           outlet_business_types: { include: { business_type: true } },
         },
       }),
-      this.prisma.outlets.count({ where }),
+      this.prisma.$queryRawUnsafe<[{ count: bigint }]>('SELECT COUNT(*) FROM "outlets"').then(r => Number(r[0].count)),
     ]);
 
     return {
@@ -362,7 +368,12 @@ export class StoreService {
     const { page = 1, pageSize = 20, status } = params;
 
     const where: any = { outlet_id };
-    if (status !== undefined) where.status = Number(status);
+    const statusVal = status !== undefined && status !== null ? Number(status) : NaN;
+    if (!Number.isNaN(statusVal)) {
+      where.status = statusVal;
+    } else {
+      where.status = { in: [1, 2, 3] };
+    }
 
     const [assignments, total] = await Promise.all([
       this.prisma.order_assignments.findMany({
@@ -424,7 +435,9 @@ export class StoreService {
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-    const outlets = await this.prisma.outlets.findMany();
+    const outlets = await this.prisma.outlets.findMany({
+      where: { status: { in: [0, 1] } },
+    });
     const groups = await this.prisma.order_assignments.groupBy({
       by: ['outlet_id', 'status'],
       _count: { _all: true },

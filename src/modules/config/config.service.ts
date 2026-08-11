@@ -34,10 +34,11 @@ export class ConfigService {
 
   async setConfig(key: string, value: any, name?: string, group?: string) {
     const stringValue = typeof value === 'string' ? value : JSON.stringify(value);
+    const valueType = typeof value === 'string' ? 'string' : 'json';
     const upserted = await this.prisma.system_configs.upsert({
       where: { key },
-      create: { key, value: stringValue, name: name || key, group: group || 'default' },
-      update: { value: stringValue, ...(group ? { group } : {}) },
+      create: { key, value: stringValue, value_type: valueType, name: name || key, group: group || 'default' },
+      update: { value: stringValue, value_type: valueType, ...(group ? { group } : {}) },
     });
     return toCamelDeep(upserted);
   }
