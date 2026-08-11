@@ -272,6 +272,41 @@ export class StoreController {
     return this.storeService.toggleSubscribe(req.user.id, dto.enabled);
   }
 
+  // ==================== 网点通知接口 ====================
+
+  @Get('me/notifications')
+  @UseGuards(StoreJwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '网点端：获取我的通知列表' })
+  async getMyNotifications(
+    @Request() req: any,
+    @Query('page') page?: number,
+    @Query('pageSize') pageSize?: number,
+    @Query('unreadOnly') unreadOnly?: string,
+  ) {
+    return this.storeService.getOutletNotifications(req.user.id, {
+      page: Number(page) || 1,
+      pageSize: Number(pageSize) || 50,
+      unreadOnly: unreadOnly === 'true',
+    });
+  }
+
+  @Put('notifications/:id/read')
+  @UseGuards(StoreJwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '网点端：标记通知为已读' })
+  async markNotificationRead(@Param('id') id: string, @Request() req: any) {
+    return this.storeService.markNotificationRead(req.user.id, id);
+  }
+
+  @Delete('notifications/:id')
+  @UseGuards(StoreJwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '网点端：删除通知' })
+  async deleteNotification(@Param('id') id: string, @Request() req: any) {
+    return this.storeService.deleteNotification(req.user.id, id);
+  }
+
   @Get(':outlet_id/orders')
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()

@@ -652,5 +652,85 @@ export class StoreService {
 
     return { success: true, message: '发货成功' };
   }
+
+  // ==================== 网点通知相关 ====================
+
+  /**
+   * 获取网点通知列表
+   */
+  async getOutletNotifications(outlet_id: string, query: { page: number; pageSize: number; unreadOnly?: boolean }) {
+    const where: any = { outlet_id };
+    if (query.unreadOnly) {
+      where.is_read = false;
+    }
+
+    const [list, total] = await Promise.all([
+      this.prisma.outlet_notifications.findMany({
+        where,
+        orderBy: { created_at: 'desc' },
+        skip: (query.page - 1) * query.pageSize,
+        take: query.pageSize,
+      }),
+      this.prisma.outlet_notifications.count({ where }),
+    ]);
+
+    return {
+      list: list.map(n => ({
+        id: n.id,
+        title: n.title,
+        content: n.content,
+        type: n.type,
+        order_id: n.order_id,
+        order_no: n.order_no,
+        is_read: n.is_read,
+        createdAt: n.created_at,
+      })),
+      pagination: {
+        page: query.page,
+        pageSize: query.pageSize,
+        total,
+        totalPages: Math.ceil(total / query.pageSize),
+      },
+    };
+  }
+
+  /**
+   * 标记通知为已读
+   */
+  async markNotificationRead(outlet_id: string, notification_id: string) {
+    const notification = await this.prisma.outlet_notifications.findFirst({
+      where: { id: notification_id, outlet_id },
+    });
+
+    if (!notification) {
+      throw new NotFoundException('通知不存在');
+    }
+
+    await this.prisma.outlet_notifications.update({
+      where: { id: notification_id },
+      data: { is_read: true },
+    });
+
+    return { success: true };
+  }
+
+  /**
+   * 删除通知
+   */
+  async deleteNotification(outlet_id: string, notification_id: string) {
+    const notification = await this.prisma.outlet_notifications.findFirst({
+      where: { id: notification_id, outlet_id },
+    });
+
+    if (!notification) {
+      throw new NotFoundException('通知不存在');
+    }
+
+    await this.prisma.outlet_notifications.delete({
+      where: { id: notification_id },
+    });
+
+    return { success: true };
+  }
 }
 
