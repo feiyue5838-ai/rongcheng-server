@@ -50,6 +50,10 @@ const ACTION_LABELS: Record<string, string> = {
   accept: '接单', deliver: '发货', sign: '签收',
   assign: '分配', reassign: '重新分配',
   read: '读取',
+  // 订单模块英文 action
+  seal: '刻章下单', newspaper: '登报下单', 'dev-paid': '模拟支付',
+  // 网点模块英文 action
+  'bind-openid': '绑定OpenID',
 };
 
 @Injectable()
