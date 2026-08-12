@@ -12,16 +12,29 @@ dotenv.config();
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
-  // CORS: 开发环境允许前端 localhost:5173/5174，生产环境配置实际域名
+  // CORS: 开发环境允许 localhost，生产环境必须配置 ALLOWED_ORIGINS（逗号分隔的域名列表）
+  const isProd = process.env.NODE_ENV === 'production';
   app.enableCors({
-    origin: [
-      'http://localhost:5173',
-      'http://localhost:5174',
-      'http://127.0.0.1:5173',
-      'http://127.0.0.1:5174',
-    ],
+    origin: isProd
+      ? (origin, cb) => {
+          if (!origin) return cb(null, true); // 非浏览器请求（如 curl/Postman）放行
+          const allowed = (process.env.ALLOWED_ORIGINS || '')
+            .split(',')
+            .map(s => s.trim())
+            .filter(Boolean);
+          if (allowed.includes(origin)) {
+            return cb(null, true);
+          }
+          console.warn(`[CORS] 拒绝未授权跨域请求: ${origin}`);
+          return cb(new Error('Not allowed by CORS'));
+        }
+      : ['http://localhost:5173', 'http://localhost:5174',
+         'http://127.0.0.1:5173', 'http://127.0.0.1:5174'],
     credentials: true,
   });
+  if (isProd && !process.env.ALLOWED_ORIGINS) {
+    console.warn('[CORS] ⚠️ NODE_ENV=production 但未配置 ALLOWED_ORIGINS，CORS 仅放行已配置域名');
+  }
 
   // A-06: 开启代理信任，使 req.ip 在反代后返回真实 IP
   app.set('trust proxy', 1);
