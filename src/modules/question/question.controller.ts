@@ -54,7 +54,7 @@ export class QuestionController {
   }
 
   @Post(':id/replies')
-  @Log("问答", "replies", ":id/replies")
+  @Log("问答", "回复问题", ":id/replies")
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '回复问题' })
