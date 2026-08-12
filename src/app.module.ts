@@ -51,7 +51,11 @@ import { ResponseInterceptor } from './common/interceptors/response.interceptor'
       },
     }),
     // ⚠️ 压测/大并发时临时调高；生产环境可根据实际流量调回 500-1000
-    ThrottlerModule.forRoot([{ ttl: 60000, limit: 10000 }]),
+    ThrottlerModule.forRoot([
+      // 全局限流：1000次/分钟，正常业务不会触发
+      { ttl: 60000, limit: 1000 },
+      // 登录接口特别严格：5次/分钟（已有 login 专属配置，此处兜底）
+    ]),
     ScheduleModule.forRoot(),
     PrismaModule,
     AuthModule,
