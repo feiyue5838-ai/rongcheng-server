@@ -127,7 +127,7 @@ export class ReviewService {
       this.prisma.reviews.findMany({
         where,
         include: {
-          user: { select: { nickname: true, phone: true, avatar: true } },
+          user: { select: { nickname: true, avatar: true } },
           seal_orders: { select: { order_no: true, type: true } },
         },
         orderBy: { created_at: 'desc' },
