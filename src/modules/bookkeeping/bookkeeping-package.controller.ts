@@ -2,6 +2,7 @@ import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards } fro
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { BookkeepingService } from './bookkeeping.service';
 import { AdminJwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { Log } from '../../common/decorators/log.decorator';
 
 /** 将前端 camelCase 字段转成后端 Prisma snake_case */
 function normalize(data: any): any {
@@ -48,6 +49,7 @@ export class BookkeepingPackageController {
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '创建套餐' })
+  @Log('记账', '创建套餐')
   async create(@Body() body: any) {
     return this.bookkeepingService.createPackage(normalize(body));
   }
@@ -56,6 +58,7 @@ export class BookkeepingPackageController {
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '更新套餐' })
+  @Log('记账', '更新套餐')
   async update(@Param('id') id: string, @Body() body: any) {
     return this.bookkeepingService.updatePackage(id, normalize(body));
   }
@@ -64,6 +67,7 @@ export class BookkeepingPackageController {
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '删除套餐' })
+  @Log('记账', '删除套餐')
   async delete(@Param('id') id: string) {
     return this.bookkeepingService.deletePackage(id);
   }

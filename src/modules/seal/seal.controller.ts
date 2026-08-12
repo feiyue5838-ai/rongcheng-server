@@ -153,7 +153,6 @@ export class SealController {
   @ApiBearerAuth()
   @ApiOperation({ summary: '创建印章' })
   async createSeal(@Body() dto: any) {
-    console.log('[DEBUG] createSeal dto:', JSON.stringify(dto));
     return this.sealService.adminCreateSeal(dto);
   }
 
