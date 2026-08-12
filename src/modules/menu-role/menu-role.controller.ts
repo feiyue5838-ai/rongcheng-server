@@ -1,6 +1,8 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards, Request } from '@nestjs/common'
 import { MenuRoleService } from './menu-role.service'
 import { AdminJwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { Roles } from '../../common/decorators/roles.decorator';
 
 @Controller('menu-roles')
 @UseGuards(AdminJwtAuthGuard)
@@ -34,6 +36,8 @@ export class MenuRoleController {
   }
 
   @Post('reset')
+  @UseGuards(RolesGuard)
+  @Roles('superadmin')
   reset() {
     return this.menuRoleService.reset()
   }
