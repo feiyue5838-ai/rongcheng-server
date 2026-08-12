@@ -55,8 +55,17 @@ export class FaqController {
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @Log('帮助中心', '删除分类', 'admin/category/:id')
-  async deleteCategory(@Param('id') id: string) {
+  async deleteCategory(@Param('id') id: string, @Body() dto: any) {
     return this.faqService.deleteCategory(id);
+  }
+
+  // ⚠️ admin/phone 必须放在 admin/:id 之前，否则 /admin/phone 会被 :id=phone 错误匹配
+  @Put('admin/phone')
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiBearerAuth()
+  @Log('帮助中心', '设置客服电话', 'admin/phone')
+  async setPhone(@Body() dto: any) {
+    return this.faqService.setPhone(dto.phone);
   }
 
   @Post('admin')
@@ -105,13 +114,5 @@ export class FaqController {
   @ApiOperation({ summary: '客服电话（后台）' })
   async getPhoneAdmin() {
     return { phone: await this.faqService.getPhoneValue() };
-  }
-
-  @Put('admin/phone')
-  @UseGuards(AdminJwtAuthGuard)
-  @ApiBearerAuth()
-  @Log('帮助中心', '设置客服电话', 'admin/phone')
-  async setPhone(@Body() dto: any) {
-    return this.faqService.setPhone(dto.phone);
   }
 }
