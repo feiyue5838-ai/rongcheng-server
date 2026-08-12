@@ -78,10 +78,10 @@ export class AuthService {
       openid,
       user: {
         id: user.id,
-        nickname: user.nickname,
-        avatar: user.avatar,
-        phone: user.phone,
-        realname: user.realname,
+        nickname: user.nickname ?? null,
+        avatar: user.avatar ?? null,
+        phone: user.phone ? user.phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2') : null,
+        realname: user.realname ? user.realname[0] + '***' : null,
       },
     };
   }
