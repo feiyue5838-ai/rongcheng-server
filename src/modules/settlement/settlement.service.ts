@@ -207,7 +207,7 @@ export class SettlementService {
     const [records, total, summary] = await Promise.all([
       this.prisma.settlement_records.findMany({
         where,
-        include: { outlet: { select: { id: true, name: true, phone: true } } },
+        include: { outlet: { select: { id: true, name: true } } },
         orderBy: { created_at: 'desc' },
         skip: (page - 1) * pageSize,
         take: pageSize,
@@ -238,7 +238,7 @@ export class SettlementService {
   async getRecordDetail(id: string) {
     const record = await this.prisma.settlement_records.findUnique({
       where: { id },
-      include: { outlet: { select: { id: true, name: true, phone: true, contact: true } } },
+      include: { outlet: { select: { id: true, name: true, contact: true } } },
     });
     if (!record) throw new BadRequestException('结算记录不存在');
     return toCamelDeep(record);
