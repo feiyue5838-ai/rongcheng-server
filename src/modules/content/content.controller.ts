@@ -15,8 +15,7 @@ export class ContentController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Banner 列表' })
   async listBanners() {
-    const list = await this.contentService.listBanners();
-    return { list };
+    return this.contentService.listBanners();
   }
 
   @Post('banners')
@@ -52,8 +51,7 @@ export class ContentController {
   @ApiBearerAuth()
   @ApiOperation({ summary: '公告列表' })
   async listAnnouncements(@Query() query: { status?: string; keyword?: string }) {
-    const list = await this.contentService.listAnnouncements(query);
-    return { list };
+    return this.contentService.listAnnouncements(query);
   }
 
   @Post('announcements')
@@ -91,8 +89,7 @@ export class ContentController {
   @ApiBearerAuth()
   @ApiOperation({ summary: '业务介绍列表' })
   async listIntros() {
-    const list = await this.contentService.listIntros();
-    return { list };
+    return this.contentService.listIntros();
   }
 
   @Post('intros')
