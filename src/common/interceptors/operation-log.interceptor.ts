@@ -109,7 +109,8 @@ export class OperationLogInterceptor implements NestInterceptor {
   private safeStringify(obj: any, maxLen: number): string {
     try {
       // S-08: 敏感字段脱敏，防止密码/openid/token 明文写入日志
-      const SENSITIVE_KEYS = /password|token|secret|openid|phone|idCard|realname|license/i;
+      // 兼容 camelCase（代码层）和 snake_case（数据库层）两种命名
+      const SENSITIVE_KEYS = /password|token|secret|openid|unionid|phone|id_card|idCard|real_name|realname|license|private_key|certificate|signature|id_number|identity_card/i;
       const redact = (val: any, key: string): any => {
         if (SENSITIVE_KEYS.test(key)) return '***';
         if (val === null || val === undefined) return val;
