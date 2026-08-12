@@ -17,6 +17,41 @@ import { LOG_METADATA_KEY } from '../decorators/log.decorator';
  * - 成功后才落库；失败不入库（避免脏数据）
  * - 自动从 JWT 中取 admin_id，从 request 取 ip / user_agent
  */
+// 模块与操作的中文标签映射（覆盖 @Log 装饰器传入的原始值）
+const MODULE_LABELS: Record<string, string> = {
+  // 英文 → 中文
+  order: '订单', orders: '订单',
+  seal: '刻章', seals: '刻章',
+  newspaper: '登报', newspapers: '登报',
+  bookkeeping: '记账', bookkeeping_package: '记账',
+  outlet: '网点', outlets: '网点',
+  user: '用户', users: '用户',
+  admin: '管理员', admins: '管理员',
+  dispatch: '派单', dispatch_rule: '派单规则',
+  notification: '通知', notifications: '通知',
+  faq: '问答', faqs: '问答',
+  content: '内容',
+  config: '系统配置', configs: '系统配置',
+  delivery: '配送',
+  payment: '支付',
+  review: '评价',
+  menu_role: '菜单权限', menu_role_config: '菜单权限',
+  settlement: '结算',
+  refund: '退款',
+};
+
+const ACTION_LABELS: Record<string, string> = {
+  // 英文 → 中文
+  create: '新增', update: '更新', delete: '删除',
+  login: '登录', logout: '登出',
+  dev_paid: '模拟支付',
+  pay: '支付', refund: '退款',
+  confirm: '确认', cancel: '取消',
+  accept: '接单', deliver: '发货', sign: '签收',
+  assign: '分配', reassign: '重新分配',
+  read: '读取',
+};
+
 @Injectable()
 export class OperationLogInterceptor implements NestInterceptor {
   private readonly logger = new Logger('OperationLog');
@@ -49,11 +84,13 @@ export class OperationLogInterceptor implements NestInterceptor {
           // 解析 target
           const target = this.resolveTarget(meta.target, req, data ?? {});
 
+          const moduleLabel = MODULE_LABELS[meta.module?.toLowerCase()] ?? meta.module ?? '';
+          const actionLabel = ACTION_LABELS[meta.action?.toLowerCase()] ?? meta.action ?? '';
           await this.prisma.operation_logs.create({
             data: {
               admin_id,
-              module: meta.module,
-              action: meta.action,
+              module: moduleLabel,
+              action: actionLabel,
               target,
               detail: this.safeStringify({ body: req.body, params: req.params, result: data }, 800),
               ip,
