@@ -54,11 +54,11 @@ export class ContentService {
         { content: { contains: query.keyword } },
       ];
     }
-    const list = await this.prisma.content_announcements.findMany({
-      where,
-      orderBy: { created_at: 'desc' },
-    });
-    return toCamelDeep(list);
+    const [list, total] = await Promise.all([
+      this.prisma.content_announcements.findMany({ where, orderBy: { created_at: 'desc' } }),
+      this.prisma.content_announcements.count({ where }),
+    ]);
+    return { list: toCamelDeep(list), pagination: { page: 1, pageSize: 20, total } };
   }
 
   async createAnnouncement(dto: { title: string; content: string; status?: number; publishedAt?: string; expiredAt?: string; operator?: string }) {
@@ -93,10 +93,11 @@ export class ContentService {
 
   // ==================== Intro ====================
   async listIntros() {
-    const list = await this.prisma.content_intros.findMany({
-      orderBy: [{ sort: 'asc' }, { created_at: 'asc' }],
-    });
-    return toCamelDeep(list);
+    const [list, total] = await Promise.all([
+      this.prisma.content_intros.findMany({ orderBy: [{ sort: 'asc' }, { created_at: 'asc' }] }),
+      this.prisma.content_intros.count(),
+    ]);
+    return { list: toCamelDeep(list), pagination: { page: 1, pageSize: 20, total } };
   }
 
   async createIntro(data: { title: string; subtitle?: string; image: string; sort?: number; status?: number }) {
