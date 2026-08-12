@@ -37,8 +37,8 @@ export class ResponseInterceptor implements NestInterceptor {
     if (data && typeof data === 'object' && ('url' in data || 'urls' in data)) {
       return data;
     }
-    if (data && typeof data === 'object' && 'list' in data) {
-      return data;
+    if (data && typeof data === 'object' && 'list' in data && 'pagination' in data) {
+      return { code: 0, data };
     }
     if (
       data &&

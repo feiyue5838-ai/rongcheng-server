@@ -140,6 +140,16 @@ export class UserService {
         orderBy: { created_at: 'desc' },
         skip: (page - 1) * pageSize,
         take: Number(pageSize),
+        select: {
+          id: true,
+          nickname: true,
+          avatar: true,
+          phone: true,
+          realname: true,
+          status: true,
+          last_login_at: true,
+          created_at: true,
+        },
       }),
       this.prisma.users.count({ where }),
     ]);
