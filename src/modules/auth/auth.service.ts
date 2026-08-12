@@ -2,9 +2,14 @@ import { Injectable, UnauthorizedException, BadRequestException, NotFoundExcepti
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
 import * as jwt from 'jsonwebtoken';
+import KeyvRedis from '@keyv/redis';
 import { PrismaService } from '../../prisma/prisma.service';
 import { WechatService } from '../wechat/wechat.service';
 import { JWT_SECRET, JWT_SECRET_ADMIN, JWT_SECRET_OUTLET } from '../../common/config/jwt.config';
+
+const LOCKOUT_TTL = 900;   // 15分钟
+const LOCKOUT_MAX = 5;     // 5次失败封禁
+const loginLockout = new KeyvRedis({ url: 'redis://localhost:6379' });
 
 @Injectable()
 export class AuthService {
@@ -96,6 +101,13 @@ export class AuthService {
     if (!username || !password) {
       throw new BadRequestException('用户名和密码不能为空');
     }
+    // P3-3: 登录失败封禁
+    const lockKey = `lockout:admin:${username}`;
+    const failCount = Number(await loginLockout.get(lockKey)) || 0;
+    if (failCount >= LOCKOUT_MAX) {
+      throw new UnauthorizedException(`登录失败次数过多，请${Math.ceil(LOCKOUT_TTL / 60)}分钟后再试`);
+    }
+
     const admin = await this.prisma.admins.findUnique({ where: { username } });
     if (!admin) {
       // A-05: 统一返回「用户名或密码错误」，防止账号枚举
@@ -108,9 +120,14 @@ export class AuthService {
 
     const isMatch = await bcrypt.compare(password, admin.password);
     if (!isMatch) {
+      // P3-3: 失败计数，到期自动失效
+      await loginLockout.set(lockKey, String(failCount + 1), LOCKOUT_TTL);
       // A-05: 统一返回「用户名或密码错误」，防止账号枚举
       throw new UnauthorizedException('用户名或密码错误');
     }
+
+    // P3-3: 登录成功，清除失败计数
+    await loginLockout.delete(lockKey);
 
     // A-06: 使用真实登录 IP
     await this.prisma.admins.update({
@@ -123,7 +140,8 @@ export class AuthService {
 
     // 生成 Token（A-03: 使用管理员专属密钥）
     const payload = { sub: admin.id, username: admin.username, role: admin.role, type: 'admin' };
-    const token = jwt.sign(payload, JWT_SECRET_ADMIN, { expiresIn: '30d' });
+    const adminExpiresIn = process.env.NODE_ENV === 'production' ? '8h' : '30d';
+    const token = jwt.sign(payload, JWT_SECRET_ADMIN, { expiresIn: adminExpiresIn });
 
     return {
       token,
@@ -170,6 +188,13 @@ export class AuthService {
     if (!phone || !password) {
       throw new BadRequestException('手机号和密码不能为空');
     }
+    // P3-3: 登录失败封禁
+    const lockKey = `lockout:outlet:${phone}`;
+    const failCount = Number(await loginLockout.get(lockKey)) || 0;
+    if (failCount >= LOCKOUT_MAX) {
+      throw new UnauthorizedException(`登录失败次数过多，请${Math.ceil(LOCKOUT_TTL / 60)}分钟后再试`);
+    }
+
     const Outlet = await this.prisma.outlets.findUnique({
       where: { phone },
       include: {
@@ -190,15 +215,21 @@ export class AuthService {
 
     const isMatch = await bcrypt.compare(password, Outlet.password);
     if (!isMatch) {
+      // P3-3: 失败计数，到期自动失效
+      await loginLockout.set(lockKey, String(failCount + 1), LOCKOUT_TTL);
       // A-05: 统一返回 401 + 统一文案
       throw new UnauthorizedException('手机号或密码错误');
     }
+
+    // P3-3: 登录成功，清除失败计数
+    await loginLockout.delete(lockKey);
 
     // 更新登录信息
     await this.prisma.outlets.update({
       where: { id: Outlet.id },
       data: { last_login_at: new Date() },
     });
+    await loginLockout.delete(lockKey);
 
     // A-03: 使用网点专属密钥
     const token = jwt.sign({
