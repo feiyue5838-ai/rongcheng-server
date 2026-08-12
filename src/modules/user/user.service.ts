@@ -6,11 +6,18 @@ import { toCamelDeep } from '../../common/utils/case';
 export class UserService {
   constructor(private prisma: PrismaService) {}
 
-  /** 获取当前用户信息 */
+  /** 获取当前用户信息（脱敏） */
   async getProfile(user_id: string) {
     const user = await this.prisma.users.findUnique({ where: { id: user_id } });
     if (!user) throw new NotFoundException('用户不存在');
-    return user;
+    return {
+      id: user.id,
+      nickname: user.nickname ?? null,
+      avatar: user.avatar ?? null,
+      phone: user.phone ? user.phone.replace(/(\d{3})\d{4}(\d{4})/, '$1****$2') : null,
+      realname: user.realname ? user.realname[0] + '***' : null,
+      status: user.status,
+    };
   }
 
   /** 更新用户信息 */
