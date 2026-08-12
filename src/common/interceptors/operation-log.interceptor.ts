@@ -56,6 +56,39 @@ const ACTION_LABELS: Record<string, string> = {
   'bind-openid': '绑定OpenID',
 };
 
+// target 路径片段的中文翻译（按顺序匹配替换）
+const TARGET_LABELS: [string, string][] = [
+  // 订单相关
+  ['seal', '刻章订单'],
+  ['newspaper', '登报订单'],
+  ['dev-paid', '模拟支付'],
+  // 通用资源路径
+  ['categories', '分类'],
+  ['templates', '模板'],
+  ['sections', '版面'],
+  ['packages', '套餐'],
+  ['scenes', '场景'],
+  ['record-queries', '记录查询'],
+  ['personal-docs', '个人证件'],
+  // 动作片段
+  ['admin/category', '分类'],
+  ['admin/scenes', '印章场景'],
+  ['admin/record-queries', '刻章记录查询'],
+  ['admin/phone', '按手机号查找'],
+  ['assign', '分配'],
+  ['deliver', '发货'],
+  ['pay', '支付'],
+  ['dev-paid', '模拟支付'],
+  ['sign', '签收'],
+  ['cancel', '取消'],
+  ['refund-request', '退款申请'],
+  ['business-types', '业务类型'],
+  ['bind-openid', '绑定OpenID'],
+  ['subscribe-toggle', '订阅开关'],
+  ['reset-password', '重置密码'],
+];
+
+
 @Injectable()
 export class OperationLogInterceptor implements NestInterceptor {
   private readonly logger = new Logger('OperationLog');
@@ -86,7 +119,11 @@ export class OperationLogInterceptor implements NestInterceptor {
           const user_agent = (req.headers?.['user-agent'] as string) || null;
 
           // 解析 target
-          const target = this.resolveTarget(meta.target, req, data ?? {});
+          let target = this.resolveTarget(meta.target, req, data ?? {});
+          // 路径片段二次翻译
+          for (const [en, zh] of TARGET_LABELS) {
+            target = target.replace(en, zh);
+          }
 
           const moduleLabel = MODULE_LABELS[meta.module?.toLowerCase()] ?? meta.module ?? '';
           const actionLabel = ACTION_LABELS[meta.action?.toLowerCase()] ?? meta.action ?? '';
