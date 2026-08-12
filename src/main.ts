@@ -1,4 +1,4 @@
-﻿import { NestFactory } from '@nestjs/core';
+﻿﻿import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
@@ -28,8 +28,8 @@ async function bootstrap() {
           console.warn(`[CORS] 拒绝未授权跨域请求: ${origin}`);
           return cb(new Error('Not allowed by CORS'));
         }
-      : ['http://localhost:5173', 'http://localhost:5174',
-         'http://127.0.0.1:5173', 'http://127.0.0.1:5174'],
+      : ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:5185', 'http://localhost:5186',
+         'http://127.0.0.1:5173', 'http://127.0.0.1:5174', 'http://127.0.0.1:5185', 'http://127.0.0.1:5186'],
     credentials: true,
   });
   if (isProd && !process.env.ALLOWED_ORIGINS) {

@@ -27,8 +27,9 @@ export class ContentService {
     return toCamelDeep(list);
   }
 
-  async createBanner(data: { title: string; image: string; link?: string; sort?: number; status?: number }) {
-    const banner = await this.prisma.content_banners.create({ data });
+  async createBanner(data: { id?: any; title: string; image: string; link?: string; sort?: number; status?: number }) {
+    const { id, ...rest } = data as any;  // 剔除前端可能传来的 id
+    const banner = await this.prisma.content_banners.create({ data: rest });
     return toCamelDeep(banner);
   }
 
@@ -92,21 +93,27 @@ export class ContentService {
   }
 
   // ==================== Intro ====================
-  async listIntros() {
+  async listIntros(type?: string) {
+    const where = type ? { type: { in: [type, 'all'] } } : {};
     const [list, total] = await Promise.all([
-      this.prisma.content_intros.findMany({ orderBy: [{ sort: 'asc' }, { created_at: 'asc' }] }),
-      this.prisma.content_intros.count(),
+      this.prisma.content_intros.findMany({ where, orderBy: [{ sort: 'asc' }, { created_at: 'asc' }] }),
+      this.prisma.content_intros.count({ where }),
     ]);
     return { list: toCamelDeep(list), pagination: { page: 1, pageSize: 20, total } };
   }
 
-  async createIntro(data: { title: string; subtitle?: string; image: string; sort?: number; status?: number }) {
-    const item = await this.prisma.content_intros.create({ data });
+  async createIntro(data: { title: string; subtitle?: string; image?: string; images?: string[]; type?: string; sort?: number; status?: number }) {
+    const { id: _id, createdAt, updatedAt, created_at, updated_at, ...rest } = data as any;
+    const cover = (rest.images && rest.images.length) ? rest.images[0] : (rest.image || '');
+    const item = await this.prisma.content_intros.create({ data: { ...rest, image: cover, images: rest.images || [], type: rest.type || 'all' } });
     return toCamelDeep(item);
   }
 
-  async updateIntro(id: string, data: Partial<{ title: string; subtitle: string; image: string; sort: number; status: number }>) {
-    const item = await this.prisma.content_intros.update({ where: { id }, data });
+  async updateIntro(id: string, data: Partial<{ title: string; subtitle: string; image?: string; images?: string[]; type: string; sort: number; status: number }>) {
+    const { id: _id, createdAt, updatedAt, created_at, updated_at, ...rest } = data as any;
+    const patch: any = { ...rest };
+    if (rest.images !== undefined) patch.image = (rest.images && rest.images.length) ? rest.images[0] : (rest.image || '');
+    const item = await this.prisma.content_intros.update({ where: { id }, data: patch });
     return toCamelDeep(item);
   }
 

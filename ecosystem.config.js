@@ -1,4 +1,4 @@
-﻿/**
+﻿﻿/**
  * PM2 Ecosystem Config — 荣成后端集群
  */
 module.exports = {
@@ -14,6 +14,7 @@ module.exports = {
       NODE_ENV: 'production',
       PORT: 3001,
       TZ: 'Asia/Shanghai',
+      ALLOWED_ORIGINS: 'http://localhost:5173,http://localhost:5174,http://localhost:5185,http://localhost:5186,http://127.0.0.1:5173,http://127.0.0.1:5174,http://127.0.0.1:5185,http://127.0.0.1:5186',
     },
     env_production: {
       NODE_ENV: 'production',

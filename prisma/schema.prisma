@@ -533,6 +533,8 @@ model content_intros {
   title      String
   subtitle   String?
   image      String
+  images     String[]  @default([])
+  type       String   @default("all")  // all-全部 | company-企业刻章 | personal-个人印章 | electronic-电子印章
   sort       Int      @default(0)
   status     Int      @default(1)
   created_at DateTime @default(now())

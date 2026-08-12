@@ -11,9 +11,7 @@ export class ContentController {
 
   // ==================== Banner ====================
   @Get('banners')
-  @UseGuards(AdminJwtAuthGuard)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Banner 列表' })
+  @ApiOperation({ summary: 'Banner 列表（公开，小程序首页读取）' })
   async listBanners() {
     return this.contentService.listBanners();
   }
@@ -47,9 +45,7 @@ export class ContentController {
 
   // ==================== Announcement ====================
   @Get('announcements')
-  @UseGuards(AdminJwtAuthGuard)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: '公告列表' })
+  @ApiOperation({ summary: '公告列表（公开，小程序通知页读取）' })
   async listAnnouncements(@Query() query: { status?: string; keyword?: string }) {
     return this.contentService.listAnnouncements(query);
   }
@@ -84,12 +80,11 @@ export class ContentController {
   }
 
   // ==================== Intro ====================
+  // GET 列表：小程序/管理后台均需访问，公开（增删改保留 AdminJwtAuthGuard）
   @Get('intros')
-  @UseGuards(AdminJwtAuthGuard)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: '业务介绍列表' })
-  async listIntros() {
-    return this.contentService.listIntros();
+  @ApiOperation({ summary: '业务介绍列表（公开）' })
+  async listIntros(@Query('type') type: string) {
+    return this.contentService.listIntros(type);
   }
 
   @Post('intros')
@@ -97,7 +92,7 @@ export class ContentController {
   @ApiBearerAuth()
   @ApiOperation({ summary: '新增业务介绍' })
   @Log('内容', '新增业务介绍')
-  async createIntro(@Body() dto: { title: string; subtitle?: string; image: string; sort?: number; status?: number }) {
+  async createIntro(@Body() dto: { title: string; subtitle?: string; image?: string; images?: string[]; type?: string; sort?: number; status?: number }) {
     return this.contentService.createIntro(dto);
   }
 
