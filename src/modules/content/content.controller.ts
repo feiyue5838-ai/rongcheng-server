@@ -113,4 +113,21 @@ export class ContentController {
   async deleteIntro(@Param('id') id: string) {
     return this.contentService.deleteIntro(id);
   }
+
+  // ==================== About ====================
+  @Get('about')
+  @ApiOperation({ summary: '获取关于我们配置（公开）' })
+  async getAbout() {
+    return this.contentService.getAbout();
+  }
+
+  @Put('about')
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '保存关于我们配置（需登录）' })
+  @Log('内容', '保存关于我们配置')
+  async saveAbout(@Body() dto: any, @Req() req: any) {
+    const operator = req.user?.username ?? null;
+    return this.contentService.saveAbout(dto, operator);
+  }
 }

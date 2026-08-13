@@ -4,12 +4,25 @@ import { PrismaService } from '../../prisma/prisma.service';
 function snakeToCamel(key: string): string {
   return key.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
 }
+function camelToSnake(key: string): string {
+  return key.replace(/[A-Z]/g, c => '_' + c.toLowerCase());
+}
 function toCamelDeep(obj: any): any {
   if (obj instanceof Date) return obj;
   if (Array.isArray(obj)) return obj.map(toCamelDeep);
   if (obj !== null && typeof obj === 'object') {
     return Object.fromEntries(
       Object.entries(obj).map(([k, v]) => [snakeToCamel(k), toCamelDeep(v)])
+    );
+  }
+  return obj;
+}
+function toSnakeDeep(obj: any): any {
+  if (obj instanceof Date) return obj;
+  if (Array.isArray(obj)) return obj.map(toSnakeDeep);
+  if (obj !== null && typeof obj === 'object') {
+    return Object.fromEntries(
+      Object.entries(obj).map(([k, v]) => [camelToSnake(k), toSnakeDeep(v)])
     );
   }
   return obj;
@@ -120,5 +133,31 @@ export class ContentService {
   async deleteIntro(id: string) {
     await this.prisma.content_intros.delete({ where: { id } });
     return { success: true };
+  }
+
+  // ==================== About ====================
+  async getAbout() {
+    // 单条记录，不存在则返回默认空对象
+    let item = await this.prisma.content_about.findFirst({ orderBy: { created_at: 'desc' } });
+    if (!item) {
+      // 首次访问时自动创建一条默认记录
+      item = await this.prisma.content_about.create({ data: {} });
+    }
+    return toCamelDeep(item);
+  }
+
+  async saveAbout(
+    dto: { appName?: string; phone?: string; wechat?: string; serviceTime?: string; intro?: string; address?: string; copyright?: string },
+    operator?: string,
+  ) {
+    const patch: any = toSnakeDeep(dto);
+    if (operator) patch.updated_by = operator;
+    let item = await this.prisma.content_about.findFirst({ orderBy: { created_at: 'desc' } });
+    if (!item) {
+      item = await this.prisma.content_about.create({ data: patch });
+    } else {
+      item = await this.prisma.content_about.update({ where: { id: item.id }, data: patch });
+    }
+    return toCamelDeep(item);
   }
 }

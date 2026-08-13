@@ -541,6 +541,20 @@ model content_intros {
   updated_at DateTime @updatedAt
 }
 
+model content_about {
+  id           String   @id @default(uuid())
+  app_name     String   @default("蓉城企服")
+  phone        String   @default("")
+  wechat       String   @default("")
+  service_time String   @default("")
+  intro        String   @default("")
+  address      String   @default("")
+  copyright    String   @default("")
+  updated_by   String?
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+}
+
 model users {
   id            String        @id @default(uuid())
   openid        String?       @unique
