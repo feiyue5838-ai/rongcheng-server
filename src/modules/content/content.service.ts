@@ -147,7 +147,7 @@ export class ContentService {
   }
 
   async saveAbout(
-    dto: { appName?: string; phone?: string; wechat?: string; serviceTime?: string; intro?: string; address?: string; copyright?: string; image?: string; logoUrl?: string; version?: string },
+    dto: { appName?: string; phone?: string; wechat?: string; serviceTime?: string; intro?: string; address?: string; copyright?: string; image?: string; logoUrl?: string; version?: string; companyName?: string },
     operator?: string,
   ) {
     const patch: any = toSnakeDeep(dto);

@@ -553,6 +553,7 @@ model content_about {
   image        String?  @default("")  // 关于我们封面图
   logo_url     String?  @default("")  // Logo 图标
   version      String?  @default("v1.0.0 正式版")  // 版本号
+  company_name String?  @default("成都蓉城信息服务有限公司")  // 底部公司名
   updated_by   String?
   created_at   DateTime @default(now())
   updated_at   DateTime @updatedAt
