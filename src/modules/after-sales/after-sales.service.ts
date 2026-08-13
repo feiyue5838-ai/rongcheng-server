@@ -1,5 +1,5 @@
 import { Injectable, BadRequestException, NotFoundException, Inject, forwardRef } from '@nestjs/common';
-import { PrismaService } from '@/prisma/prisma.service';
+import { PrismaService } from '../../prisma/prisma.service';
 import { OrderService } from '../order/order.service';
 
 function snakeToCamel(key: string): string {
@@ -27,7 +27,34 @@ export class AfterSalesService {
     @Inject(forwardRef(() => OrderService)) private orderService: OrderService,
   ) {}
 
-  /** 售后中订单列表（status=7） */
+  /** User: my after-sales records (status 7/8/9) */
+  async getUserAfterSales(userId: string, query: { page?: number; pageSize?: number }) {
+    const { page = 1, pageSize = 20 } = query;
+    const where = { user_id: userId, status: { in: [7, 8, 9] } };
+    const [rows, total] = await Promise.all([
+      this.prisma.seal_orders.findMany({
+        where,
+        orderBy: { created_at: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: { user: { select: { nickname: true, phone: true } } },
+      }),
+      this.prisma.seal_orders.count({ where }),
+    ]);
+    return { rows: toCamelDeep(rows), total, page, pageSize };
+  }
+
+  /** User: after-sales detail (own records only) */
+  async getUserAfterSalesDetail(userId: string, orderId: string) {
+    const order = await this.prisma.seal_orders.findFirst({
+      where: { id: orderId, user_id: userId, status: { in: [7, 8, 9] } },
+      include: { user: { select: { nickname: true, phone: true } } },
+    });
+    if (!order) throw new NotFoundException('After-sales record not found');
+    return toCamelDeep(order);
+  }
+
+  /** Admin: after-sales orders list (status=7) */
   async getAfterSalesOrders(query: {
     module?: string;
     page?: number;
@@ -53,28 +80,26 @@ export class AfterSalesService {
     return { rows: toCamelDeep(rows), total, page, pageSize };
   }
 
-  /** 确认退款（status=7 → 8 退款中）—— 复用 OrderService 微信退款逻辑 */
+  /** Confirm refund (status=7 -> 8 refunding) */
   async confirmRefund(order_id: string, amount?: number, operatorId?: string) {
     const order = await this.prisma.seal_orders.findUnique({ where: { id: order_id } });
-    if (!order) throw new NotFoundException('订单不存在');
-    if (order.status !== 7) throw new BadRequestException('仅「售后中」订单可确认退款');
+    if (!order) throw new NotFoundException('Order not found');
+    if (order.status !== 7) throw new BadRequestException('Only in-progress after-sales can confirm refund');
 
-    // 从 remark.afterSales.reason 取售后申请时的原因
     let afterSalesReason = '';
     try {
       const r = JSON.parse(order.remark || '{}');
       afterSalesReason = r.afterSales?.reason || '';
     } catch { /* ignore */ }
 
-    // 复用 OrderService.refundOrder（内部调微信退款 + 置 status=8）
     return this.orderService.refundOrder(order_id, operatorId, amount, afterSalesReason);
   }
 
-  /** 拒绝售后（status=7 → 5 已完成，不退款） */
+  /** Reject after-sales (status=7 -> 5 completed, no refund) */
   async rejectAfterSales(order_id: string, reason: string, operatorId?: string) {
     const order = await this.prisma.seal_orders.findUnique({ where: { id: order_id } });
-    if (!order) throw new NotFoundException('订单不存在');
-    if (order.status !== 7) throw new BadRequestException('仅「售后中」订单可拒绝售后');
+    if (!order) throw new NotFoundException('Order not found');
+    if (order.status !== 7) throw new BadRequestException('Only in-progress after-sales can be rejected');
 
     let remark: string;
     try {
@@ -87,11 +112,11 @@ export class AfterSalesService {
 
     return this.prisma.seal_orders.update({
       where: { id: order_id },
-      data: { status: 5, status_text: '已完成', remark },
+      data: { status: 5, status_text: 'completed', remark },
     });
   }
 
-  /** 退款记录（status=8 退款中 / 9 已退款） */
+  /** Admin: refund records (status 8/9) */
   async getRefundRecords(query: {
     module?: string;
     status?: number;
@@ -121,5 +146,4 @@ export class AfterSalesService {
 
     return { rows: toCamelDeep(rows), total, page, pageSize };
   }
-
 }

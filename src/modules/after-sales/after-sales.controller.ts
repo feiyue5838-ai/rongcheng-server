@@ -1,17 +1,41 @@
-import { Controller, Get, Post, Body, Param, Query, UseGuards, Req } from '@nestjs/common';
-import { ApiTags, ApiOperation } from '@nestjs/swagger';
-import { AdminJwtAuthGuard } from '@/modules/auth/guards/jwt-auth.guard';
-import { SkipWrap } from '@/common/decorators/skip-wrap.decorator';
+import { Controller, Get, Post, Body, Param, Query, UseGuards, Req, Request } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { AdminJwtAuthGuard, JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { SkipWrap } from '../../common/decorators/skip-wrap.decorator';
 import { AfterSalesService } from './after-sales.service';
 
-@ApiTags('售后管理')
-@UseGuards(AdminJwtAuthGuard)
+@ApiTags('After-Sales')
 @Controller('after-sales')
 export class AfterSalesController {
   constructor(private readonly afterSalesService: AfterSalesService) {}
 
+  // ==================== User-facing APIs ====================
+
+  @Get('user')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'My after-sales records' })
+  getMyAfterSales(@Request() req, @Query() query: { page?: string; pageSize?: string }) {
+    return this.afterSalesService.getUserAfterSales(req.user.id, {
+      page: query.page ? Number(query.page) : 1,
+      pageSize: query.pageSize ? Number(query.pageSize) : 20,
+    });
+  }
+
+  @Get('user/:id')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'My after-sales detail' })
+  getMyAfterSalesDetail(@Request() req, @Param('id') id: string) {
+    return this.afterSalesService.getUserAfterSalesDetail(req.user.id, id);
+  }
+
+  // ==================== Admin APIs ====================
+
   @Get('orders')
-  @ApiOperation({ summary: '售后中订单列表' })
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'After-sales orders list (admin)' })
   getAfterSalesOrders(@Query() query: { module?: string; page?: string; pageSize?: string }) {
     return this.afterSalesService.getAfterSalesOrders({
       module: query.module,
@@ -21,7 +45,9 @@ export class AfterSalesController {
   }
 
   @Post('orders/:id/confirm-refund')
-  @ApiOperation({ summary: '确认退款（售后→退款中）' })
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Confirm refund (after-sales -> refunding)' })
   confirmRefund(
     @Param('id') id: string,
     @Body() body: { amount?: number },
@@ -31,21 +57,25 @@ export class AfterSalesController {
   }
 
   @Post('orders/:id/reject')
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiBearerAuth()
   @SkipWrap()
-  @ApiOperation({ summary: '拒绝售后（售后→已完成）' })
+  @ApiOperation({ summary: 'Reject after-sales (after-sales -> completed)' })
   rejectAfterSales(
     @Param('id') id: string,
     @Body() body: { reason: string },
     @Req() req: any,
   ) {
     if (!body.reason?.trim()) {
-      return { code: 400, message: '请填写拒绝原因' };
+      return { code: 400, message: 'Please provide a rejection reason' };
     }
     return this.afterSalesService.rejectAfterSales(id, body.reason.trim(), req.user?.id);
   }
 
   @Get('refund-records')
-  @ApiOperation({ summary: '退款记录' })
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Refund records (admin)' })
   getRefundRecords(@Query() query: {
     module?: string;
     status?: string;
