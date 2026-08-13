@@ -125,6 +125,54 @@ export class OrderController {
     return this.orderService.getStatistics();
   }
 
+  // ==================== 管理员发货 ====================
+
+  @Put(':id/deliver-admin')
+  @Log("订单", "发货", ":id/deliver-admin")
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '管理员填写发货信息（快递公司+单号+凭证）' })
+  async deliverOrderAdmin(
+    @Param('id') id: string,
+    @Body() body: {
+      express_company: string;
+      express_no: string;
+      receipts: Array<{ type?: string; url: string; remark?: string }>;
+      remark?: string;
+    },
+    @Request() req: any,
+  ) {
+    return this.orderService.deliverOrderAdmin(id, body, req.user.id);
+  }
+
+  // ==================== 用户确认收货 ====================
+
+  @Put(':id/confirm-receive')
+  @Log("订单", "确认收货", ":id/confirm-receive")
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '用户确认收货（4→5）' })
+  async confirmReceive(@Param('id') id: string, @Request() req) {
+    const user_id = req.user?.id || '00000000-0000-0000-0000-000000000000';
+    return this.orderService.confirmReceive(id, user_id);
+  }
+
+  // ==================== 用户评价 ====================
+
+  @Post(':id/review')
+  @Log("订单", "评价", ":id/review")
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '用户提交订单评价' })
+  async submitReview(
+    @Param('id') id: string,
+    @Body() body: { rating: number; tags?: string[]; content?: string; images?: string[] },
+    @Request() req,
+  ) {
+    const user_id = req.user?.id || '00000000-0000-0000-0000-000000000000';
+    return this.orderService.submitReview(id, user_id, body);
+  }
+
   // ==================== 订单分配与交付 ====================
 
   @Post(':id/assign')

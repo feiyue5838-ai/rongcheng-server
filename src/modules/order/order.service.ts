@@ -1402,6 +1402,117 @@ export class OrderService {
     return { message: '交付成功，回执已自动展示给客户' };
   }
 
+  /** 管理员填写发货信息 */
+  async deliverOrderAdmin(
+    order_id: string,
+    dto: { express_company: string; express_no: string; receipts: Array<{ type?: string; url: string; remark?: string }>; remark?: string },
+    admin_id: string,
+  ) {
+    const order = await this.prisma.seal_orders.findUnique({ where: { id: order_id } });
+    if (!order) throw new NotFoundException('订单不存在');
+    const allowed = [OrderStatus.PAID, OrderStatus.IN_PRODUCTION];
+    if (!allowed.includes(order.status as any)) {
+      throw new BadRequestException(`当前订单状态「${ORDER_STATUS_TEXT[order.status as OrderStatus]}」不允许发货（仅已支付/制作中订单可发货）`);
+    }
+    if (!dto.receipts || dto.receipts.length === 0) {
+      throw new BadRequestException('至少需要上传一张交付凭证');
+    }
+    await this.prisma.$transaction([
+      ...dto.receipts.map(r =>
+        this.prisma.delivery_receipts.create({
+          data: {
+            order_id,
+            outlet_id: 'admin',
+            type: r.type || 'certificate',
+            url: r.url,
+            remark: r.remark,
+          },
+        }),
+      ),
+      this.prisma.seal_orders.update({
+        where: { id: order_id },
+        data: {
+          status: OrderStatus.SHIPPED,
+          status_text: ORDER_STATUS_TEXT[OrderStatus.SHIPPED],
+          delivery_status: 1,
+          express_company: dto.express_company,
+          express_no: dto.express_no,
+          delivered_at: new Date(),
+          processed_by: admin_id,
+          processed_at: new Date(),
+        },
+      }),
+    ]);
+    return { message: '发货成功', express_company: dto.express_company, express_no: dto.express_no };
+  }
+
+  /** 用户提交订单评价 */
+  async submitReview(
+    order_id: string,
+    user_id: string,
+    body: { rating: number; tags?: string[]; content?: string; images?: string[] },
+  ) {
+    const order = await this.prisma.seal_orders.findFirst({ where: { id: order_id, user_id } });
+    if (!order) throw new NotFoundException('订单不存在');
+    const allowed = [OrderStatus.COMPLETED, OrderStatus.SHIPPED];
+    if (!allowed.includes(order.status as any)) {
+      throw new BadRequestException('当前订单状态不可评价（需已发货或已完成）');
+    }
+    // 防止重复评价
+    const existing = await this.prisma.reviews.findFirst({ where: { order_id } });
+    if (existing) throw new BadRequestException('该订单已评价，不可重复提交');
+    const rating = Number(body.rating) || 5;
+    const review = await this.prisma.reviews.create({
+      data: {
+        order_id,
+        user_id,
+        rating,
+        tags: body.tags ? JSON.stringify(body.tags) : null,
+        content: body.content || null,
+        images: body.images ? JSON.stringify(body.images) : null,
+      },
+    });
+    // 评价后自动将订单置为已完成
+    if (order.status !== OrderStatus.COMPLETED) {
+      await this.prisma.seal_orders.update({
+        where: { id: order_id },
+        data: {
+          status: OrderStatus.COMPLETED,
+          status_text: ORDER_STATUS_TEXT[OrderStatus.COMPLETED],
+        },
+      });
+    }
+    return review;
+  }
+
+  /** 用户确认收货（已发货→已完成） */
+  async confirmReceive(order_id: string, user_id: string) {
+    if (!user_id) throw new BadRequestException('用户未登录');
+    const order = await this.prisma.seal_orders.findFirst({ where: { id: order_id, user_id } });
+    if (!order) throw new NotFoundException('订单不存在');
+    if (order.status !== OrderStatus.SHIPPED) {
+      throw new BadRequestException(`当前订单状态「${ORDER_STATUS_TEXT[order.status as OrderStatus]}」不可确认收货`);
+    }
+    await this.prisma.$transaction([
+      this.prisma.seal_orders.update({
+        where: { id: order_id },
+        data: {
+          delivery_status: 2,
+          status: OrderStatus.COMPLETED,
+          status_text: ORDER_STATUS_TEXT[OrderStatus.COMPLETED],
+          signed_at: new Date(),
+        },
+      }),
+      ...(order.assignment ? [
+        this.prisma.order_assignments.update({
+          where: { id: order.assignment.id },
+          data: { status: 4, status_text: '已完成' },
+        }),
+      ] : []),
+    ]);
+    return { message: '确认收货成功' };
+  }
+
   /** 客户确认签收 → 订单完成 */
   // O-05: 客户签收接口添加归属校验，防止 IDOR
   async signOrder(order_id: string, user_id: string) {
