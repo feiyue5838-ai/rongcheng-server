@@ -20,6 +20,16 @@ function toCamelDeep(obj: any): any {
   return obj;
 }
 
+/** Parse remark JSON so callers can directly access remark.afterSales */
+function parseAfterSales(obj: any): any {
+  if (!obj) return obj;
+  const o = { ...obj };
+  if (typeof o.remark === 'string') {
+    try { o.remark = JSON.parse(o.remark); } catch { o.remark = {}; }
+  }
+  return o;
+}
+
 @Injectable()
 export class AfterSalesService {
   constructor(
@@ -41,7 +51,7 @@ export class AfterSalesService {
       }),
       this.prisma.seal_orders.count({ where }),
     ]);
-    return { rows: toCamelDeep(rows), total, page, pageSize };
+    return { rows: toCamelDeep(rows).map(parseAfterSales), total, page, pageSize };
   }
 
   /** User: after-sales detail (own records only) */
@@ -51,7 +61,7 @@ export class AfterSalesService {
       include: { user: { select: { nickname: true, phone: true } } },
     });
     if (!order) throw new NotFoundException('After-sales record not found');
-    return toCamelDeep(order);
+    return parseAfterSales(toCamelDeep(order));
   }
 
   /** Admin: after-sales orders list (status=7) */
@@ -77,7 +87,7 @@ export class AfterSalesService {
       this.prisma.seal_orders.count({ where }),
     ]);
 
-    return { rows: toCamelDeep(rows), total, page, pageSize };
+    return { rows: toCamelDeep(rows).map(parseAfterSales), total, page, pageSize };
   }
 
   /** Confirm refund (status=7 -> 8 refunding) */
@@ -144,6 +154,6 @@ export class AfterSalesService {
       this.prisma.seal_orders.count({ where }),
     ]);
 
-    return { rows: toCamelDeep(rows), total, page, pageSize };
+    return { rows: toCamelDeep(rows).map(parseAfterSales), total, page, pageSize };
   }
 }

@@ -471,7 +471,13 @@ export class OrderService {
    * 仅限 已支付(2)/制作中(3)/已发货(4)；与状态机 VALID_STATUS_TRANSITIONS 一致。
    * 注意：此处写入 remark.refundRequest，不触碰 remark.refund 数组（refundOrder 用其累计已退金额）。
    */
-  async requestRefund(order_id: string, user_id: string, reason?: string) {
+  async requestRefund(
+    order_id: string,
+    user_id: string,
+    reason?: string,
+    category?: string,
+    images?: string[],
+  ) {
     const order = await this.prisma.seal_orders.findFirst({ where: { id: order_id, user_id } });
     if (!order) throw new NotFoundException('订单不存在');
     const allowed = [OrderStatus.PAID, OrderStatus.IN_PRODUCTION, OrderStatus.SHIPPED];
@@ -485,6 +491,8 @@ export class OrderService {
         status_text: ORDER_STATUS_TEXT[OrderStatus.AFTER_SALES],
         remark: this.appendRefundRequest(order.remark, {
           reason,
+          category,
+          images: images || [],
           requestedAt: new Date().toISOString(),
         }),
       },
@@ -494,7 +502,7 @@ export class OrderService {
   private appendRefundRequest(remark: string | null, data: any): string {
     let obj: any = {};
     try { obj = JSON.parse(remark || '{}'); } catch { obj = {}; }
-    obj.refundRequest = data;
+    obj.afterSales = data;
     return JSON.stringify(obj);
   }
 

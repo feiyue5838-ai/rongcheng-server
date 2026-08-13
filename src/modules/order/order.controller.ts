@@ -271,6 +271,12 @@ export class OrderController {
   @ApiOperation({ summary: '用户申请退款（已支付订单进入售后审核）' })
   async requestRefund(@Param('id') id: string, @Body() body: any, @Request() req) {
     const user_id = req.user?.id || '00000000-0000-0000-0000-000000000000';
-    return this.orderService.requestRefund(id, user_id, body?.reason);
+    return this.orderService.requestRefund(
+      id,
+      user_id,
+      body?.reason,
+      body?.category,
+      body?.images,
+    );
   }
 }
