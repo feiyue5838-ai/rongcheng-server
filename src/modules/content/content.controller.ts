@@ -130,4 +130,10 @@ export class ContentController {
     const operator = req.user?.username ?? null;
     return this.contentService.saveAbout(dto, operator);
   }
+
+  @Get('agreement/:type')
+  @ApiOperation({ summary: '获取协议内容 terms|privacy（公开）' })
+  async getAgreement(@Param('type') type: string) {
+    return this.contentService.getAgreement(type);
+  }
 }

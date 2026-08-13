@@ -147,7 +147,7 @@ export class ContentService {
   }
 
   async saveAbout(
-    dto: { appName?: string; phone?: string; wechat?: string; serviceTime?: string; intro?: string; address?: string; copyright?: string; image?: string; logoUrl?: string; version?: string; companyName?: string },
+    dto: { appName?: string; phone?: string; wechat?: string; serviceTime?: string; intro?: string; address?: string; copyright?: string; image?: string; logoUrl?: string; version?: string; companyName?: string; termsContent?: string; privacyContent?: string },
     operator?: string,
   ) {
     const patch: any = toSnakeDeep(dto);
@@ -159,5 +159,16 @@ export class ContentService {
       item = await this.prisma.content_about.update({ where: { id: item.id }, data: patch });
     }
     return toCamelDeep(item);
+  }
+
+  async getAgreement(type: string) {
+    const item = await this.prisma.content_about.findFirst({ orderBy: { created_at: 'desc' } });
+    const record = item ? toCamelDeep(item) : {};
+    const field = type === 'privacy' ? 'privacyContent' : 'termsContent';
+    return {
+      type,
+      title: type === 'privacy' ? '隐私政策' : '用户服务协议',
+      content: (record as any)[field] || '',
+    };
   }
 }
