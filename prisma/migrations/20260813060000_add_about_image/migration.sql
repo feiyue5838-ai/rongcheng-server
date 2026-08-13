@@ -1,0 +1,1 @@
+ALTER TABLE "content_about" ADD COLUMN IF NOT EXISTS "image" TEXT DEFAULT '';

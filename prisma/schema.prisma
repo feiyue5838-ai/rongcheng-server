@@ -550,6 +550,7 @@ model content_about {
   intro        String   @default("")
   address      String   @default("")
   copyright    String   @default("")
+  image        String?  @default("")  // 关于我们封面图
   updated_by   String?
   created_at   DateTime @default(now())
   updated_at   DateTime @updatedAt
