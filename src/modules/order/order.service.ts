@@ -1467,9 +1467,9 @@ export class OrderService {
         order_id,
         user_id,
         rating,
-        tags: body.tags ? JSON.stringify(body.tags) : null,
-        content: body.content || null,
-        images: body.images ? JSON.stringify(body.images) : null,
+        tags: body.tags || [],
+        content: body.content || '',
+        images: body.images || [],
       },
     });
     // 评价后自动将订单置为已完成
@@ -1488,7 +1488,10 @@ export class OrderService {
   /** 用户确认收货（已发货→已完成） */
   async confirmReceive(order_id: string, user_id: string) {
     if (!user_id) throw new BadRequestException('用户未登录');
-    const order = await this.prisma.seal_orders.findFirst({ where: { id: order_id, user_id } });
+    const order = await this.prisma.seal_orders.findFirst({
+      where: { id: order_id, user_id },
+      include: { assignment: true },
+    });
     if (!order) throw new NotFoundException('订单不存在');
     if (order.status !== OrderStatus.SHIPPED) {
       throw new BadRequestException(`当前订单状态「${ORDER_STATUS_TEXT[order.status as OrderStatus]}」不可确认收货`);

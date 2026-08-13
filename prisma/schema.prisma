@@ -347,6 +347,7 @@ model reviews {
   user_id     String
   module      String      @default("seal")
   rating      Int
+  tags        String[]
   content     String
   images      String[]
   reply       String?
