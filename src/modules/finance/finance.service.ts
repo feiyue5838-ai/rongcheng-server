@@ -46,13 +46,23 @@ export class FinanceService {
         _sum: { outlet_amount: true, platform_amount: true, order_amount: true },
         _count: true,
       }),
+      // 生成完整日期序列（无数据的天也返回 0），避免图表柱子缺失
       this.prisma.$queryRaw`
-        SELECT to_char(created_at, 'MM-DD') AS day,
-          SUM(CASE WHEN trade_type = 'income' THEN amount ELSE 0 END) AS income,
-          SUM(CASE WHEN trade_type = 'refund' THEN amount ELSE 0 END) AS refund
-        FROM transaction_flows
-        WHERE created_at >= ${start} AND created_at <= ${end}
-        GROUP BY day ORDER BY day
+        WITH dates AS (
+          SELECT gs AS day FROM generate_series(
+            ${start.toISOString()}::timestamp,
+            ${end.toISOString()}::timestamp,
+            '1 day'::interval
+          ) AS gs
+        )
+        SELECT
+          TO_CHAR(d.day, 'MM-DD') AS day,
+          COALESCE(SUM(CASE WHEN tf.trade_type = 'income' THEN tf.amount ELSE 0 END), 0) AS income,
+          COALESCE(SUM(CASE WHEN tf.trade_type = 'refund' THEN tf.amount ELSE 0 END), 0) AS refund
+        FROM dates d
+        LEFT JOIN transaction_flows tf ON DATE_TRUNC('day', tf.created_at) = DATE_TRUNC('day', d.day)
+        GROUP BY d.day
+        ORDER BY d.day
       `,
     ]);
 

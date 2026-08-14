@@ -10,19 +10,23 @@ export class SettlementService {
 
   // ==================== 结算规则 ====================
 
-  /** 获取结算规则列表（可选按网点或模块过滤） */
+  /** 获取结算规则列表（可选按网点或模块过滤），含网点名称 */
   async getRules(filters?: { outletId?: string; module?: string }) {
-    const where: any = {};
-    if (filters?.outletId) where.outlet_id = filters.outletId;
-    if (filters?.module) where.module = filters.module;
-    const rules = await this.prisma.settlement_rules.findMany({
-      where,
-      orderBy: [
-        { is_default: 'desc' },
-        { created_at: 'desc' },
-      ],
-    });
-    return toCamelDeep(rules);
+    let sql = `
+      SELECT sr.*, o.name as outlet_name
+      FROM settlement_rules sr
+      LEFT JOIN outlets o ON o.id = sr.outlet_id
+      WHERE 1=1
+    `;
+    const params: any[] = [];
+    if (filters?.outletId) { sql += ` AND sr.outlet_id = $${params.length + 1}`; params.push(filters.outletId); }
+    if (filters?.module) { sql += ` AND sr.module = $${params.length + 1}`; params.push(filters.module); }
+    sql += ` ORDER BY sr.is_default DESC, sr.created_at DESC`;
+    const rules = await this.prisma.$queryRawUnsafe(sql, ...params);
+    return (rules as any[]).map((r: any) => ({
+      ...toCamelDeep(r),
+      outletName: r.outlet_name || null,
+    }));
   }
 
   /** 获取默认规则 */
@@ -600,20 +604,20 @@ export class SettlementService {
   /** 获取服务商待结算汇总（已完成未结算的订单） */
   async getOutletPendingSummary() {
     const records: any[] = await this.prisma.$queryRawUnsafe(`
-      SELECT oa.outlet_id,
-             ot.name as outlet_name,
-             SUM(o.total_price)::numeric as pending_amount,
-             COUNT(*)::int as order_count
+      SELECT COALESCE(oa.outlet_id, '__unassigned__') AS outlet_id,
+             COALESCE(ot.name, '未分配网点') AS outlet_name,
+             SUM(o.total_price)::numeric AS pending_amount,
+             COUNT(*)::int AS order_count
       FROM seal_orders o
       LEFT JOIN order_assignments oa ON oa.order_id = o.id
       LEFT JOIN outlets ot ON ot.id = oa.outlet_id
       WHERE o.status = 5
-      GROUP BY oa.outlet_id, ot.name
+      GROUP BY COALESCE(oa.outlet_id, '__unassigned__'), COALESCE(ot.name, '未分配网点')
       ORDER BY pending_amount DESC
     `);
     return records.map((r) => ({
-      outletId: r.outlet_id || null,
-      outletName: r.outlet_name || '未知网点',
+      outletId: r.outlet_id === '__unassigned__' ? null : r.outlet_id,
+      outletName: r.outlet_name,
       pendingAmount: Number(r.pending_amount) || 0,
       orderCount: Number(r.order_count) || 0,
     }));
