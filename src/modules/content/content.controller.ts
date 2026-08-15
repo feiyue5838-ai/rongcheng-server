@@ -136,4 +136,21 @@ export class ContentController {
   async getAgreement(@Param('type') type: string) {
     return this.contentService.getAgreement(type);
   }
+
+  // ==================== Material Commitment ====================
+  @Get('material-commitment')
+  @ApiOperation({ summary: '获取材料真实性承诺书（公开）' })
+  async getMaterialCommitment() {
+    return this.contentService.getMaterialCommitment();
+  }
+
+  @Put('material-commitment')
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '保存材料真实性承诺书（需登录）' })
+  @Log('内容', '保存材料真实性承诺书')
+  async saveMaterialCommitment(@Body() dto: { content: string }, @Req() req: any) {
+    const operator = req.user?.username ?? null;
+    return this.contentService.saveMaterialCommitment(dto.content, operator);
+  }
 }

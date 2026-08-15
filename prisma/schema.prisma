@@ -555,8 +555,9 @@ model content_about {
   logo_url     String?  @default("")  // Logo 图标
   version      String?  @default("v1.0.0 正式版")  // 版本号
   company_name   String?  @default("成都蓉城信息服务有限公司")  // 底部公司名
-  terms_content   String  @default("")  // 用户服务协议（富文本 HTML）
-  privacy_content String  @default("")  // 隐私政策（富文本 HTML）
+  terms_content         String  @default("")  // 用户服务协议（富文本 HTML）
+  privacy_content      String  @default("")  // 隐私政策（富文本 HTML）
+  material_commitment  String  @default("")  // 材料真实性承诺书（富文本 HTML）
   updated_by   String?
   created_at   DateTime @default(now())
   updated_at   DateTime @updatedAt

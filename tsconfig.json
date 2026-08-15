@@ -1,4 +1,5 @@
 {
+  "exclude": ["_tmp", "**/_tmp/**"],
   "compilerOptions": {
     "module": "commonjs",
     "declaration": true,

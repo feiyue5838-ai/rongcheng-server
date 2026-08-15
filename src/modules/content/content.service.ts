@@ -147,7 +147,7 @@ export class ContentService {
   }
 
   async saveAbout(
-    dto: { appName?: string; phone?: string; wechat?: string; serviceTime?: string; intro?: string; address?: string; copyright?: string; image?: string; logoUrl?: string; version?: string; companyName?: string; termsContent?: string; privacyContent?: string },
+    dto: { appName?: string; phone?: string; wechat?: string; serviceTime?: string; intro?: string; address?: string; copyright?: string; image?: string; logoUrl?: string; version?: string; companyName?: string; termsContent?: string; privacyContent?: string; materialCommitment?: string },
     operator?: string,
   ) {
     const patch: any = toSnakeDeep(dto);
@@ -170,5 +170,27 @@ export class ContentService {
       title: type === 'privacy' ? '隐私政策' : '用户服务协议',
       content: (record as any)[field] || '',
     };
+  }
+
+  // ==================== Material Commitment ====================
+  async getMaterialCommitment() {
+    const item = await this.prisma.content_about.findFirst({ orderBy: { created_at: 'desc' } });
+    const record = item ? toCamelDeep(item) : {};
+    return {
+      title: '材料真实性承诺书',
+      content: (record as any)['materialCommitment'] || '',
+    };
+  }
+
+  async saveMaterialCommitment(content: string, operator?: string) {
+    const patch: any = { material_commitment: content };
+    if (operator) patch.updated_by = operator;
+    let item = await this.prisma.content_about.findFirst({ orderBy: { created_at: 'desc' } });
+    if (!item) {
+      item = await this.prisma.content_about.create({ data: patch });
+    } else {
+      item = await this.prisma.content_about.update({ where: { id: item.id }, data: patch });
+    }
+    return toCamelDeep(item);
   }
 }
