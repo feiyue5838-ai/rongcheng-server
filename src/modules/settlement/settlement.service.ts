@@ -293,7 +293,8 @@ export class SettlementService {
         FROM order_assignments a
         JOIN seal_orders o ON o.id = a.order_id
         WHERE a.outlet_id = $1
-          AND a.status = 4
+          AND a.is_active = true
+          AND a.status = 3
           AND a.completed_at >= $2
           AND a.completed_at <= $3
           AND o.pay_price > 0
@@ -397,7 +398,8 @@ export class SettlementService {
       SELECT DISTINCT a.outlet_id
       FROM order_assignments a
       JOIN seal_orders o ON o.id = a.order_id
-      WHERE a.status = 4
+      WHERE a.is_active = true
+        AND a.status = 3
         AND a.completed_at >= $1
         AND a.completed_at <= $2
         AND o.pay_price > 0
