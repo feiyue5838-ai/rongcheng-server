@@ -18,7 +18,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminJwtAuthGuard } from '../auth/guards/admin-jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt-auth.guard';
 
-@Controller('api/orders-ddd')
+@Controller('orders-ddd')
 export class OrderDDDController {
   constructor(private readonly orderService: OrderDDDService) {}
 
