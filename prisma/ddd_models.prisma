@@ -1,0 +1,278 @@
+// ==================== DDD 架构新模型 ====================
+// 注意：这些模型对应新建的表，与旧模型并存
+
+model order_orders {
+  id              String    @id @default(uuid())
+  order_no        String    @unique
+  user_id         String
+  biz_type        String    // 'seal'|'newspaper'|'bookkeeping'
+  biz_subtype     String?
+  total_amount    Decimal   @db.Decimal(10, 2)
+  pay_amount      Decimal?  @db.Decimal(10, 2)
+  discount_amount Decimal   @default(0) @db.Decimal(10, 2)
+  status          Int       @default(1)
+  status_text     String?
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+  paid_at         DateTime?
+  fulfilled_at    DateTime?
+  completed_at    DateTime?
+  canceled_at     DateTime?
+  remark          String?
+  admin_remark    String?
+
+  user                       users                     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  order_items_new            order_items_new[]
+  order_seal_details         order_seal_details?
+  order_newspaper_details    order_newspaper_details?
+  order_bookkeeping_details  order_bookkeeping_details?
+  payment_orders             payment_orders[]
+  fulfillment_orders         fulfillment_orders[]
+  settlement_items           settlement_items[]
+  refund_orders              refund_orders[]
+
+  @@index([user_id])
+  @@index([biz_type])
+  @@index([status])
+  @@index([created_at])
+  @@map("order_orders")
+}
+
+model order_items_new {
+  id         String   @id @default(uuid())
+  order_id   String
+  item_type  String
+  item_id    String?
+  name       String
+  price      Decimal  @db.Decimal(10, 2)
+  quantity   Int      @default(1)
+  image      String?
+  specs      String?
+  created_at DateTime @default(now())
+
+  order     order_orders @relation(fields: [order_id], references: [id], onDelete: Cascade)
+
+  @@index([order_id])
+  @@map("order_items_new")
+}
+
+model order_seal_details {
+  order_id       String   @id
+  company_name   String?
+  legal_person   String?
+  license_region String?
+  license_address String?
+  seal_reason    String?
+  contact_phone  String?
+  legal_phone    String?
+  address_id     String?
+  address_json   String?
+  need_invoice   Boolean  @default(false)
+  invoice_id     String?
+  invoice_json   String?
+
+  order   order_orders  @relation(fields: [order_id], references: [id], onDelete: Cascade)
+
+  @@map("order_seal_details")
+}
+
+model order_newspaper_details {
+  order_id     String  @id
+  newspaper_id String?
+  section_id   String?
+  section_name String?
+  content      String?
+  issue_count  Int     @default(1)
+  copy_count   Int     @default(1)
+  images       String?
+
+  order   order_orders  @relation(fields: [order_id], references: [id], onDelete: Cascade)
+
+  @@map("order_newspaper_details")
+}
+
+model order_bookkeeping_details {
+  order_id       String  @id
+  package_id     String?
+  taxpayer_type  String?
+  cycle          String?
+  service_months Int     @default(12)
+  company_name   String?
+  tax_no         String?
+
+  order   order_orders  @relation(fields: [order_id], references: [id], onDelete: Cascade)
+
+  @@map("order_bookkeeping_details")
+}
+
+model payment_orders {
+  id             String    @id @default(uuid())
+  payment_no     String    @unique
+  order_id       String
+  user_id        String
+  amount         Decimal   @db.Decimal(10, 2)
+  paid_amount    Decimal?  @db.Decimal(10, 2)
+  status         Int       @default(1)
+  pay_method     String?
+  transaction_id String?
+  created_at     DateTime  @default(now())
+  paid_at        DateTime?
+  expired_at     DateTime?
+  notify_data    String?
+
+  order              order_orders             @relation(fields: [order_id], references: [id], onDelete: Cascade)
+  user               users                    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  payment_transactions payment_transactions[]
+
+  @@index([order_id])
+  @@index([user_id])
+  @@index([status])
+  @@map("payment_orders")
+}
+
+model payment_transactions {
+  id             String   @id @default(uuid())
+  payment_id     String
+  transaction_no String   @unique
+  amount         Decimal  @db.Decimal(10, 2)
+  type           String
+  method         String?
+  status         Int      @default(1)
+  notify_data    String?
+  created_at     DateTime @default(now())
+
+  payment payment_orders @relation(fields: [payment_id], references: [id], onDelete: Cascade)
+
+  @@index([payment_id])
+  @@index([transaction_no])
+  @@map("payment_transactions")
+}
+
+model fulfillment_orders {
+  id              String    @id @default(uuid())
+  fulfillment_no  String    @unique
+  order_id        String
+  supplier_id     String
+  status          Int       @default(1)
+  status_text     String?
+  assigned_by     String?
+  assigned_at     DateTime  @default(now())
+  accepted_at     DateTime?
+  completed_at    DateTime?
+  previous_id     String?
+  is_active       Boolean   @default(true)
+  canceled_at     DateTime?
+  cancel_reason   String?
+  delivery_method String?
+  express_company String?
+  express_no      String?
+  delivered_at    DateTime?
+  signed_by       String?
+  signed_at       DateTime?
+  sign_photo      String?
+  remark          String?
+
+  order     order_orders        @relation(fields: [order_id], references: [id], onDelete: Cascade)
+  admin     admins?             @relation(fields: [assigned_by], references: [id])
+  previous  fulfillment_orders? @relation("FulfillmentChain", fields: [previous_id], references: [id])
+  next      fulfillment_orders[] @relation("FulfillmentChain")
+  settlement_items settlement_items[]
+
+  @@index([order_id])
+  @@index([supplier_id])
+  @@index([is_active])
+  @@map("fulfillment_orders")
+}
+
+model suppliers {
+  id               String    @id @default(uuid())
+  name             String
+  contact          String?
+  phone            String?
+  status           Int       @default(1)
+  business_license String?
+  special_permits  String?
+  province         String?
+  city             String?
+  district         String?
+  address          String?
+  biz_types        String?
+  priority         Int       @default(0)
+  total_orders     Int       @default(0)
+  last_login_at    DateTime?
+  last_login_ip    String?
+  created_at       DateTime  @default(now())
+  updated_at       DateTime  @updatedAt
+
+  settlement_orders settlement_orders[]
+  fulfillment_orders fulfillment_orders[]
+
+  @@index([status])
+  @@index([province, city])
+  @@map("suppliers")
+}
+
+model settlement_orders {
+  id            String    @id @default(uuid())
+  settlement_no String    @unique
+  supplier_id   String
+  period_start  DateTime  @db.Date
+  period_end    DateTime  @db.Date
+  total_amount  Decimal   @db.Decimal(10, 2)
+  order_count   Int       @default(0)
+  status        Int       @default(1)
+  confirmed_at  DateTime?
+  paid_at       DateTime?
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @updatedAt
+
+  supplier         suppliers          @relation(fields: [supplier_id], references: [id])
+  settlement_items settlement_items[]
+
+  @@index([supplier_id])
+  @@index([status])
+  @@index([period_start, period_end])
+  @@map("settlement_orders")
+}
+
+model settlement_items {
+  id              String   @id @default(uuid())
+  settlement_id   String
+  order_id        String
+  fulfillment_id  String
+  order_no        String?
+  order_amount    Decimal  @db.Decimal(10, 2)
+  supplier_amount Decimal  @db.Decimal(10, 2)
+  created_at      DateTime @default(now())
+
+  settlement  settlement_orders  @relation(fields: [settlement_id], references: [id], onDelete: Cascade)
+  order       order_orders       @relation(fields: [order_id], references: [id])
+  fulfillment fulfillment_orders @relation(fields: [fulfillment_id], references: [id])
+
+  @@index([settlement_id])
+  @@index([order_id])
+  @@map("settlement_items")
+}
+
+model refund_orders {
+  id          String    @id @default(uuid())
+  refund_no   String    @unique
+  order_id    String
+  payment_id  String?
+  amount      Decimal   @db.Decimal(10, 2)
+  reason      String?
+  status      Int       @default(1)
+  approved_by String?
+  approved_at DateTime?
+  refunded_at DateTime?
+  created_at  DateTime  @default(now())
+  updated_at  DateTime  @updatedAt
+
+  order   order_orders  @relation(fields: [order_id], references: [id], onDelete: Cascade)
+  payment payment_orders? @relation(fields: [payment_id], references: [id])
+  admin   admins?       @relation(fields: [approved_by], references: [id])
+
+  @@index([order_id])
+  @@index([status])
+  @@map("refund_orders")
+}
