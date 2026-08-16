@@ -1438,3 +1438,36 @@ model dispatchRules {
   createdAt                   DateTime
   updatedAt                   DateTime
 }
+
+model orders {
+  id                        String    @id @default(uuid())
+  order_no                  String    @unique
+  user_id                   String
+  module                    String
+  service_id                String?
+  order_status              String    @default("created")
+  payment_status            String    @default("unpaid")
+  fulfillment_status        String    @default("pending_assignment")
+  refund_status             String    @default("none")
+  invoice_status            String    @default("not_required")
+  total_amount              Decimal?  @db.Decimal(18, 2)
+  pay_amount                Decimal?  @db.Decimal(18, 2)
+  paid_amount               Decimal?  @db.Decimal(18, 2)
+  address_snapshot          Json?
+  customer_remark           String?
+  internal_remark           String?
+  version                   Int       @default(1)
+  created_at                DateTime  @default(now())
+  paid_at                   DateTime?
+  completed_at              DateTime?
+  cancelled_at              DateTime?
+  deleted_at                DateTime?
+  cancel_reason             String?
+
+  @@index([user_id])
+  @@index([order_status])
+  @@index([payment_status])
+  @@index([fulfillment_status])
+  @@index([created_at])
+  @@map("orders")
+}

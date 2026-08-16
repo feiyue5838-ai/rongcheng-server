@@ -32,6 +32,7 @@ import { TransactionModule } from './modules/transaction/transaction.module';
 import { FinanceModule } from './modules/finance/finance.module';
 import { RefundModule } from './modules/refund/refund.module';
 import { OutletPricingModule } from './modules/outlet-pricing/outlet-pricing.module';
+import { OrderV2Module } from './modules/order-v2/order-v2.module';
 import { OperationLogInterceptor } from './common/interceptors/operation-log.interceptor';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
 
@@ -83,6 +84,7 @@ ContentModule,
     FinanceModule,
     RefundModule,
     OutletPricingModule,
+    OrderV2Module,
   ],
   providers: [
     {
