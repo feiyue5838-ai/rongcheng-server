@@ -1080,3 +1080,361 @@ model refund_orders {
   @@index([status])
   @@map("refund_orders")
 }
+
+
+model adminOperationLogs {
+  id                          String @id @default(uuid())
+  adminId                     String?
+  adminName                   String?
+  action                      String
+  targetType                  String?
+  targetId                    String?
+  beforeData                  Json?
+  afterData                   Json?
+  ipAddress                   String?
+  userAgent                   String?
+  createdAt                   DateTime
+}
+
+model supplierAccounts {
+  id                          String @id @default(uuid())
+  supplierId                  String
+  username                    String @unique
+  passwordHash                String
+  role                        String
+  status                      String
+  lastLoginAt                 DateTime?
+  lastLoginIp                 String?
+  createdAt                   DateTime
+  updatedAt                   DateTime
+}
+
+model orderAddresses {
+  id                          String @id @default(uuid())
+  orderId                     String?
+  userId                      String?
+  receiverName                String
+  receiverPhone               String
+  province                    String?
+  city                        String?
+  district                    String?
+  address                     String
+  isDefault                   Boolean
+  createdAt                   DateTime
+  updatedAt                   DateTime
+  deletedAt                   DateTime?
+}
+
+model orderMaterials {
+  id                          String @id @default(uuid())
+  orderId                     String
+  materialType                String
+  materialName                String
+  fileUrl                     String
+  fileKey                     String?
+  fileSize                    Int?
+  width                       Int?
+  height                      Int?
+  auditStatus                 String
+  auditRemark                 String?
+  auditedBy                   String?
+  auditedAt                   DateTime?
+  createdAt                   DateTime
+  updatedAt                   DateTime
+}
+
+model orderEvents {
+  id                          String @id @default(uuid())
+  orderId                     String
+  eventType                   String
+  eventName                   String
+  fromStatus                  String?
+  toStatus                    String?
+  operatorType                String?
+  operatorId                  String?
+  operatorName                String?
+  description                 String?
+  metadata                    Json
+  createdAt                   DateTime
+}
+
+model sealOrderDetails {
+  id                          String @id @default(uuid())
+  orderId                     String
+  companyName                 String
+  legalPerson                 String
+  licenseNo                   String
+  licenseRegion               String?
+  licenseExpiryDate           DateTime?
+  sealPackageId               String?
+  sealPackageName             String?
+  sealCount                   Int
+  sealTypes                   String?
+  filingRequired              Boolean
+  filingRegion                String?
+  filingNo                    String?
+  filedAt                     DateTime?
+  productionRequirement       String?
+  deliveryRequirement         String?
+  createdAt                   DateTime
+  updatedAt                   DateTime
+}
+
+model newspaperOrderDetails {
+  id                          String @id @default(uuid())
+  orderId                     String
+  newspaperId                 String?
+  newspaperName               String?
+  newspaperCode               String?
+  templateId                  String?
+  templateType                String?
+  content                     String?
+  contentCharCount            Int?
+  copies                      Int
+  publicationDate             DateTime?
+  publicationEdition          String?
+  publicationProof            String?
+  createdAt                   DateTime
+  updatedAt                   DateTime
+}
+
+model bookkeepingOrderDetails {
+  id                          String @id @default(uuid())
+  orderId                     String
+  packageId                   String?
+  packageName                 String?
+  taxpayerType                String
+  servicePeriod               String?
+  startDate                   DateTime?
+  endDate                     DateTime?
+  companyName                 String?
+  businessLicenseNo           String?
+  taxAuthority                String?
+  accountingScope             String?
+  currentPeriod               Int
+  periodsCompleted            Int
+  createdAt                   DateTime
+  updatedAt                   DateTime
+}
+
+model fulfillmentAssignments {
+  id                          String @id @default(uuid())
+  fulfillmentOrderId          String
+  supplierId                  String
+  supplierName                String
+  assignedBy                  String
+  adminId                     String?
+  adminName                   String?
+  status                      String
+  rejectReason                String?
+  remark                      String?
+  previousId                  String?
+  assignedAt                  DateTime
+  acceptedAt                  DateTime?
+  rejectedAt                  DateTime?
+  completedAt                 DateTime?
+  cancelledAt                 DateTime?
+  cancelRemark                String?
+}
+
+model sealFulfillmentRecords {
+  id                          String @id @default(uuid())
+  fulfillmentOrderId          String
+  orderId                     String
+  productionStartedAt         DateTime?
+  productionCompletedAt       DateTime?
+  filingRequired              Boolean
+  filingStatus                String
+  filingNo                    String?
+  filingRemark                String?
+  filedAt                     DateTime?
+  productionPhotos            String?
+  filingPhotos                String?
+  qualityCheckPhotos          String?
+  deliveryCourier             String?
+  deliveryTrackingNo          String?
+  deliveryAt                  DateTime?
+  estimatedDeliveryDate       DateTime?
+  operatorName                String?
+  operatorPhone               String?
+  createdAt                   DateTime
+  updatedAt                   DateTime
+}
+
+model supplierCapabilities {
+  id                          String @id @default(uuid())
+  supplierId                  String
+  module                      String
+  serviceType                 String?
+  serviceName                 String?
+  status                      String
+  priority                    Int
+  remark                      String?
+  createdAt                   DateTime
+  updatedAt                   DateTime
+}
+
+model supplierLicenses {
+  id                          String @id @default(uuid())
+  supplierId                  String
+  licenseType                 String
+  licenseName                 String
+  licenseNo                   String?
+  issuingAuthority            String?
+  validFrom                   DateTime?
+  validTo                     DateTime?
+  fileUrl                     String?
+  fileKey                     String?
+  status                      String
+  verifiedBy                  String?
+  verifiedAt                  DateTime?
+  verifyRemark                String?
+  createdAt                   DateTime
+  updatedAt                   DateTime
+}
+
+model supplierMetrics {
+  id                          String @id @default(uuid())
+  supplierId                  String
+  metricDate                  DateTime
+  totalOrders                 Int
+  completedOrders             Int
+  cancelledOrders             Int
+  acceptanceRate              Float
+  rejectionRate               Float
+  onTimeRate                  Float
+  avgAcceptTimeMinutes        Float?
+  avgFulfillTimeHours         Float?
+  avgDeliveryTimeHours        Float?
+  complaints                  Int
+  refundCount                 Int
+  refundRate                  Float
+  qualityScore                Float
+  customerRating              Float
+  createdAt                   DateTime
+  updatedAt                   DateTime
+}
+
+model supplierPayouts {
+  id                          String @id @default(uuid())
+  payoutNo                    String @unique
+  supplierId                  String
+  supplierName                String
+  settlementId                String?
+  amount                      Float
+  bankName                    String?
+  bankAccountName             String?
+  bankAccountNo               String?
+  paymentMethod               String
+  status                      String
+  requestedBy                 String?
+  requestedAt                 DateTime?
+  approvedBy                  String?
+  approvedAt                  DateTime?
+  approveRemark               String?
+  paidBy                      String?
+  paidAt                      DateTime?
+  transactionNo               String?
+  failureReason               String?
+  remark                      String?
+  createdAt                   DateTime
+  updatedAt                   DateTime
+}
+
+model invoiceRecords {
+  id                          String @id @default(uuid())
+  invoiceNo                   String? @unique
+  orderId                     String
+  userId                      String
+  invoiceType                 String
+  buyerName                   String
+  buyerTaxNo                  String?
+  buyerBank                   String?
+  buyerBankAccount            String?
+  buyerAddress                String?
+  buyerPhone                  String?
+  invoiceAmount               Float
+  taxRate                     Float
+  taxAmount                   Float
+  sellerName                  String?
+  sellerTaxNo                 String?
+  status                      String
+  issuedBy                    String?
+  issuedAt                    DateTime?
+  invoiceFileUrl              String?
+  invoiceCode                 String?
+  invoiceNumber               String?
+  remark                      String?
+  createdAt                   DateTime
+  updatedAt                   DateTime
+}
+
+model logisticsRecords {
+  id                          String @id @default(uuid())
+  fulfillmentOrderId          String?
+  orderId                     String
+  courier                     String
+  trackingNo                  String
+  senderName                  String?
+  senderPhone                 String?
+  senderAddress               String?
+  receiverName                String
+  receiverPhone               String
+  receiverProvince            String?
+  receiverCity                String?
+  receiverDistrict            String?
+  receiverAddress             String
+  traces                      Json
+  status                      String
+  shippedAt                   DateTime?
+  deliveredAt                 DateTime?
+  estimatedDays               Int?
+  remark                      String?
+  createdAt                   DateTime
+  updatedAt                   DateTime
+}
+
+model notifications {
+  id                          String @id @default(uuid())
+  userId                      String?
+  title                       String
+  content                     String
+  type                        String
+  targetType                  String?
+  targetId                    String?
+  linkUrl                     String?
+  isRead                      Boolean
+  readAt                      DateTime?
+  createdAt                   DateTime
+  updatedAt                   DateTime
+}
+
+model migrationSealOrdersSnapshot {
+  id                          String @id
+  data                        Json
+  migratedAt                  DateTime
+  migratedTo                  String?
+  migratedBy                  String?
+}
+
+model businessConfigs {
+  id                          String @id @default(uuid())
+  configKey                   String @unique
+  configValue                 String?
+  valueType                   String
+  description                 String?
+  createdAt                   DateTime
+  updatedAt                   DateTime
+}
+
+model dispatchRules {
+  id                          String @id @default(uuid())
+  module                      String
+  serviceType                 String?
+  ruleName                    String
+  ruleConfig                  Json
+  priority                    Int
+  isActive                    Boolean
+  createdAt                   DateTime
+  updatedAt                   DateTime
+}
