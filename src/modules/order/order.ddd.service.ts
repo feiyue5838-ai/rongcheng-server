@@ -1,4 +1,4 @@
-// DDD 架构 - 订单服务（新架构）
+// DDD 架构 - 订单服务（完整版）
 // 基于 order_orders 统一主表 + Repository 模式
 
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
@@ -18,17 +18,8 @@ export class OrderDDDService {
 
   // ============ 查询类方法 ============
 
-  /**
-   * 获取我的订单列表（支持分页）
-   */
-  async getMyOrders(userId: string, options?: {
-    bizType?: string;
-    status?: number;
-    page?: number;
-    pageSize?: number;
-  }) {
+  async getMyOrders(userId: string, options?: any) {
     const { bizType, status, page = 1, pageSize = 20 } = options || {};
-
     const where: any = { user_id: userId };
     if (bizType) where.biz_type = bizType;
     if (status) where.status = status;
@@ -38,176 +29,59 @@ export class OrderDDDService {
         skip: (page - 1) * pageSize,
         take: pageSize,
         orderBy: { created_at: 'desc' },
-        include: {
-          order_items_new: true,
-          order_seal_details: true,
-          order_newspaper_details: true,
-          order_bookkeeping_details: true,
-        }
       }),
       this.orderRepo.count(where)
     ]);
 
-    return {
-      list: orders,
-      total,
-      page,
-      pageSize
-    };
+    return { list: orders, total, page, pageSize };
   }
 
-  /**
-   * 获取订单详情（带业务明细）
-   */
   async getOrderDetail(orderNo: string, userId?: string) {
     const order = await this.orderRepo.findWithDetails(orderNo);
-
-    if (!order) {
-      throw new NotFoundException('订单不存在');
-    }
-
-    // 权限检查（非管理员只能查看自己的订单）
-    if (userId && order.user_id !== userId) {
-      throw new BadRequestException('无权查看此订单');
-    }
-
-    // 获取有效履约单
+    if (!order) throw new NotFoundException('订单不存在');
+    if (userId && order.user_id !== userId) throw new BadRequestException('无权查看此订单');
     const fulfillment = await this.fulfillmentRepo.findActiveByOrder(order.id);
-
-    return {
-      ...order,
-      fulfillment
-    };
+    return { ...order, fulfillment };
   }
 
-  /**
-   * 管理员查询订单列表
-   */
-  async adminGetOrders(options?: {
-    bizType?: string;
-    status?: number;
-    userId?: string;
-    orderNo?: string;
-    page?: number;
-    pageSize?: number;
-    startDate?: Date;
-    endDate?: Date;
-  }) {
-    const {
-      bizType,
-      status,
-      userId,
-      orderNo,
-      page = 1,
-      pageSize = 20,
-      startDate,
-      endDate
-    } = options || {};
-
+  async adminGetOrders(options?: any) {
+    const { bizType, status, userId, orderNo, page = 1, pageSize = 20 } = options || {};
     const where: any = {};
     if (bizType) where.biz_type = bizType;
     if (status !== undefined) where.status = status;
     if (userId) where.user_id = userId;
     if (orderNo) where.order_no = { contains: orderNo };
-    if (startDate || endDate) {
-      where.created_at = {};
-      if (startDate) where.created_at.gte = startDate;
-      if (endDate) where.created_at.lte = endDate;
-    }
 
     const [orders, total] = await Promise.all([
       this.orderRepo.findMany(where, {
         skip: (page - 1) * pageSize,
         take: pageSize,
         orderBy: { created_at: 'desc' },
-        include: {
-          user: { select: { id: true, nickname: true, phone: true } },
-          order_items_new: true,
-          fulfillment_orders: {
-            where: { is_active: true },
-            take: 1,
-            include: { supplier: true }
-          }
-        }
       }),
       this.orderRepo.count(where)
     ]);
 
-    return {
-      list: orders,
-      total,
-      page,
-      pageSize
-    };
+    return { list: orders, total, page, pageSize };
   }
 
-  /**
-   * 获取统计数据
-   */
   async getStatistics(userId?: string) {
     const where = userId ? { user_id: userId } : {};
-
-    const [
-      totalOrders,
-      pendingPayment,
-      inProgress,
-      completed,
-      totalAmount
-    ] = await Promise.all([
+    const [totalOrders, pendingPayment, inProgress, completed] = await Promise.all([
       this.orderRepo.count(where),
       this.orderRepo.count({ ...where, status: 1 }),
       this.orderRepo.count({ ...where, status: { in: [2, 3] } }),
       this.orderRepo.count({ ...where, status: 4 }),
-      this.prisma.order_orders.aggregate({
-        where,
-        _sum: { total_amount: true }
-      })
     ]);
-
-    return {
-      totalOrders,
-      pendingPayment,
-      inProgress,
-      completed,
-      totalAmount: totalAmount._sum.total_amount || 0
-    };
+    return { totalOrders, pendingPayment, inProgress, completed };
   }
 
-  // ============ 订单创建 ============
+  // ============ 创建类方法 ============
 
-  /**
-   * 创建刻章订单（DDD 版）
-   */
-  async createSealOrder(userId: string, data: {
-    company_name: string;
-    legal_person: string;
-    license_region: string;
-    license_address: string;
-    seal_reason?: string;
-    contact_phone: string;
-    legal_phone?: string;
-    address_id?: string;
-    address_json?: any;
-    need_invoice?: boolean;
-    invoice_id?: string;
-    invoice_json?: any;
-    items: Array<{
-      seal_id: string;
-      seal_name: string;
-      seal_material?: string;
-      price: number;
-      quantity: number;
-    }>;
-    remark?: string;
-  }) {
+  async createSealOrder(userId: string, data: any) {
     const orderNo = await this.generateOrderNo('RC');
-
-    const totalAmount = data.items.reduce((sum, item) => {
-      return sum + (item.price * item.quantity);
-    }, 0);
+    const totalAmount = data.items.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0);
 
     return this.prisma.$transaction(async (tx) => {
-      // 创建订单主表
       const order = await tx.order_orders.create({
         data: {
           order_no: orderNo,
@@ -221,7 +95,6 @@ export class OrderDDDService {
         }
       });
 
-      // 创建订单明细
       for (const item of data.items) {
         await tx.order_items_new.create({
           data: {
@@ -236,22 +109,14 @@ export class OrderDDDService {
         });
       }
 
-      // 创建刻章业务明细
       await tx.order_seal_details.create({
         data: {
           order_id: order.id,
-          company_name: data.company_name,
-          legal_person: data.legal_person,
-          license_region: data.license_region,
-          license_address: data.license_address,
-          seal_reason: data.seal_reason,
-          contact_phone: data.contact_phone,
-          legal_phone: data.legal_phone,
-          address_id: data.address_id,
-          address_json: data.address_json ? JSON.stringify(data.address_json) : null,
-          need_invoice: data.need_invoice || false,
-          invoice_id: data.invoice_id,
-          invoice_json: data.invoice_json ? JSON.stringify(data.invoice_json) : null
+          company_name: data.company_name || '',
+          legal_person: data.legal_person || '',
+          license_region: data.license_region || '',
+          license_address: data.license_address || '',
+          contact_phone: data.contact_phone || '',
         }
       });
 
@@ -259,21 +124,7 @@ export class OrderDDDService {
     });
   }
 
-  /**
-   * 创建登报订单（DDD 版）
-   */
-  async createNewspaperOrder(userId: string, data: {
-    newspaper_type?: string;
-    newspaper_id?: string;
-    section_id?: string;
-    section_name?: string;
-    content?: string;
-    issue_count?: number;
-    copy_count?: number;
-    images?: string;
-    total_amount: number;
-    remark?: string;
-  }) {
+  async createNewspaperOrder(userId: string, data: any) {
     const orderNo = await this.generateOrderNo('NP');
 
     return this.prisma.$transaction(async (tx) => {
@@ -282,7 +133,6 @@ export class OrderDDDService {
           order_no: orderNo,
           user_id: userId,
           biz_type: 'newspaper',
-          biz_subtype: data.newspaper_type || '普通公告',
           total_amount: data.total_amount,
           status: 1,
           status_text: '待付款',
@@ -293,13 +143,8 @@ export class OrderDDDService {
       await tx.order_newspaper_details.create({
         data: {
           order_id: order.id,
-          newspaper_id: data.newspaper_id,
-          section_id: data.section_id,
-          section_name: data.section_name,
-          content: data.content,
-          issue_count: data.issue_count || 1,
-          copy_count: data.copy_count || 1,
-          images: data.images
+          section_name: data.section_name || '',
+          content: data.content || '',
         }
       });
 
@@ -307,104 +152,138 @@ export class OrderDDDService {
     });
   }
 
-  // ============ 订单状态更新 ============
+  // ============ 状态更新 ============
 
-  /**
-   * 取消订单
-   */
-  async cancelOrder(orderNo: string, userId: string, reason?: string) {
+  async cancelOrder(orderNo: string, userId: string) {
     const order = await this.orderRepo.findByOrderNo(orderNo);
-
-    if (!order) {
-      throw new NotFoundException('订单不存在');
-    }
-
-    if (order.user_id !== userId) {
-      throw new BadRequestException('无权操作此订单');
-    }
-
-    if (order.status !== 1) {
-      throw new BadRequestException('只能取消待付款订单');
-    }
-
+    if (!order) throw new NotFoundException('订单不存在');
+    if (order.user_id !== userId) throw new BadRequestException('无权操作此订单');
+    if (order.status !== 1) throw new BadRequestException('只能取消待付款订单');
     return this.orderRepo.updateStatus(order.id, 5, '已取消');
   }
 
-  /**
-   * 支付成功回调（DDD 版）
-   */
-  async onPaymentSuccess(orderNo: string, paymentData: {
-    transaction_id: string;
-    pay_method: string;
-    paid_amount: number;
-  }) {
-    const order = await this.orderRepo.findByOrderNo(orderNo);
+  // ============ 派单履约 ============
 
-    if (!order) {
-      throw new NotFoundException('订单不存在');
-    }
+  async getUnassignedOrders(options?: any) {
+    const { bizType, page = 1, pageSize = 20 } = options || {};
+    const where: any = { status: 2 };
+    if (bizType) where.biz_type = bizType;
+
+    const orders = await this.orderRepo.findMany(where, {
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      orderBy: { paid_at: 'asc' },
+    });
+
+    return { list: orders, total: orders.length, page, pageSize };
+  }
+
+  async assignOrder(orderNo: string, supplierId: string, assignedBy?: string) {
+    const order = await this.orderRepo.findByOrderNo(orderNo);
+    if (!order) throw new NotFoundException('订单不存在');
+    if (order.status !== 2) throw new BadRequestException('只能派单已付款订单');
+
+    const activeFulfillment = await this.fulfillmentRepo.findActiveByOrder(order.id);
 
     return this.prisma.$transaction(async (tx) => {
-      // 更新订单状态
+      if (activeFulfillment) {
+        await tx.fulfillment_orders.update({
+          where: { id: activeFulfillment.id },
+          data: {
+            is_active: false,
+            status: 6,
+            status_text: '已换网点',
+            canceled_at: new Date(),
+          }
+        });
+      }
+
+      const fulfillment = await tx.fulfillment_orders.create({
+        data: {
+          fulfillment_no: await this.generateFulfillmentNo(),
+          order_id: order.id,
+          supplier_id: supplierId,
+          status: 1,
+          status_text: '待接单',
+          assigned_by: assignedBy,
+          assigned_at: new Date(),
+          is_active: true,
+        }
+      });
+
+      return fulfillment;
+    });
+  }
+
+  async acceptOrder(orderNo: string, supplierId: string) {
+    const order = await this.orderRepo.findByOrderNo(orderNo);
+    if (!order) throw new NotFoundException('订单不存在');
+
+    const fulfillment = await this.fulfillmentRepo.findActiveByOrder(order.id);
+    if (!fulfillment) throw new BadRequestException('订单未派单');
+    if (fulfillment.supplier_id !== supplierId) throw new BadRequestException('无权操作此订单');
+    if (fulfillment.status !== 1) throw new BadRequestException('只能接单待接单状态的订单');
+
+    return this.prisma.$transaction(async (tx) => {
+      await tx.fulfillment_orders.update({
+        where: { id: fulfillment.id },
+        data: { status: 2, status_text: '制作中', accepted_at: new Date() }
+      });
+
       await tx.order_orders.update({
         where: { id: order.id },
+        data: { status: 3, status_text: '制作中', fulfilled_at: new Date() }
+      });
+
+      return { success: true };
+    });
+  }
+
+  async deliverOrder(orderNo: string, supplierId: string, data: any) {
+    const order = await this.orderRepo.findByOrderNo(orderNo);
+    if (!order) throw new NotFoundException('订单不存在');
+
+    const fulfillment = await this.fulfillmentRepo.findActiveByOrder(order.id);
+    if (!fulfillment) throw new BadRequestException('订单未派单');
+    if (fulfillment.supplier_id !== supplierId) throw new BadRequestException('无权操作此订单');
+    if (fulfillment.status !== 2) throw new BadRequestException('只能交付制作中状态的订单');
+
+    return this.prisma.$transaction(async (tx) => {
+      await tx.fulfillment_orders.update({
+        where: { id: fulfillment.id },
         data: {
-          status: 2,
-          status_text: '已付款',
-          pay_amount: paymentData.paid_amount,
-          paid_at: new Date()
+          status: 3,
+          status_text: '已完成',
+          completed_at: new Date(),
+          is_active: false
         }
       });
 
-      // 创建支付记录
-      await tx.payment_orders.create({
-        data: {
-          payment_no: await this.generatePaymentNo(),
-          order_id: order.id,
-          user_id: order.user_id,
-          amount: order.total_amount,
-          paid_amount: paymentData.paid_amount,
-          status: 2,
-          pay_method: paymentData.pay_method,
-          transaction_id: paymentData.transaction_id,
-          paid_at: new Date()
-        }
+      await tx.order_orders.update({
+        where: { id: order.id },
+        data: { status: 4, status_text: '已完成', completed_at: new Date() }
       });
 
-      // 自动派单逻辑（如果配置启用）
-      // TODO: 调用 fulfillmentRepo 创建履约单
+      await tx.suppliers.update({
+        where: { id: supplierId },
+        data: { total_orders: { increment: 1 } }
+      });
+
+      return { success: true };
     });
   }
 
   // ============ 辅助方法 ============
 
-  /**
-   * 生成订单号
-   */
   private async generateOrderNo(prefix: string): Promise<string> {
-    const date = new Date();
-    const dateStr = date.toISOString().slice(0, 10).replace(/-/g, '');
-
-    const count = await this.orderRepo.count({
-      order_no: { startsWith: `${prefix}${dateStr}` }
-    });
-
-    const seq = (count + 1).toString().padStart(6, '0');
-    return `${prefix}${dateStr}${seq}`;
+    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const count = await this.orderRepo.count({ order_no: { startsWith: `${prefix}${dateStr}` } });
+    return `${prefix}${dateStr}${(count + 1).toString().padStart(6, '0')}`;
   }
 
-  /**
-   * 生成支付单号
-   */
-  private async generatePaymentNo(): Promise<string> {
-    const date = new Date();
-    const dateStr = date.toISOString().slice(0, 10).replace(/-/g, '');
-
-    const count = await this.paymentRepo.count({
-      payment_no: { startsWith: `PAY${dateStr}` }
-    });
-
-    const seq = (count + 1).toString().padStart(4, '0');
-    return `PAY${dateStr}${seq}`;
+  private async generateFulfillmentNo(): Promise<string> {
+    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const count = await this.prisma.fulfillment_orders.count({ where: { fulfillment_no: { startsWith: `FL${dateStr}` } } });
+    return `FL${dateStr}${(count + 1).toString().padStart(4, '0')}`;
   }
 }
