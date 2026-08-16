@@ -273,7 +273,7 @@ export class TransactionService {
     return toCamelDeep(item);
   }
 
-  /** 获取有流水的服务商列表（用于筛选下拉） */
+  /** 获取有流水的履约供应商列表（用于筛选下拉） */
   async getOutletsWithFlows() {
     const rows = await this.prisma.$queryRaw`
       SELECT DISTINCT outlet_id, outlet_name

@@ -59,7 +59,7 @@ export class TransactionController {
     return { data, filename: `交易流水_${new Date().toISOString().slice(0, 10).replace(/-/g, '')}.xlsx` };
   }
 
-  /** 获取有流水的服务商列表 */
+  /** 获取有流水的履约供应商列表 */
   @Get('outlets-with-flows')
   async getOutletsWithFlows() {
     return { data: await this.transactionService.getOutletsWithFlows() };

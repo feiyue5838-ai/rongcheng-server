@@ -173,7 +173,7 @@ export class SettlementController {
   }
 
   @Get('outlets/pending')
-  @ApiOperation({ summary: '获取服务商待结算汇总' })
+  @ApiOperation({ summary: '获取履约供应商待结算汇总' })
   async getOutletPendingSummary() {
     const summary = await this.settlementService.getOutletPendingSummary();
     return { code: 0, data: summary };

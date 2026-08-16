@@ -603,7 +603,7 @@ export class SettlementService {
     }));
   }
 
-  /** 获取服务商待结算汇总（已完成未结算的订单） */
+  /** 获取履约供应商待结算汇总（已完成未结算的订单） */
   async getOutletPendingSummary() {
     const records: any[] = await this.prisma.$queryRawUnsafe(`
       SELECT COALESCE(oa.outlet_id, '__unassigned__') AS outlet_id,
