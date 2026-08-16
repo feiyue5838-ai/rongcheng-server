@@ -18,6 +18,11 @@ export class OrderRepository extends BaseRepository<any> {
     return this.findMany({ biz_type: bizType }, options);
   }
 
+  // 按订单号查询
+  async findByOrderNo(orderNo: string) {
+    return this.model.findUnique({ where: { order_no: orderNo } });
+  }
+
   // 按用户查询
   async findByUser(userId: string, options?: any) {
     return this.findMany({ user_id: userId }, options);
