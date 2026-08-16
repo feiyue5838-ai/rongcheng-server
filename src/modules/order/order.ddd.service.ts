@@ -162,6 +162,14 @@ export class OrderDDDService {
     return this.orderRepo.updateStatus(order.id, 5, '已取消');
   }
 
+  async confirmReceive(orderNo: string, userId: string) {
+    const order = await this.orderRepo.findByOrderNo(orderNo);
+    if (!order) throw new NotFoundException('订单不存在');
+    if (order.user_id !== userId) throw new BadRequestException('无权操作此订单');
+    if (order.status !== 4) throw new BadRequestException('订单未完成交付');
+    return { success: true, message: '已确认收货' };
+  }
+
   // ============ 派单履约 ============
 
   async getUnassignedOrders(options?: any) {
@@ -176,6 +184,40 @@ export class OrderDDDService {
     });
 
     return { list: orders, total: orders.length, page, pageSize };
+  }
+
+  async getAssignedOrders(options?: any) {
+    const { bizType, status, page = 1, pageSize = 20 } = options || {};
+    const where: any = { status: { in: [3, 4] } };
+    if (bizType) where.biz_type = bizType;
+
+    const orders = await this.orderRepo.findMany(where, {
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      orderBy: { created_at: 'desc' },
+    });
+
+    return { list: orders, total: orders.length, page, pageSize };
+  }
+
+  async getSupplierOrders(supplierId: string, options?: any) {
+    const { status, page = 1, pageSize = 20 } = options || {};
+
+    const where: any = { supplier_id: supplierId, is_active: true };
+    if (status !== undefined) where.status = status;
+
+    const [fulfillments, total] = await Promise.all([
+      this.prisma.fulfillment_orders.findMany({
+        where,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        orderBy: { assigned_at: 'desc' },
+        include: { order: true, supplier: true },
+      }),
+      this.prisma.fulfillment_orders.count({ where }),
+    ]);
+
+    return { list: fulfillments, total, page, pageSize };
   }
 
   async assignOrder(orderNo: string, supplierId: string, assignedBy?: string) {
