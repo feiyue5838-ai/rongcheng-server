@@ -553,7 +553,7 @@ export class OrderService {
         order_items: true,
         materials: true,
         reviews: { include: { user: { select: { nickname: true, avatar: true } } } },
-        assignment: { include: { outlet: { select: { id: true, name: true, phone: true, service_area: true } } } },
+        assignments: { where: { is_active: true }, include: { outlet: { select: { id: true, name: true, phone: true, service_area: true } } }, orderBy: { assigned_at: 'desc' } },
         delivery_receipts: true,
       },
     });
@@ -770,11 +770,7 @@ export class OrderService {
       include: {
         user: { select: { id: true, nickname: true, phone: true } },
         order_items: true,
-        assignment: {
-          include: {
-            outlet: { select: { id: true, name: true, phone: true, address: true } },
-          },
-        },
+        assignments: { where: { is_active: true }, include: { outlet: { select: { id: true, name: true, phone: true, address: true } } }, orderBy: { assigned_at: 'desc' } },
         delivery_receipts: {
           include: { outlet: { select: { id: true, name: true } } },
           orderBy: { created_at: 'desc' },
@@ -824,7 +820,7 @@ export class OrderService {
         include: {
           user: { select: { id: true, nickname: true, phone: true } },
           order_items: true,
-          assignment: { include: { outlet: { select: { id: true, name: true } } } },
+          assignments: { where: { is_active: true }, include: { outlet: { select: { id: true, name: true } } }, orderBy: { assigned_at: 'desc' } },
           delivery_receipts: true,
         },
         orderBy: { created_at: 'desc' },
@@ -851,12 +847,7 @@ export class OrderService {
         user: o.user,
         orderItems: toCamelDeep(o.order_items),
         assignmentStatus: o.assignment_status,
-        assignment: o.assignment ? (() => {
-          const map: Record<number, string> = { 0: '待接单', 1: '已接单', 2: '制作中', 3: '已发货', 4: '已完成', 5: '已拒绝' };
-          const camel = toCamelDeep(o.assignment);
-          const outletName = o.assignment.outlet?.name ?? null;
-          return { ...camel, statusText: map[o.assignment.status] ?? o.assignment.status_text, outletName };
-        })() : null,
+        assignment: (() => { const a = o.assignments?.[0]; if (!a) return null; const map: Record<number, string> = { 1: '待接单', 2: '制作中', 3: '已完成', 4: '已拒绝', 5: '已取消', 6: '已换网点' }; const camel = toCamelDeep(a); const outletName = a.outlet?.name ?? null; return { ...camel, statusText: map[a.status] ?? a.status_text, outletName }; })(),
         receipts: toCamelDeep(o.delivery_receipts),
         // 登报字段
         newspaperContent: o.newspaper_content,
@@ -910,14 +901,15 @@ export class OrderService {
     // 注意：order 已在前面定义，此处不重复声明
     const orderForNotify = await this.prisma.seal_orders.findUnique({
       where: { id: m.order_id },
-      include: { materials: true, assignment: true },
+      include: { materials: true, assignments: { where: { is_active: true } } },
     });
     if (orderForNotify) {
+      const activeAssign = orderForNotify.assignments?.[0];
       const allDone = orderForNotify.materials.every(x => x.id === materialId ? status !== 0 : x.status !== 0);
-      if (allDone && orderForNotify.assignment?.outlet_id) {
+      if (allDone && activeAssign?.outlet_id) {
         await this.prisma.outlet_notifications.create({
           data: {
-            outlet_id: orderForNotify.assignment.outlet_id,
+            outlet_id: activeAssign.outlet_id,
             title: '材料审核完成',
             content: `订单 ${orderForNotify.order_no} 材料审核完成，请确认后开始制作`,
             type: 'material',
@@ -978,50 +970,55 @@ export class OrderService {
     const isPaid = dto.status !== undefined && dto.status >= OrderStatus.PAID;
     // 根据订单类型选择派单地址：企业刻章用执照地区，个人印章用收货地址
     const addressForDispatch = (order.type === '个人印章' || order.type === '电子印章') ? order.address_json : order.license_address_json;
-    const needsAssign = isPaid && (order.assignment_status === 0 || order.assignment_status == null) && addressForDispatch;
+    const needsAssign = isPaid && addressForDispatch;
 
     if (needsAssign) {
-      const assignResult = await this.dispatchService.smartAssign(addressForDispatch, order.module || 'seal', admin_id);
-      if (assignResult) {
-        await this.prisma.order_assignments.create({
-          data: {
-            order_id: order.id,
-            outlet_id: assignResult.outlet_id,
-            status: 1,
-            status_text: '待接单',
-            assigned_by: admin_id,
-            remark: `管理员改状态时自动分配 → ${assignResult.storeName}`,
-          },
-        });
-        updateData.assignment_status = 1;
+      const activeAssign = await this.prisma.order_assignments.findFirst({
+        where: { order_id: order.id, is_active: true },
+      });
+      if (!activeAssign) {
+        const assignResult = await this.dispatchService.smartAssign(addressForDispatch, order.module || 'seal', admin_id);
+        if (assignResult) {
+          await this.prisma.order_assignments.create({
+            data: {
+              order_id: order.id,
+              outlet_id: assignResult.outlet_id,
+              status: 1,
+              status_text: '待接单',
+              assigned_by: admin_id,
+              remark: `管理员改状态时自动分配 → ${assignResult.storeName}`,
+            },
+          });
+          updateData.assignment_status = 1;
 
-        // 站内通知
-        await this.prisma.outlet_notifications.create({
-          data: {
-            outlet_id: assignResult.outlet_id,
-            title: '新订单待接单',
-            content: `订单 ${order.order_no} 已由管理员标记为已支付并分配到 ${assignResult.storeName}，请尽快接单处理`,
-            type: 'order',
-            order_id: order.id,
-            order_no: order.order_no,
-            is_read: false,
-          },
-        });
+          // 站内通知
+          await this.prisma.outlet_notifications.create({
+            data: {
+              outlet_id: assignResult.outlet_id,
+              title: '新订单待接单',
+              content: `订单 ${order.order_no} 已由管理员标记为已支付并分配到 ${assignResult.storeName}，请尽快接单处理`,
+              type: 'order',
+              order_id: order.id,
+              order_no: order.order_no,
+              is_read: false,
+            },
+          });
 
-        // 订阅消息 — 不阻断
-        const outlet = await this.prisma.outlets.findUnique({
-          where: { id: assignResult.outlet_id },
-          select: { outlet_openid: true, subscribe_msg: true },
-        });
-        if (outlet?.outlet_openid && outlet.subscribe_msg !== 0) {
-          try {
-            await this.wechatService.sendNewOrderSubscribeMessage(
-              outlet.outlet_openid, order.order_no,
-              order.module === 'newspaper' ? `登报-${order.type || '声明'}` : `刻章-${order.type || '印章'}`,
-              assignResult.storeName,
-            );
-          } catch (e) {
-            console.warn(`[notify] 订阅消息发送失败 order_no=${order.order_no}:`, e.message);
+          // 订阅消息 — 不阻断
+          const outlet = await this.prisma.outlets.findUnique({
+            where: { id: assignResult.outlet_id },
+            select: { outlet_openid: true, subscribe_msg: true },
+          });
+          if (outlet?.outlet_openid && outlet.subscribe_msg !== 0) {
+            try {
+              await this.wechatService.sendNewOrderSubscribeMessage(
+                outlet.outlet_openid, order.order_no,
+                order.module === 'newspaper' ? `登报-${order.type || '声明'}` : `刻章-${order.type || '印章'}`,
+                assignResult.storeName,
+              );
+            } catch (e) {
+              console.warn(`[notify] 订阅消息发送失败 order_no=${order.order_no}:`, e.message);
+            }
           }
         }
       }
@@ -1150,9 +1147,7 @@ export class OrderService {
         include: {
           user: { select: { id: true, nickname: true, phone: true } },
           order_items: true,
-          assignment: {
-            include: { outlet: { select: { id: true, name: true, phone: true } } },
-          },
+          assignments: { where: { is_active: true }, include: { outlet: { select: { id: true, name: true, phone: true } } }, orderBy: { assigned_at: 'desc' } },
           delivery_receipts: true,
         },
       }),
@@ -1207,7 +1202,7 @@ export class OrderService {
           user: o.user,
           orderItems: o.order_items,
           assignmentStatus: o.assignment_status,
-          assignment: o.assignment,
+          assignment: (() => { const a = o.assignments?.[0]; if (!a) return null; const map: Record<number, string> = { 1: '待接单', 2: '制作中', 3: '已完成', 4: '已拒绝', 5: '已取消', 6: '已换网点' }; const camel = toCamelDeep(a); const outletName = a.outlet?.name ?? null; return { ...camel, statusText: map[a.status] ?? a.status_text, outletName }; })(),
           receipts: o.delivery_receipts,
           serviceRegion,
           recommendedOutlets,
@@ -1249,9 +1244,7 @@ export class OrderService {
         include: {
           user: { select: { id: true, nickname: true, phone: true } },
           order_items: true,
-          assignment: {
-            include: { outlet: { select: { id: true, name: true, phone: true, city: true } } },
-          },
+          assignments: { where: { is_active: true }, include: { outlet: { select: { id: true, name: true, phone: true, city: true } } }, orderBy: { assigned_at: 'desc' } },
           delivery_receipts: true,
         },
       }),
@@ -1275,7 +1268,7 @@ export class OrderService {
         user: o.user,
         orderItems: o.order_items,
         assignmentStatus: o.assignment_status,
-        assignment: o.assignment,
+        assignment: (() => { const a = o.assignments?.[0]; if (!a) return null; const map: Record<number, string> = { 1: '待接单', 2: '制作中', 3: '已完成', 4: '已拒绝', 5: '已取消', 6: '已换网点' }; const camel = toCamelDeep(a); const outletName = a.outlet?.name ?? null; return { ...camel, statusText: map[a.status] ?? a.status_text, outletName }; })(),
       })),
       pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
     };
@@ -1286,10 +1279,25 @@ export class OrderService {
     const order = await this.prisma.seal_orders.findUnique({ where: { id: order_id } });
     if (!order) throw new NotFoundException('订单不存在');
     if (order.status < 2) throw new BadRequestException('订单未支付，无法分配');
-    if (order.assignment_status > 0) throw new BadRequestException('订单已分配，请勿重复分配');
-
     const Outlet = await this.prisma.outlets.findFirst({ where: { id: outlet_id } });
     if (!Outlet) throw new NotFoundException('网点不存在或 ID 无效');
+    if (Outlet.status === 0) throw new BadRequestException('网点已被禁用');
+
+    // 取消旧的有效派单，支持重新分配
+    const existing = await this.prisma.order_assignments.findFirst({ where: { order_id, is_active: true } });
+    if (existing) {
+      await this.prisma.order_assignments.update({
+        where: { id: existing.id },
+        data: {
+          is_active: false,
+          status: 6,
+          status_text: '已换网点',
+          canceled_at: new Date(),
+          cancel_remark: `重新分配给 ${Outlet.name}（${admin_id}）`,
+        },
+      });
+    }
+
     if (Outlet.status === 0) throw new BadRequestException('网点已被禁用');
 
     // O-13: 校验网点业务资质与订单模块匹配
@@ -1306,6 +1314,11 @@ export class OrderService {
       throw new BadRequestException('已退款/售后中订单不可分配');
     }
 
+    const previousId = existing ? existing.id : undefined;
+    const newRemark = existing
+      ? `重新分配（接替 ${existing.id}）${remark ? '｜' + remark : ''}`
+      : remark;
+
     await this.prisma.$transaction([
       this.prisma.order_assignments.create({
         data: {
@@ -1314,7 +1327,8 @@ export class OrderService {
           status: 1,
           status_text: '待接单',
           assigned_by: admin_id,
-          remark,
+          previous_id: previousId,
+          remark: newRemark,
         },
       }),
       this.prisma.seal_orders.update({
@@ -1329,15 +1343,14 @@ export class OrderService {
   /** 网点接单 */
   async acceptOrder(id: string, outlet_id: string) {
     // 前端传的是 order_assignments.id，直接查分配记录
-    const assignment = await this.prisma.order_assignments.findUnique({
-      where: { id },
+    const assignment = await this.prisma.order_assignments.findFirst({
+      where: { id, is_active: true },
     });
-    if (!assignment) throw new NotFoundException('订单分配记录不存在');
+    if (!assignment) throw new NotFoundException('订单分配记录不存在或已失效');
     // 取实际的 order_id
     const order_id = assignment.order_id;
     if (assignment.outlet_id !== outlet_id) throw new BadRequestException('无权操作此订单');
-    if (assignment.status === 2) throw new BadRequestException('该订单已接单');
-    if (assignment.status === 3) throw new BadRequestException('该订单已交付');
+    if (assignment.status !== 1) throw new BadRequestException('该订单当前状态不是待接单，无法接单');
 
     await this.prisma.$transaction([
       this.prisma.order_assignments.update({
@@ -1356,15 +1369,14 @@ export class OrderService {
   /** 网点提交交付（自动生效） */
   async deliverOrder(id: string, dto: { express_company: string; express_no: string; receipts: Array<{ type: string; url: string; remark?: string }>; sealImages?: Array<{ url: string; remark?: string }>; remark?: string }, outlet_id: string) {
     // 前端传的是 order_assignments.id
-    const assignment = await this.prisma.order_assignments.findUnique({
-      where: { id },
+    const assignment = await this.prisma.order_assignments.findFirst({
+      where: { id, is_active: true },
       include: { seal_orders: true },
     });
-    if (!assignment) throw new NotFoundException('订单分配记录不存在');
+    if (!assignment) throw new NotFoundException('订单分配记录不存在或已失效');
     const order_id = assignment.order_id;
     if (assignment.outlet_id !== outlet_id) throw new BadRequestException('无权操作此订单');
-    if (assignment.status === 1) throw new BadRequestException('请先接单再交付');
-    if (assignment.status >= 3) throw new BadRequestException('该订单已交付');
+    if (assignment.status !== 2) throw new BadRequestException('请先接单再交付，当前状态：' + assignment.status_text);
 
     await this.prisma.$transaction([
       ...dto.receipts.map(r =>
@@ -1379,7 +1391,7 @@ export class OrderService {
       ),
       this.prisma.order_assignments.update({
         where: { id: assignment.id },
-        data: { status: 4, status_text: '已完成', completed_at: new Date() },
+        data: { status: 3, status_text: '已完成', completed_at: new Date(), is_active: false },
       }),
       this.prisma.seal_orders.update({
         where: { id: order_id },
@@ -1490,7 +1502,7 @@ export class OrderService {
     if (!user_id) throw new BadRequestException('用户未登录');
     const order = await this.prisma.seal_orders.findFirst({
       where: { id: order_id, user_id },
-      include: { assignment: true },
+      include: { assignments: { where: { is_active: true }, orderBy: { assigned_at: 'desc' } } },
     });
     if (!order) throw new NotFoundException('订单不存在');
     if (order.status !== OrderStatus.SHIPPED) {
@@ -1506,10 +1518,10 @@ export class OrderService {
           signed_at: new Date(),
         },
       }),
-      ...(order.assignment ? [
+      ...(order.assignments?.[0] ? [
         this.prisma.order_assignments.update({
-          where: { id: order.assignment.id },
-          data: { status: 4, status_text: '已完成' },
+          where: { id: order.assignments[0].id },
+          data: { status: 3, status_text: '已完成', is_active: false },
         }),
       ] : []),
     ]);
@@ -1523,7 +1535,7 @@ export class OrderService {
     if (!user_id) throw new BadRequestException('用户未登录');
     const order = await this.prisma.seal_orders.findUnique({
       where: { id: order_id },
-      include: { assignment: true },
+      include: { assignments: { where: { is_active: true }, orderBy: { assigned_at: 'desc' } } },
     });
     if (!order) throw new NotFoundException('订单不存在');
     // O-05: 归属校验 —— user_id 必填，且订单必须归属当前用户
@@ -1544,10 +1556,10 @@ export class OrderService {
           signed_at: new Date(),
         },
       }),
-      ...(order.assignment ? [
+      ...(order.assignments?.[0] ? [
         this.prisma.order_assignments.update({
-          where: { id: order.assignment.id },
-          data: { status: 4, status_text: '已完成' },
+          where: { id: order.assignments[0].id },
+          data: { status: 3, status_text: '已完成', is_active: false },
         }),
       ] : []),
     ]);
@@ -1560,9 +1572,7 @@ export class OrderService {
     const order = await this.prisma.seal_orders.findUnique({
       where: { id: order_id },
       include: {
-        assignment: {
-          include: { outlet: { select: { id: true, name: true, contact: true, phone: true } } },
-        },
+        assignments: { where: { is_active: true }, include: { outlet: { select: { id: true, name: true, contact: true, phone: true } } }, orderBy: { assigned_at: 'desc' } },
         delivery_receipts: { select: { id: true, type: true, url: true, remark: true, created_at: true } },
       },
     });
@@ -1578,21 +1588,15 @@ export class OrderService {
       signed_at: order.signed_at,
       express_company: order.express_company,
       express_no: order.express_no,
-      assignment: order.assignment ? {
-        status: order.assignment.status,
-        status_text: order.assignment.status_text,
-        accepted_at: order.assignment.accepted_at,
-        completed_at: order.assignment.completed_at,
-        Outlet: order.assignment.outlet,
-      } : null,
+      assignment: (() => { const a = order.assignments?.[0]; if (!a) return null; return { status: a.status, status_text: a.status_text, accepted_at: a.accepted_at, completed_at: a.completed_at, outlet: a.outlet }; })(),
       receipts: order.delivery_receipts,
     };
   }
 
   /** 网点端订单详情（含用户信息、印章明细、快递信息、交付凭证） */
   async getStoreOrderDetail(order_id: string, outlet_id: string) {
-    const assignment = await this.prisma.order_assignments.findUnique({
-      where: { order_id },
+    const assignment = await this.prisma.order_assignments.findFirst({
+      where: { order_id, is_active: true },
       include: {
         seal_orders: {
           include: {
@@ -1614,7 +1618,7 @@ export class OrderService {
     });
 
     const statusMap: Record<number, string> = {
-      1: '待接单', 2: '制作中', 3: '已发货', 4: '已完成',
+      1: '待接单', 2: '制作中', 3: '已完成', 4: '已拒绝', 5: '已取消', 6: '已换网点',
     };
 
     return {

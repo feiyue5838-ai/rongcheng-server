@@ -227,10 +227,13 @@ export class DeliveryReceiptController {
 
     // 刻章订单：更新分配状态 → 已完成（登报订单无 orderAssignment）
     if (order.module === 'seal') {
-      await this.prisma.order_assignments.update({
-        where: { order_id },
-        data: { status: 4, status_text: '已完成', completed_at: new Date() },
-      });
+      const activeAssign = await this.prisma.order_assignments.findFirst({ where: { order_id, is_active: true } });
+      if (activeAssign) {
+        await this.prisma.order_assignments.update({
+          where: { id: activeAssign.id },
+          data: { status: 3, status_text: '已完成', completed_at: new Date(), is_active: false },
+        });
+      }
     }
 
     return receipt;

@@ -528,11 +528,14 @@ export class StoreService {
       data: { status: 3, status_text: '制作中' },
     });
 
-    // 更新分配状态为进行中
-    await this.prisma.order_assignments.update({
-      where: { order_id },
-      data: { status: 2, status_text: '进行中', accepted_at: new Date() },
-    });
+    // 更新分配状态为制作中
+    const activeAssign = await this.prisma.order_assignments.findFirst({ where: { order_id, is_active: true } });
+    if (activeAssign) {
+      await this.prisma.order_assignments.update({
+        where: { id: activeAssign.id },
+        data: { status: 2, status_text: '制作中', accepted_at: new Date() },
+      });
+    }
 
     return { success: true, message: '接单成功' };
   }
@@ -580,10 +583,13 @@ export class StoreService {
     });
 
     // 同步更新分配记录状态（管理后台按 assignment 统计，避免状态不一致）
-    await this.prisma.order_assignments.update({
-      where: { order_id },
-      data: { status_text: '制作完成待发货' },
-    });
+    const activeAssign2 = await this.prisma.order_assignments.findFirst({ where: { order_id, is_active: true } });
+    if (activeAssign2) {
+      await this.prisma.order_assignments.update({
+        where: { id: activeAssign2.id },
+        data: { status_text: '制作完成待发货' },
+      });
+    }
 
     return { success: true, message: '制作完成' };
   }
@@ -645,10 +651,13 @@ export class StoreService {
     });
 
     // 更新分配状态为已完成
-    await this.prisma.order_assignments.update({
-      where: { order_id },
-      data: { status: 3, status_text: '已完成', completed_at: new Date() },
-    });
+    const activeAssign3 = await this.prisma.order_assignments.findFirst({ where: { order_id, is_active: true } });
+    if (activeAssign3) {
+      await this.prisma.order_assignments.update({
+        where: { id: activeAssign3.id },
+        data: { status: 3, status_text: '已完成', completed_at: new Date(), is_active: false },
+      });
+    }
 
     return { success: true, message: '发货成功' };
   }

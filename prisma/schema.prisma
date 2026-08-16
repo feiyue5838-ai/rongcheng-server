@@ -187,18 +187,27 @@ model operation_logs {
 }
 
 model order_assignments {
-  id           String      @id @default(uuid())
-  order_id     String      @unique
-  outlet_id    String
-  status       Int         @default(1)
-  status_text  String      @default("待接单")
-  assigned_by  String?
-  assigned_at  DateTime    @default(now())
-  accepted_at  DateTime?
-  completed_at DateTime?
-  remark       String?
-  seal_orders  seal_orders @relation(fields: [order_id], references: [id], onDelete: Cascade)
-  outlet      outlets     @relation(fields: [outlet_id], references: [id])
+  id            String      @id @default(uuid())
+  order_id      String
+  outlet_id     String
+  status        Int         @default(1)
+  status_text   String      @default("待接单")
+  assigned_by   String?
+  assigned_at   DateTime    @default(now())
+  accepted_at   DateTime?
+  completed_at  DateTime?
+  remark        String?
+  is_active     Boolean     @default(true)
+  canceled_at   DateTime?
+  cancel_remark String?
+  previous_id   String?
+  seal_orders   seal_orders @relation(fields: [order_id], references: [id], onDelete: Cascade)
+  outlet        outlets     @relation(fields: [outlet_id], references: [id])
+
+  @@index([order_id])
+  @@index([outlet_id])
+  @@index([status])
+  @@index([is_active])
 }
 
 model order_items {
@@ -416,7 +425,7 @@ model seal_orders {
   newspaper_images      String?
   delivery_receipts     delivery_receipts[]
   materials             materials[]
-  assignment     order_assignments?
+  assignments    order_assignments[]
   order_items           order_items[]
   reviews               reviews[]
   user                 users               @relation(fields: [user_id], references: [id])
