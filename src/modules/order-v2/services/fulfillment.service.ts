@@ -1,7 +1,7 @@
 // V2.0 履约服务
 // 基于 fulfillment_orders（V2.0 结构：字符串状态）+ fulfillmentAssignments
 
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 
 @Injectable()
@@ -47,9 +47,11 @@ export class FulfillmentService {
       },
     });
 
-    await this.prisma.orders.update({
-      where: { id: order.id },
-      data: { fulfillment_status: 'assigned' },
+    await this.prisma.orders.updateMany({
+      where: { id: order.id, version: order.version },
+      data: { fulfillment_status: 'assigned', version: { increment: 1 } },
+    }).then((r) => {
+      if (r.count === 0) throw new ConflictException('订单状态已变更，请刷新后重试');
     });
 
     await this.prisma.orderEvents.create({
@@ -81,9 +83,12 @@ export class FulfillmentService {
       data: { status: 'accepted', accepted_at: new Date() },
     });
 
-    await this.prisma.orders.update({
-      where: { id: fulfillment.order_id },
-      data: { fulfillment_status: 'accepted' },
+    const orderForVersion = await this.prisma.orders.findUnique({ where: { id: fulfillment.order_id } });
+    await this.prisma.orders.updateMany({
+      where: { id: fulfillment.order_id, version: orderForVersion?.version },
+      data: { fulfillment_status: 'accepted', version: { increment: 1 } },
+    }).then((r) => {
+      if (r.count === 0) throw new ConflictException('订单状态已变更，请刷新后重试');
     });
 
     await this.prisma.orderEvents.create({
@@ -114,9 +119,12 @@ export class FulfillmentService {
       data: { status: 'cancelled', cancelled_at: new Date(), cancel_reason: reason },
     });
 
-    await this.prisma.orders.update({
-      where: { id: fulfillment.order_id },
-      data: { fulfillment_status: 'pending_assignment' },
+    const orderForVersion = await this.prisma.orders.findUnique({ where: { id: fulfillment.order_id } });
+    await this.prisma.orders.updateMany({
+      where: { id: fulfillment.order_id, version: orderForVersion?.version },
+      data: { fulfillment_status: 'pending_assignment', version: { increment: 1 } },
+    }).then((r) => {
+      if (r.count === 0) throw new ConflictException('订单状态已变更，请刷新后重试');
     });
 
     await this.prisma.orderEvents.create({
@@ -179,9 +187,12 @@ export class FulfillmentService {
       data: { status: 'processing', started_at: new Date() },
     });
 
-    await this.prisma.orders.update({
-      where: { id: fulfillment.order_id },
-      data: { fulfillment_status: 'processing' },
+    const orderForVersion = await this.prisma.orders.findUnique({ where: { id: fulfillment.order_id } });
+    await this.prisma.orders.updateMany({
+      where: { id: fulfillment.order_id, version: orderForVersion?.version },
+      data: { fulfillment_status: 'processing', version: { increment: 1 } },
+    }).then((r) => {
+      if (r.count === 0) throw new ConflictException('订单状态已变更，请刷新后重试');
     });
 
     await this.prisma.orderEvents.create({
@@ -219,9 +230,12 @@ export class FulfillmentService {
       },
     });
 
-    await this.prisma.orders.update({
-      where: { id: fulfillment.order_id },
-      data: { fulfillment_status: 'completed' },
+    const orderForVersion = await this.prisma.orders.findUnique({ where: { id: fulfillment.order_id } });
+    await this.prisma.orders.updateMany({
+      where: { id: fulfillment.order_id, version: orderForVersion?.version },
+      data: { fulfillment_status: 'completed', version: { increment: 1 } },
+    }).then((r) => {
+      if (r.count === 0) throw new ConflictException('订单状态已变更，请刷新后重试');
     });
 
     await this.prisma.orderEvents.create({
@@ -252,14 +266,17 @@ export class FulfillmentService {
     if (fulfillment.status === 'completed') return { success: true, already: true };
     if (!['accepted', 'processing'].includes(fulfillment.status)) throw new BadRequestException('仅已接单/制作中的履约单可完成');
 
+    const orderForVersion = await this.prisma.orders.findUnique({ where: { id: fulfillment.order_id } });
     await this.prisma.fulfillment_orders.update({
       where: { id: fulfillmentId },
       data: { status: 'completed', completed_at: new Date() },
     });
 
-    await this.prisma.orders.update({
-      where: { id: fulfillment.order_id },
-      data: { fulfillment_status: 'completed' },
+    await this.prisma.orders.updateMany({
+      where: { id: fulfillment.order_id, version: orderForVersion?.version },
+      data: { fulfillment_status: 'completed', version: { increment: 1 } },
+    }).then((r) => {
+      if (r.count === 0) throw new ConflictException('订单状态已变更，请刷新后重试');
     });
 
     await this.prisma.orderEvents.create({

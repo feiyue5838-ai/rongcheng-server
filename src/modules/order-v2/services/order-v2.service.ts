@@ -1,7 +1,7 @@
 // V2.0 订单服务（简化版，无 Prisma 关系）
 // 基于 orders 统一表（五维状态）
 
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
 
 @Injectable()
@@ -591,9 +591,11 @@ export class OrderV2Service {
     if (order.user_id !== userId) throw new BadRequestException('无权操作此订单');
     if (order.order_status !== 'pending_payment') throw new BadRequestException('仅待支付订单可取消');
 
-    await this.prisma.orders.update({
-      where: { id: order.id },
-      data: { order_status: 'cancelled', cancelled_at: new Date() },
+    await this.prisma.orders.updateMany({
+      where: { id: order.id, version: order.version },
+      data: { order_status: 'cancelled', cancelled_at: new Date(), version: { increment: 1 } },
+    }).then((r) => {
+      if (r.count === 0) throw new ConflictException('订单状态已变更，请刷新后重试');
     });
 
     await this.prisma.orderEvents.create({
@@ -623,9 +625,11 @@ export class OrderV2Service {
     if (order.user_id !== userId) throw new BadRequestException('无权操作此订单');
     if (order.fulfillment_status !== 'signed') throw new BadRequestException('仅已签收订单可确认');
 
-    await this.prisma.orders.update({
-      where: { id: order.id },
-      data: { order_status: 'completed', fulfillment_status: 'completed', completed_at: new Date() },
+    await this.prisma.orders.updateMany({
+      where: { id: order.id, version: order.version },
+      data: { order_status: 'completed', fulfillment_status: 'completed', completed_at: new Date(), version: { increment: 1 } },
+    }).then((r) => {
+      if (r.count === 0) throw new ConflictException('订单状态已变更，请刷新后重试');
     });
 
     await this.prisma.orderEvents.create({
