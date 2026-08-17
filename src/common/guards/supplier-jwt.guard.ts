@@ -19,7 +19,7 @@ export class SupplierJwtAuthGuard implements CanActivate {
     try {
       const payload = jwt.verify(token, JWT_SECRET_OUTLET) as { sub: string; type: string };
 
-      if (payload.type !== 'outlet' && payload.type !== 'supplier') {
+      if (payload.type !== 'outlet' && payload.type !== 'Outlet' && payload.type !== 'supplier') {
         throw new ForbiddenException('令牌类型不正确');
       }
 

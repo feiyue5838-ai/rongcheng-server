@@ -941,6 +941,10 @@ model fulfillment_orders {
   completed_at    DateTime?
   cancelled_at    DateTime?
   cancel_reason   String?
+  delivery_method String?
+  express_company String?
+  express_no     String?
+  delivered_at   DateTime?
   remark          String?
   created_at      DateTime  @default(now())
   updated_at      DateTime  @updatedAt
@@ -1456,7 +1460,8 @@ model dispatchRules {
   updatedAt DateTime @map("updated_at")
   @@map("dispatch_rules")
 }
-model orders {
+
+model orders {
   id                String    @id @default(uuid())
   order_no          String    @unique
   user_id           String

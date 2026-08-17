@@ -285,11 +285,17 @@ export class FulfillmentService {
     const { status, page = 1, pageSize = 20 } = options;
     const where: any = { supplier_id: supplierId };
     if (status) {
-      const validStatuses = ['pending', 'assigned', 'accepted', 'processing', 'completed', 'cancelled'];
-      if (validStatuses.includes(status)) {
-        where.status = status;
-      } else {
-        delete where.status;
+      const statusMap: Record<string, string[]> = {
+        pending:   ['assigned'],
+        accepted:  ['accepted'],
+        processing:['processing'],
+        completed:['completed'],
+        rejected: ['cancelled'],
+        cancelled: ['cancelled'],
+      };
+      const mapped = statusMap[status];
+      if (mapped) {
+        where.status = { in: mapped };
       }
     }
 
@@ -303,7 +309,41 @@ export class FulfillmentService {
       this.prisma.fulfillment_orders.count({ where }),
     ]);
 
-    return { list, total, page, pageSize };
+    const statusText: Record<string, string> = {
+      assigned: '待接单',
+      accepted: '已接单',
+      processing: '制作中',
+      completed: '已完成',
+      cancelled: '已取消',
+    };
+
+    return {
+      list: list.map(f => ({
+        id: f.id,
+        fulfillmentNo: f.fulfillment_no,
+        orderNo: f.order_no,
+        orderId: f.order_id,
+        module: f.module,
+        supplierId: f.supplier_id,
+        supplierName: f.supplier_name,
+        status: f.status,
+        statusText: statusText[f.status] || f.status,
+        assignedAt: f.assigned_at?.toISOString(),
+        acceptedAt: f.accepted_at?.toISOString(),
+        startedAt: f.started_at?.toISOString(),
+        completedAt: f.completed_at?.toISOString(),
+        cancelledAt: f.cancelled_at?.toISOString(),
+        cancelReason: f.cancel_reason,
+        deliveryMethod: f.delivery_method,
+        expressCompany: f.express_company,
+        expressNo: f.express_no,
+        deliveredAt: f.delivered_at?.toISOString(),
+        remark: f.remark,
+      })),
+      total,
+      page,
+      pageSize,
+    };
   }
 
   /**
@@ -359,6 +399,10 @@ export class FulfillmentService {
       data: {
         status: 'completed',
         completed_at: new Date(),
+        delivery_method: body?.courier ? 'express' : null,
+        express_company: body?.courier || null,
+        express_no: body?.trackingNo || null,
+        delivered_at: new Date(),
         remark: body?.courier ? `快递: ${body.courier} ${body.trackingNo || ''}` : null,
       },
     });
