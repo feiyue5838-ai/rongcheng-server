@@ -18,6 +18,20 @@ export class OrderV2Service {
     return `${prefix}${timestamp}${random}`;
   }
 
+  /** 解析地址快照：对象直接返回，JSON 字符串解析，空值返回 undefined */
+  private parseAddressSnapshot(input: any): any {
+    if (!input) return undefined;
+    if (typeof input === 'object') return input;
+    if (typeof input === 'string') {
+      try {
+        return JSON.parse(input);
+      } catch (e) {
+        return undefined;
+      }
+    }
+    return undefined;
+  }
+
   /**
    * 获取我的订单列表
    */
@@ -209,16 +223,17 @@ export class OrderV2Service {
         total_amount: data.totalAmount || 0,
         pay_amount: data.totalAmount || 0,
         customer_remark: data.remark,
+        address_snapshot: this.parseAddressSnapshot(data.addressSnapshot || data.addressJson),
       },
     });
 
     await this.prisma.newspaperOrderDetails.create({
       data: {
         orderId: order.id,
-        newspaperId: data.newspaperId,
+        newspaperId: data.newspaperId || null,
         newspaperName: data.newspaperName,
         newspaperCode: data.newspaperCode,
-        templateId: data.templateId,
+        templateId: data.templateId || null,
         templateType: data.templateType,
         content: data.content,
         contentCharCount: data.contentCharCount,
@@ -272,7 +287,7 @@ export class OrderV2Service {
     await this.prisma.bookkeepingOrderDetails.create({
       data: {
         orderId: order.id,
-        packageId: data.packageId,
+        packageId: data.packageId || null,
         packageName: data.packageName,
         taxpayerType: data.taxpayerType || 'small_scale',
         servicePeriod: data.servicePeriod,
