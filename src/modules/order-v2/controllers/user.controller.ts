@@ -36,7 +36,7 @@ export class OrderV2Controller {
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
   ) {
-    return this.orderService.getMyOrders(req.user.userId, {
+    return this.orderService.getMyOrders(req.user.id, {
       tab,
       module,
       page: page ? parseInt(page) : 1,
@@ -54,7 +54,7 @@ export class OrderV2Controller {
     @Param('orderNo') orderNo: string,
     @Request() req: any,
   ) {
-    return this.orderService.getOrderDetail(orderNo, req.user.userId);
+    return this.orderService.getOrderDetail(orderNo, req.user.id);
   }
 
   // ============ 创建订单 ============
@@ -66,7 +66,7 @@ export class OrderV2Controller {
   @UseGuards(JwtAuthGuard)
   @Post('orders/seal')
   async createSealOrder(@Request() req: any, @Body() data: any) {
-    return this.orderService.createSealOrder(req.user.userId, data);
+    return this.orderService.createSealOrder(req.user.id, data);
   }
 
   /**
@@ -76,8 +76,17 @@ export class OrderV2Controller {
   @UseGuards(JwtAuthGuard)
   @Post('orders/newspaper')
   async createNewspaperOrder(@Request() req: any, @Body() data: any) {
-    // TODO: 实现登报订单逻辑
-    return this.orderService.createSealOrder(req.user.userId, { ...data, module: 'newspaper' });
+    return this.orderService.createNewspaperOrder(req.user.id, data);
+  }
+
+  /**
+   * 创建记账订单
+   * POST /api/v2/user/orders/bookkeeping
+   */
+  @UseGuards(JwtAuthGuard)
+  @Post('orders/bookkeeping')
+  async createBookkeepingOrder(@Request() req: any, @Body() data: any) {
+    return this.orderService.createBookkeepingOrder(req.user.id, data);
   }
 
   // ============ 支付/取消/确认 ============
@@ -93,7 +102,7 @@ export class OrderV2Controller {
     @Request() req: any,
     @Body() body?: any,
   ) {
-    return this.orderService.getPayParams(orderNo, req.user.userId, body?.paymentMethod);
+    return this.orderService.getPayParams(orderNo, req.user.id, body?.paymentMethod);
   }
 
   /**
@@ -107,7 +116,7 @@ export class OrderV2Controller {
     @Request() req: any,
     @Body('reason') reason?: string,
   ) {
-    return this.orderService.cancelOrder(orderNo, req.user.userId, reason);
+    return this.orderService.cancelOrder(orderNo, req.user.id, reason);
   }
 
   /**
@@ -120,6 +129,6 @@ export class OrderV2Controller {
     @Param('orderNo') orderNo: string,
     @Request() req: any,
   ) {
-    return this.orderService.confirmReceive(orderNo, req.user.userId);
+    return this.orderService.confirmReceive(orderNo, req.user.id);
   }
 }

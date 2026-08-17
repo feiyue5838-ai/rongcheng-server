@@ -1083,386 +1083,411 @@ model refund_orders {
 
 
 model adminOperationLogs {
-  id                          String @id @default(uuid())
-  adminId                     String?
-  adminName                   String?
-  action                      String
-  targetType                  String?
-  targetId                    String?
-  beforeData                  Json?
-  afterData                   Json?
-  ipAddress                   String?
-  userAgent                   String?
-  createdAt                   DateTime
+  id String @id @default(uuid()) @map("id")
+  adminId String? @map("admin_id")
+  adminName String? @map("admin_name")
+  action String @map("action")
+  targetType String? @map("target_type")
+  targetId String? @map("target_id")
+  beforeData Json? @map("before_data")
+  afterData Json? @map("after_data")
+  ipAddress String? @map("ip_address")
+  userAgent String? @map("user_agent")
+  createdAt DateTime @map("created_at")
+  @@map("admin_operation_logs")
 }
 
 model supplierAccounts {
-  id                          String @id @default(uuid())
-  supplierId                  String
-  username                    String @unique
-  passwordHash                String
-  role                        String
-  status                      String
-  lastLoginAt                 DateTime?
-  lastLoginIp                 String?
-  createdAt                   DateTime
-  updatedAt                   DateTime
+  id String @id @default(uuid()) @map("id")
+  supplierId String @map("supplier_id")
+  username String @unique @map("username")
+  passwordHash String @map("password_hash")
+  role String @map("role")
+  status String @map("status")
+  lastLoginAt DateTime? @map("last_login_at")
+  lastLoginIp String? @map("last_login_ip")
+  createdAt DateTime @map("created_at")
+  updatedAt DateTime @map("updated_at")
+  @@map("supplier_accounts")
 }
 
 model orderAddresses {
-  id                          String @id @default(uuid())
-  orderId                     String?
-  userId                      String?
-  receiverName                String
-  receiverPhone               String
-  province                    String?
-  city                        String?
-  district                    String?
-  address                     String
-  isDefault                   Boolean
-  createdAt                   DateTime
-  updatedAt                   DateTime
-  deletedAt                   DateTime?
+  id String @id @default(uuid()) @map("id")
+  orderId String? @map("order_id")
+  userId String? @map("user_id")
+  receiverName String @map("receiver_name")
+  receiverPhone String @map("receiver_phone")
+  province String? @map("province")
+  city String? @map("city")
+  district String? @map("district")
+  address String @map("address")
+  isDefault Boolean @map("is_default")
+  createdAt DateTime @map("created_at")
+  updatedAt DateTime @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+  @@map("order_addresses")
 }
 
 model orderMaterials {
-  id                          String @id @default(uuid())
-  orderId                     String
-  materialType                String
-  materialName                String
-  fileUrl                     String
-  fileKey                     String?
-  fileSize                    Int?
-  width                       Int?
-  height                      Int?
-  auditStatus                 String
-  auditRemark                 String?
-  auditedBy                   String?
-  auditedAt                   DateTime?
-  createdAt                   DateTime
-  updatedAt                   DateTime
+  id String @id @default(uuid()) @map("id")
+  orderId String @map("order_id")
+  materialType String @map("material_type")
+  materialName String @map("material_name")
+  fileUrl String @map("file_url")
+  fileKey String? @map("file_key")
+  fileSize Int? @map("file_size")
+  width Int? @map("width")
+  height Int? @map("height")
+  auditStatus String @map("audit_status")
+  auditRemark String? @map("audit_remark")
+  auditedBy String? @map("audited_by")
+  auditedAt DateTime? @map("audited_at")
+  createdAt DateTime @map("created_at")
+  updatedAt DateTime @map("updated_at")
+  @@map("order_materials")
 }
 
 model orderEvents {
-  id                          String @id @default(uuid())
-  orderId                     String
-  eventType                   String
-  eventName                   String
-  fromStatus                  String?
-  toStatus                    String?
-  operatorType                String?
-  operatorId                  String?
-  operatorName                String?
-  description                 String?
-  metadata                    Json
-  createdAt                   DateTime
+  id String @id @default(uuid()) @map("id")
+  orderId String @map("order_id")
+  eventType String @map("event_type")
+  eventName String @map("event_name")
+  fromStatus String? @map("from_status")
+  toStatus String? @map("to_status")
+  operatorType String? @map("operator_type")
+  operatorId String? @map("operator_id")
+  operatorName String? @map("operator_name")
+  description String? @map("description")
+  metadata Json @map("metadata")
+  createdAt DateTime @map("created_at")
+  @@map("order_events")
 }
 
 model sealOrderDetails {
-  id                          String @id @default(uuid())
-  orderId                     String
-  companyName                 String
-  legalPerson                 String
-  licenseNo                   String
-  licenseRegion               String?
-  licenseExpiryDate           DateTime?
-  sealPackageId               String?
-  sealPackageName             String?
-  sealCount                   Int
-  sealTypes                   String?
-  filingRequired              Boolean
-  filingRegion                String?
-  filingNo                    String?
-  filedAt                     DateTime?
-  productionRequirement       String?
-  deliveryRequirement         String?
-  createdAt                   DateTime
-  updatedAt                   DateTime
+  id String @id @default(uuid()) @map("id")
+  orderId String @map("order_id")
+  companyName String @map("company_name")
+  legalPerson String @map("legal_person")
+  licenseNo String @map("license_no")
+  licenseRegion String? @map("license_region")
+  licenseExpiryDate DateTime? @map("license_expiry_date")
+  sealPackageId String? @map("seal_package_id")
+  sealPackageName String? @map("seal_package_name")
+  sealCount Int @map("seal_count")
+  sealTypes String[] @map("seal_types")
+  filingRequired Boolean @map("filing_required")
+  filingRegion String? @map("filing_region")
+  filingNo String? @map("filing_no")
+  filedAt DateTime? @map("filed_at")
+  productionRequirement String? @map("production_requirement")
+  deliveryRequirement String? @map("delivery_requirement")
+  createdAt DateTime @map("created_at")
+  updatedAt DateTime @map("updated_at")
+  @@map("seal_order_details")
 }
 
 model newspaperOrderDetails {
-  id                          String @id @default(uuid())
-  orderId                     String
-  newspaperId                 String?
-  newspaperName               String?
-  newspaperCode               String?
-  templateId                  String?
-  templateType                String?
-  content                     String?
-  contentCharCount            Int?
-  copies                      Int
-  publicationDate             DateTime?
-  publicationEdition          String?
-  publicationProof            String?
-  createdAt                   DateTime
-  updatedAt                   DateTime
+  id String @id @default(uuid()) @map("id")
+  orderId String @map("order_id")
+  newspaperId String? @map("newspaper_id")
+  newspaperName String? @map("newspaper_name")
+  newspaperCode String? @map("newspaper_code")
+  templateId String? @map("template_id")
+  templateType String? @map("template_type")
+  content String? @map("content")
+  contentCharCount Int? @map("content_char_count")
+  copies Int @map("copies")
+  publicationDate DateTime? @map("publication_date")
+  publicationEdition String? @map("publication_edition")
+  publicationProof String? @map("publication_proof")
+  createdAt DateTime @map("created_at")
+  updatedAt DateTime @map("updated_at")
+  @@map("newspaper_order_details")
 }
 
 model bookkeepingOrderDetails {
-  id                          String @id @default(uuid())
-  orderId                     String
-  packageId                   String?
-  packageName                 String?
-  taxpayerType                String
-  servicePeriod               String?
-  startDate                   DateTime?
-  endDate                     DateTime?
-  companyName                 String?
-  businessLicenseNo           String?
-  taxAuthority                String?
-  accountingScope             String?
-  currentPeriod               Int
-  periodsCompleted            Int
-  createdAt                   DateTime
-  updatedAt                   DateTime
+  id String @id @default(uuid()) @map("id")
+  orderId String @map("order_id")
+  packageId String? @map("package_id")
+  packageName String? @map("package_name")
+  taxpayerType String @map("taxpayer_type")
+  servicePeriod String? @map("service_period")
+  startDate DateTime? @map("start_date")
+  endDate DateTime? @map("end_date")
+  companyName String? @map("company_name")
+  businessLicenseNo String? @map("business_license_no")
+  taxAuthority String? @map("tax_authority")
+  accountingScope String? @map("accounting_scope")
+  currentPeriod Int @map("current_period")
+  periodsCompleted Int @map("periods_completed")
+  createdAt DateTime @map("created_at")
+  updatedAt DateTime @map("updated_at")
+  @@map("bookkeeping_order_details")
 }
 
 model fulfillmentAssignments {
-  id                          String @id @default(uuid())
-  fulfillmentOrderId          String
-  supplierId                  String
-  supplierName                String
-  assignedBy                  String
-  adminId                     String?
-  adminName                   String?
-  status                      String
-  rejectReason                String?
-  remark                      String?
-  previousId                  String?
-  assignedAt                  DateTime
-  acceptedAt                  DateTime?
-  rejectedAt                  DateTime?
-  completedAt                 DateTime?
-  cancelledAt                 DateTime?
-  cancelRemark                String?
+  id String @id @default(uuid()) @map("id")
+  fulfillmentOrderId String @map("fulfillment_order_id")
+  supplierId String @map("supplier_id")
+  supplierName String @map("supplier_name")
+  assignedBy String @map("assigned_by")
+  adminId String? @map("admin_id")
+  adminName String? @map("admin_name")
+  status String @map("status")
+  rejectReason String? @map("reject_reason")
+  remark String? @map("remark")
+  previousId String? @map("previous_id")
+  assignedAt DateTime @map("assigned_at")
+  acceptedAt DateTime? @map("accepted_at")
+  rejectedAt DateTime? @map("rejected_at")
+  completedAt DateTime? @map("completed_at")
+  cancelledAt DateTime? @map("cancelled_at")
+  cancelRemark String? @map("cancel_remark")
+  @@map("fulfillment_assignments")
 }
 
 model sealFulfillmentRecords {
-  id                          String @id @default(uuid())
-  fulfillmentOrderId          String
-  orderId                     String
-  productionStartedAt         DateTime?
-  productionCompletedAt       DateTime?
-  filingRequired              Boolean
-  filingStatus                String
-  filingNo                    String?
-  filingRemark                String?
-  filedAt                     DateTime?
-  productionPhotos            String?
-  filingPhotos                String?
-  qualityCheckPhotos          String?
-  deliveryCourier             String?
-  deliveryTrackingNo          String?
-  deliveryAt                  DateTime?
-  estimatedDeliveryDate       DateTime?
-  operatorName                String?
-  operatorPhone               String?
-  createdAt                   DateTime
-  updatedAt                   DateTime
+  id String @id @default(uuid()) @map("id")
+  fulfillmentOrderId String @map("fulfillment_order_id")
+  orderId String @map("order_id")
+  productionStartedAt DateTime? @map("production_started_at")
+  productionCompletedAt DateTime? @map("production_completed_at")
+  filingRequired Boolean @map("filing_required")
+  filingStatus String @map("filing_status")
+  filingNo String? @map("filing_no")
+  filingRemark String? @map("filing_remark")
+  filedAt DateTime? @map("filed_at")
+  productionPhotos String[] @map("production_photos")
+  filingPhotos String[] @map("filing_photos")
+  qualityCheckPhotos String[] @map("quality_check_photos")
+  deliveryCourier String? @map("delivery_courier")
+  deliveryTrackingNo String? @map("delivery_tracking_no")
+  deliveryAt DateTime? @map("delivery_at")
+  estimatedDeliveryDate DateTime? @map("estimated_delivery_date")
+  operatorName String? @map("operator_name")
+  operatorPhone String? @map("operator_phone")
+  createdAt DateTime @map("created_at")
+  updatedAt DateTime @map("updated_at")
+  @@map("seal_fulfillment_records")
 }
 
 model supplierCapabilities {
-  id                          String @id @default(uuid())
-  supplierId                  String
-  module                      String
-  serviceType                 String?
-  serviceName                 String?
-  status                      String
-  priority                    Int
-  remark                      String?
-  createdAt                   DateTime
-  updatedAt                   DateTime
+  id String @id @default(uuid()) @map("id")
+  supplierId String @map("supplier_id")
+  module String @map("module")
+  serviceType String? @map("service_type")
+  serviceName String? @map("service_name")
+  status String @map("status")
+  priority Int @map("priority")
+  remark String? @map("remark")
+  createdAt DateTime @map("created_at")
+  updatedAt DateTime @map("updated_at")
+  @@map("supplier_capabilities")
 }
 
 model supplierLicenses {
-  id                          String @id @default(uuid())
-  supplierId                  String
-  licenseType                 String
-  licenseName                 String
-  licenseNo                   String?
-  issuingAuthority            String?
-  validFrom                   DateTime?
-  validTo                     DateTime?
-  fileUrl                     String?
-  fileKey                     String?
-  status                      String
-  verifiedBy                  String?
-  verifiedAt                  DateTime?
-  verifyRemark                String?
-  createdAt                   DateTime
-  updatedAt                   DateTime
+  id String @id @default(uuid()) @map("id")
+  supplierId String @map("supplier_id")
+  licenseType String @map("license_type")
+  licenseName String @map("license_name")
+  licenseNo String? @map("license_no")
+  issuingAuthority String? @map("issuing_authority")
+  validFrom DateTime? @map("valid_from")
+  validTo DateTime? @map("valid_to")
+  fileUrl String? @map("file_url")
+  fileKey String? @map("file_key")
+  status String @map("status")
+  verifiedBy String? @map("verified_by")
+  verifiedAt DateTime? @map("verified_at")
+  verifyRemark String? @map("verify_remark")
+  createdAt DateTime @map("created_at")
+  updatedAt DateTime @map("updated_at")
+  @@map("supplier_licenses")
 }
 
 model supplierMetrics {
-  id                          String @id @default(uuid())
-  supplierId                  String
-  metricDate                  DateTime
-  totalOrders                 Int
-  completedOrders             Int
-  cancelledOrders             Int
-  acceptanceRate              Float
-  rejectionRate               Float
-  onTimeRate                  Float
-  avgAcceptTimeMinutes        Float?
-  avgFulfillTimeHours         Float?
-  avgDeliveryTimeHours        Float?
-  complaints                  Int
-  refundCount                 Int
-  refundRate                  Float
-  qualityScore                Float
-  customerRating              Float
-  createdAt                   DateTime
-  updatedAt                   DateTime
+  id String @id @default(uuid()) @map("id")
+  supplierId String @map("supplier_id")
+  metricDate DateTime @map("metric_date")
+  totalOrders Int @map("total_orders")
+  completedOrders Int @map("completed_orders")
+  cancelledOrders Int @map("cancelled_orders")
+  acceptanceRate Float @map("acceptance_rate")
+  rejectionRate Float @map("rejection_rate")
+  onTimeRate Float @map("on_time_rate")
+  avgAcceptTimeMinutes Float? @map("avg_accept_time_minutes")
+  avgFulfillTimeHours Float? @map("avg_fulfill_time_hours")
+  avgDeliveryTimeHours Float? @map("avg_delivery_time_hours")
+  complaints Int @map("complaints")
+  refundCount Int @map("refund_count")
+  refundRate Float @map("refund_rate")
+  qualityScore Float @map("quality_score")
+  customerRating Float @map("customer_rating")
+  createdAt DateTime @map("created_at")
+  updatedAt DateTime @map("updated_at")
+  @@map("supplier_metrics")
 }
 
 model supplierPayouts {
-  id                          String @id @default(uuid())
-  payoutNo                    String @unique
-  supplierId                  String
-  supplierName                String
-  settlementId                String?
-  amount                      Float
-  bankName                    String?
-  bankAccountName             String?
-  bankAccountNo               String?
-  paymentMethod               String
-  status                      String
-  requestedBy                 String?
-  requestedAt                 DateTime?
-  approvedBy                  String?
-  approvedAt                  DateTime?
-  approveRemark               String?
-  paidBy                      String?
-  paidAt                      DateTime?
-  transactionNo               String?
-  failureReason               String?
-  remark                      String?
-  createdAt                   DateTime
-  updatedAt                   DateTime
+  id String @id @default(uuid()) @map("id")
+  payoutNo String @unique @map("payout_no")
+  supplierId String @map("supplier_id")
+  supplierName String @map("supplier_name")
+  settlementId String? @map("settlement_id")
+  amount Float @map("amount")
+  bankName String? @map("bank_name")
+  bankAccountName String? @map("bank_account_name")
+  bankAccountNo String? @map("bank_account_no")
+  paymentMethod String @map("payment_method")
+  status String @map("status")
+  requestedBy String? @map("requested_by")
+  requestedAt DateTime? @map("requested_at")
+  approvedBy String? @map("approved_by")
+  approvedAt DateTime? @map("approved_at")
+  approveRemark String? @map("approve_remark")
+  paidBy String? @map("paid_by")
+  paidAt DateTime? @map("paid_at")
+  transactionNo String? @map("transaction_no")
+  failureReason String? @map("failure_reason")
+  remark String? @map("remark")
+  createdAt DateTime @map("created_at")
+  updatedAt DateTime @map("updated_at")
+  @@map("supplier_payouts")
 }
 
 model invoiceRecords {
-  id                          String @id @default(uuid())
-  invoiceNo                   String? @unique
-  orderId                     String
-  userId                      String
-  invoiceType                 String
-  buyerName                   String
-  buyerTaxNo                  String?
-  buyerBank                   String?
-  buyerBankAccount            String?
-  buyerAddress                String?
-  buyerPhone                  String?
-  invoiceAmount               Float
-  taxRate                     Float
-  taxAmount                   Float
-  sellerName                  String?
-  sellerTaxNo                 String?
-  status                      String
-  issuedBy                    String?
-  issuedAt                    DateTime?
-  invoiceFileUrl              String?
-  invoiceCode                 String?
-  invoiceNumber               String?
-  remark                      String?
-  createdAt                   DateTime
-  updatedAt                   DateTime
+  id String @id @default(uuid()) @map("id")
+  invoiceNo String? @unique @map("invoice_no")
+  orderId String @map("order_id")
+  userId String @map("user_id")
+  invoiceType String @map("invoice_type")
+  buyerName String @map("buyer_name")
+  buyerTaxNo String? @map("buyer_tax_no")
+  buyerBank String? @map("buyer_bank")
+  buyerBankAccount String? @map("buyer_bank_account")
+  buyerAddress String? @map("buyer_address")
+  buyerPhone String? @map("buyer_phone")
+  invoiceAmount Float @map("invoice_amount")
+  taxRate Float @map("tax_rate")
+  taxAmount Float @map("tax_amount")
+  sellerName String? @map("seller_name")
+  sellerTaxNo String? @map("seller_tax_no")
+  status String @map("status")
+  issuedBy String? @map("issued_by")
+  issuedAt DateTime? @map("issued_at")
+  invoiceFileUrl String? @map("invoice_file_url")
+  invoiceCode String? @map("invoice_code")
+  invoiceNumber String? @map("invoice_number")
+  remark String? @map("remark")
+  createdAt DateTime @map("created_at")
+  updatedAt DateTime @map("updated_at")
+  @@map("invoice_records")
 }
 
 model logisticsRecords {
-  id                          String @id @default(uuid())
-  fulfillmentOrderId          String?
-  orderId                     String
-  courier                     String
-  trackingNo                  String
-  senderName                  String?
-  senderPhone                 String?
-  senderAddress               String?
-  receiverName                String
-  receiverPhone               String
-  receiverProvince            String?
-  receiverCity                String?
-  receiverDistrict            String?
-  receiverAddress             String
-  traces                      Json
-  status                      String
-  shippedAt                   DateTime?
-  deliveredAt                 DateTime?
-  estimatedDays               Int?
-  remark                      String?
-  createdAt                   DateTime
-  updatedAt                   DateTime
+  id String @id @default(uuid()) @map("id")
+  fulfillmentOrderId String? @map("fulfillment_order_id")
+  orderId String @map("order_id")
+  courier String @map("courier")
+  trackingNo String @map("tracking_no")
+  senderName String? @map("sender_name")
+  senderPhone String? @map("sender_phone")
+  senderAddress String? @map("sender_address")
+  receiverName String @map("receiver_name")
+  receiverPhone String @map("receiver_phone")
+  receiverProvince String? @map("receiver_province")
+  receiverCity String? @map("receiver_city")
+  receiverDistrict String? @map("receiver_district")
+  receiverAddress String @map("receiver_address")
+  traces Json @map("traces")
+  status String @map("status")
+  shippedAt DateTime? @map("shipped_at")
+  deliveredAt DateTime? @map("delivered_at")
+  estimatedDays Int? @map("estimated_days")
+  remark String? @map("remark")
+  createdAt DateTime @map("created_at")
+  updatedAt DateTime @map("updated_at")
+  @@map("logistics_records")
 }
 
 model notifications {
-  id                          String @id @default(uuid())
-  userId                      String?
-  title                       String
-  content                     String
-  type                        String
-  targetType                  String?
-  targetId                    String?
-  linkUrl                     String?
-  isRead                      Boolean
-  readAt                      DateTime?
-  createdAt                   DateTime
-  updatedAt                   DateTime
+  id String @id @default(uuid()) @map("id")
+  userId String? @map("user_id")
+  title String @map("title")
+  content String @map("content")
+  type String @map("type")
+  targetType String? @map("target_type")
+  targetId String? @map("target_id")
+  linkUrl String? @map("link_url")
+  isRead Boolean @map("is_read")
+  readAt DateTime? @map("read_at")
+  createdAt DateTime @map("created_at")
+  updatedAt DateTime @map("updated_at")
+  @@map("notifications")
 }
 
 model migrationSealOrdersSnapshot {
-  id                          String @id
-  data                        Json
-  migratedAt                  DateTime
-  migratedTo                  String?
-  migratedBy                  String?
+  id String @id @map("id")
+  data Json @map("data")
+  migratedAt DateTime @map("migrated_at")
+  migratedTo String? @map("migrated_to")
+  migratedBy String? @map("migrated_by")
+  @@map("migration_seal_orders_snapshot")
 }
 
 model businessConfigs {
-  id                          String @id @default(uuid())
-  configKey                   String @unique
-  configValue                 String?
-  valueType                   String
-  description                 String?
-  createdAt                   DateTime
-  updatedAt                   DateTime
+  id String @id @default(uuid()) @map("id")
+  configKey String @unique @map("config_key")
+  configValue String? @map("config_value")
+  valueType String @map("value_type")
+  description String? @map("description")
+  createdAt DateTime @map("created_at")
+  updatedAt DateTime @map("updated_at")
+  @@map("business_configs")
 }
 
 model dispatchRules {
-  id                          String @id @default(uuid())
-  module                      String
-  serviceType                 String?
-  ruleName                    String
-  ruleConfig                  Json
-  priority                    Int
-  isActive                    Boolean
-  createdAt                   DateTime
-  updatedAt                   DateTime
+  id String @id @default(uuid()) @map("id")
+  module String @map("module")
+  serviceType String? @map("service_type")
+  ruleName String @map("rule_name")
+  ruleConfig Json @map("rule_config")
+  priority Int @map("priority")
+  isActive Boolean @map("is_active")
+  createdAt DateTime @map("created_at")
+  updatedAt DateTime @map("updated_at")
+  @@map("dispatch_rules")
 }
-
-model orders {
-  id                        String    @id @default(uuid())
-  order_no                  String    @unique
-  user_id                   String
-  module                    String
-  service_id                String?
-  order_status              String    @default("created")
-  payment_status            String    @default("unpaid")
-  fulfillment_status        String    @default("pending_assignment")
-  refund_status             String    @default("none")
-  invoice_status            String    @default("not_required")
-  total_amount              Decimal?  @db.Decimal(18, 2)
-  pay_amount                Decimal?  @db.Decimal(18, 2)
-  paid_amount               Decimal?  @db.Decimal(18, 2)
-  address_snapshot          Json?
-  customer_remark           String?
-  internal_remark           String?
-  version                   Int       @default(1)
-  created_at                DateTime  @default(now())
-  paid_at                   DateTime?
-  completed_at              DateTime?
-  cancelled_at              DateTime?
-  deleted_at                DateTime?
-  cancel_reason             String?
+model orders {
+  id                String    @id @default(uuid())
+  order_no          String    @unique
+  user_id           String
+  module            String
+  service_id        String?
+  order_status      String    @default("created")
+  payment_status    String    @default("unpaid")
+  fulfillment_status String   @default("pending_assignment")
+  refund_status     String    @default("none")
+  invoice_status    String    @default("not_required")
+  total_amount      Decimal?  @db.Decimal(18, 2)
+  discount_amount   Decimal?  @db.Decimal(18, 2)
+  pay_amount        Decimal?  @db.Decimal(18, 2)
+  refund_amount     Decimal?  @db.Decimal(18, 2)
+  paid_amount       Decimal?  @db.Decimal(18, 2)
+  address_snapshot  Json?
+  customer_remark   String?
+  admin_remark      String?
+  reviewed_by       String?
+  reviewed_at       DateTime?
+  review_result     String?
+  paid_at           DateTime?
+  completed_at      DateTime?
+  cancelled_at      DateTime?
+  cancel_reason     String?
+  version           Int       @default(1)
+  created_at        DateTime  @default(now())
+  updated_at        DateTime  @default(now())
+  deleted_at        DateTime?
 
   @@index([user_id])
   @@index([order_status])
@@ -1471,3 +1496,5 @@ model orders {
   @@index([created_at])
   @@map("orders")
 }
+
+

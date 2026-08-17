@@ -129,6 +129,143 @@ export class OrderV2Service {
       },
     });
 
+    await this.prisma.sealOrderDetails.create({
+      data: {
+        orderId: order.id,
+        companyName: data.companyName || '未填写',
+        legalPerson: data.legalPerson || '未填写',
+        licenseNo: data.licenseNo || '',
+        licenseRegion: data.licenseRegion,
+        licenseExpiryDate: data.licenseExpiryDate ? new Date(data.licenseExpiryDate) : null,
+        sealPackageId: data.sealPackageId,
+        sealPackageName: data.sealPackageName,
+        sealCount: data.sealCount || 1,
+        sealTypes: data.sealTypes || null,
+        filingRequired: !!data.filingRequired,
+        filingRegion: data.filingRegion,
+        productionRequirement: data.productionRequirement,
+        deliveryRequirement: data.deliveryRequirement,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    });
+
+    await this.prisma.orderEvents.create({
+      data: {
+        orderId: order.id,
+        eventType: 'ORDER_CREATED',
+        eventName: '订单创建',
+        fromStatus: '',
+        toStatus: 'pending_payment',
+        operatorType: 'user',
+        operatorId: userId,
+        metadata: {},
+        createdAt: new Date(),
+      },
+    });
+
+    return { orderNo, totalAmount: order.total_amount?.toString(), needPay: true };
+  }
+
+  /**
+   * 创建登报订单
+   */
+  async createNewspaperOrder(userId: string, data: any) {
+    const orderNo = await this.generateOrderNo('NP');
+
+    const order = await this.prisma.orders.create({
+      data: {
+        order_no: orderNo,
+        user_id: userId,
+        module: 'newspaper',
+        order_status: 'pending_payment',
+        payment_status: 'unpaid',
+        fulfillment_status: 'pending_assignment',
+        refund_status: 'none',
+        invoice_status: 'not_required',
+        total_amount: data.totalAmount || 0,
+        pay_amount: data.totalAmount || 0,
+        customer_remark: data.remark,
+      },
+    });
+
+    await this.prisma.newspaperOrderDetails.create({
+      data: {
+        orderId: order.id,
+        newspaperId: data.newspaperId,
+        newspaperName: data.newspaperName,
+        newspaperCode: data.newspaperCode,
+        templateId: data.templateId,
+        templateType: data.templateType,
+        content: data.content,
+        contentCharCount: data.contentCharCount,
+        copies: data.copies || 1,
+        publicationDate: data.publicationDate ? new Date(data.publicationDate) : null,
+        publicationEdition: data.publicationEdition,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    });
+
+    await this.prisma.orderEvents.create({
+      data: {
+        orderId: order.id,
+        eventType: 'ORDER_CREATED',
+        eventName: '订单创建',
+        fromStatus: '',
+        toStatus: 'pending_payment',
+        operatorType: 'user',
+        operatorId: userId,
+        metadata: {},
+        createdAt: new Date(),
+      },
+    });
+
+    return { orderNo, totalAmount: order.total_amount?.toString(), needPay: true };
+  }
+
+  /**
+   * 创建记账订单
+   */
+  async createBookkeepingOrder(userId: string, data: any) {
+    const orderNo = await this.generateOrderNo('BK');
+
+    const order = await this.prisma.orders.create({
+      data: {
+        order_no: orderNo,
+        user_id: userId,
+        module: 'bookkeeping',
+        order_status: 'pending_payment',
+        payment_status: 'unpaid',
+        fulfillment_status: 'pending_assignment',
+        refund_status: 'none',
+        invoice_status: 'not_required',
+        total_amount: data.totalAmount || 0,
+        pay_amount: data.totalAmount || 0,
+        customer_remark: data.remark,
+      },
+    });
+
+    await this.prisma.bookkeepingOrderDetails.create({
+      data: {
+        orderId: order.id,
+        packageId: data.packageId,
+        packageName: data.packageName,
+        taxpayerType: data.taxpayerType || 'small',
+        servicePeriod: data.servicePeriod,
+        startDate: data.startDate ? new Date(data.startDate) : null,
+        endDate: data.endDate ? new Date(data.endDate) : null,
+        companyName: data.companyName,
+        businessLicenseNo: data.businessLicenseNo,
+        taxAuthority: data.taxAuthority,
+        accountingScope: data.accountingScope,
+        currentPeriod: data.currentPeriod || 1,
+        periodsCompleted: 0,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    });
+
     await this.prisma.orderEvents.create({
       data: {
         orderId: order.id,
