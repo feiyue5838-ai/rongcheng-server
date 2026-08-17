@@ -86,6 +86,7 @@ export class FulfillmentService {
   async assignOrder(orderNo: string, supplierId: string, adminId: string) {
     const order = await this.prisma.orders.findUnique({ where: { order_no: orderNo } });
     if (!order) throw new NotFoundException('订单不存在');
+    if (order.order_status !== 'paid') throw new BadRequestException('仅已支付订单可派单');
     if (order.fulfillment_status !== 'pending_assignment') throw new BadRequestException('订单已派单或状态不符');
 
     const supplier = await this.prisma.suppliers.findUnique({ where: { id: supplierId } });
@@ -133,6 +134,7 @@ export class FulfillmentService {
   async reassignOrder(orderNo: string, newSupplierId: string, adminId: string, cancelRemark?: string) {
     const order = await this.prisma.orders.findUnique({ where: { order_no: orderNo } });
     if (!order) throw new NotFoundException('订单不存在');
+    if (order.order_status !== 'paid') throw new BadRequestException('仅已支付订单可改派');
     if (order.fulfillment_status !== 'assigned' && order.fulfillment_status !== 'pending_assignment') {
       throw new BadRequestException('当前状态不可改派');
     }
@@ -430,7 +432,7 @@ export class FulfillmentService {
     const orderForVersion = await this.prisma.orders.findUnique({ where: { id: fulfillment.order_id } });
     await this.prisma.orders.updateMany({
       where: { id: fulfillment.order_id, version: orderForVersion?.version },
-      data: { fulfillment_status: 'completed', version: { increment: 1 } },
+      data: { fulfillment_status: 'delivering', version: { increment: 1 } },
     }).then((r) => {
       if (r.count === 0) throw new ConflictException('订单状态已变更，请刷新后重试');
     });
@@ -441,7 +443,7 @@ export class FulfillmentService {
         eventType: 'SUPPLIER_DELIVERED',
         eventName: '供应商发货交付',
         fromStatus: 'processing',
-        toStatus: 'completed',
+        toStatus: 'delivering',
         operatorType: 'supplier',
         operatorId: supplierId,
         description: body?.courier ? `快递: ${body.courier} ${body.trackingNo || ''}` : '',

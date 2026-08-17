@@ -168,40 +168,41 @@ export class OrderV2Service {
       },
     });
 
-    await this.prisma.sealOrderDetails.create({
-      data: {
-        orderId: order.id,
-        companyName: data.companyName || '未填写',
-        legalPerson: data.legalPerson || '未填写',
-        licenseNo: data.licenseNo || '',
-        licenseRegion: data.licenseRegion,
-        licenseExpiryDate: data.licenseExpiryDate ? new Date(data.licenseExpiryDate) : null,
-        sealPackageId: data.sealPackageId,
-        sealPackageName: data.sealPackageName,
-        sealCount: data.sealCount || 1,
-        sealTypes: data.sealTypes || [],
-        filingRequired: !!data.filingRequired,
-        filingRegion: data.filingRegion,
-        productionRequirement: data.productionRequirement,
-        deliveryRequirement: data.deliveryRequirement,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-    });
-
-    await this.prisma.orderEvents.create({
-      data: {
-        orderId: order.id,
-        eventType: 'ORDER_CREATED',
-        eventName: '订单创建',
-        fromStatus: '',
-        toStatus: 'pending_payment',
-        operatorType: 'user',
-        operatorId: userId,
-        metadata: {},
-        createdAt: new Date(),
-      },
-    });
+    await this.prisma.$transaction([
+      this.prisma.sealOrderDetails.create({
+        data: {
+          orderId: order.id,
+          companyName: data.companyName || '未填写',
+          legalPerson: data.legalPerson || '未填写',
+          licenseNo: data.licenseNo || '',
+          licenseRegion: data.licenseRegion,
+          licenseExpiryDate: data.licenseExpiryDate ? new Date(data.licenseExpiryDate) : null,
+          sealPackageId: data.sealPackageId,
+          sealPackageName: data.sealPackageName,
+          sealCount: data.sealCount || 1,
+          sealTypes: data.sealTypes || [],
+          filingRequired: !!data.filingRequired,
+          filingRegion: data.filingRegion,
+          productionRequirement: data.productionRequirement,
+          deliveryRequirement: data.deliveryRequirement,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      }),
+      this.prisma.orderEvents.create({
+        data: {
+          orderId: order.id,
+          eventType: 'ORDER_CREATED',
+          eventName: '订单创建',
+          fromStatus: '',
+          toStatus: 'pending_payment',
+          operatorType: 'user',
+          operatorId: userId,
+          metadata: {},
+          createdAt: new Date(),
+        },
+      }),
+    ]);
 
     return { orderNo, totalAmount: order.total_amount?.toString(), needPay: true };
   }
@@ -229,37 +230,38 @@ export class OrderV2Service {
       },
     });
 
-    await this.prisma.newspaperOrderDetails.create({
-      data: {
-        orderId: order.id,
-        newspaperId: data.newspaperId || null,
-        newspaperName: data.newspaperName,
-        newspaperCode: data.newspaperCode,
-        templateId: data.templateId || null,
-        templateType: data.templateType,
-        content: data.content,
-        contentCharCount: data.contentCharCount,
-        copies: data.copies || 1,
-        publicationDate: data.publicationDate ? new Date(data.publicationDate) : null,
-        publicationEdition: data.publicationEdition,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-    });
-
-    await this.prisma.orderEvents.create({
-      data: {
-        orderId: order.id,
-        eventType: 'ORDER_CREATED',
-        eventName: '订单创建',
-        fromStatus: '',
-        toStatus: 'pending_payment',
-        operatorType: 'user',
-        operatorId: userId,
-        metadata: {},
-        createdAt: new Date(),
-      },
-    });
+    await this.prisma.$transaction([
+      this.prisma.newspaperOrderDetails.create({
+        data: {
+          orderId: order.id,
+          newspaperId: data.newspaperId || null,
+          newspaperName: data.newspaperName,
+          newspaperCode: data.newspaperCode,
+          templateId: data.templateId || null,
+          templateType: data.templateType,
+          content: data.content,
+          contentCharCount: data.contentCharCount,
+          copies: data.copies || 1,
+          publicationDate: data.publicationDate ? new Date(data.publicationDate) : null,
+          publicationEdition: data.publicationEdition,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      }),
+      this.prisma.orderEvents.create({
+        data: {
+          orderId: order.id,
+          eventType: 'ORDER_CREATED',
+          eventName: '订单创建',
+          fromStatus: '',
+          toStatus: 'pending_payment',
+          operatorType: 'user',
+          operatorId: userId,
+          metadata: {},
+          createdAt: new Date(),
+        },
+      }),
+    ]);
 
     return { orderNo, totalAmount: order.total_amount?.toString(), needPay: true };
   }
@@ -286,39 +288,40 @@ export class OrderV2Service {
       },
     });
 
-    await this.prisma.bookkeepingOrderDetails.create({
-      data: {
-        orderId: order.id,
-        packageId: data.packageId || null,
-        packageName: data.packageName,
-        taxpayerType: data.taxpayerType || 'small_scale',
-        servicePeriod: data.servicePeriod,
-        startDate: data.startDate ? new Date(data.startDate) : null,
-        endDate: data.endDate ? new Date(data.endDate) : null,
-        companyName: data.companyName,
-        businessLicenseNo: data.businessLicenseNo,
-        taxAuthority: data.taxAuthority,
-        accountingScope: data.accountingScope,
-        currentPeriod: data.currentPeriod || 1,
-        periodsCompleted: 0,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-    });
-
-    await this.prisma.orderEvents.create({
-      data: {
-        orderId: order.id,
-        eventType: 'ORDER_CREATED',
-        eventName: '订单创建',
-        fromStatus: '',
-        toStatus: 'pending_payment',
-        operatorType: 'user',
-        operatorId: userId,
-        metadata: {},
-        createdAt: new Date(),
-      },
-    });
+    await this.prisma.$transaction([
+      this.prisma.bookkeepingOrderDetails.create({
+        data: {
+          orderId: order.id,
+          packageId: data.packageId || null,
+          packageName: data.packageName,
+          taxpayerType: data.taxpayerType || 'small_scale',
+          servicePeriod: data.servicePeriod,
+          startDate: data.startDate ? new Date(data.startDate) : null,
+          endDate: data.endDate ? new Date(data.endDate) : null,
+          companyName: data.companyName,
+          businessLicenseNo: data.businessLicenseNo,
+          taxAuthority: data.taxAuthority,
+          accountingScope: data.accountingScope,
+          currentPeriod: data.currentPeriod || 1,
+          periodsCompleted: 0,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      }),
+      this.prisma.orderEvents.create({
+        data: {
+          orderId: order.id,
+          eventType: 'ORDER_CREATED',
+          eventName: '订单创建',
+          fromStatus: '',
+          toStatus: 'pending_payment',
+          operatorType: 'user',
+          operatorId: userId,
+          metadata: {},
+          createdAt: new Date(),
+        },
+      }),
+    ]);
 
     return { orderNo, totalAmount: order.total_amount?.toString(), needPay: true };
   }
@@ -891,7 +894,9 @@ export class OrderV2Service {
     const order = await this.prisma.orders.findUnique({ where: { order_no: orderNo } });
     if (!order) throw new NotFoundException('订单不存在');
     if (order.user_id !== userId) throw new BadRequestException('无权操作此订单');
-    if (order.fulfillment_status !== 'signed') throw new BadRequestException('仅已签收订单可确认');
+    if (!['delivering', 'signed'].includes(order.fulfillment_status)) {
+      throw new BadRequestException('仅已发货/已签收订单可确认');
+    }
 
     await this.prisma.orders.updateMany({
       where: { id: order.id, version: order.version },
@@ -905,7 +910,7 @@ export class OrderV2Service {
         orderId: order.id,
         eventType: 'ORDER_SIGNED',
         eventName: '确认收货',
-        fromStatus: 'signed',
+        fromStatus: order.fulfillment_status,
         toStatus: 'completed',
         operatorType: 'user',
         operatorId: userId,
