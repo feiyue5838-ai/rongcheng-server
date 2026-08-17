@@ -251,7 +251,7 @@ export class OrderV2Service {
         orderId: order.id,
         packageId: data.packageId,
         packageName: data.packageName,
-        taxpayerType: data.taxpayerType || 'small',
+        taxpayerType: data.taxpayerType || 'small_scale',
         servicePeriod: data.servicePeriod,
         startDate: data.startDate ? new Date(data.startDate) : null,
         endDate: data.endDate ? new Date(data.endDate) : null,
