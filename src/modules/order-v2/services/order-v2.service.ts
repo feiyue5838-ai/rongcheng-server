@@ -140,7 +140,7 @@ export class OrderV2Service {
         sealPackageId: data.sealPackageId,
         sealPackageName: data.sealPackageName,
         sealCount: data.sealCount || 1,
-        sealTypes: data.sealTypes || null,
+        sealTypes: data.sealTypes || [],
         filingRequired: !!data.filingRequired,
         filingRegion: data.filingRegion,
         productionRequirement: data.productionRequirement,

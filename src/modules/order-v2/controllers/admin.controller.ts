@@ -15,6 +15,7 @@ import {
 } from '@nestjs/common';
 import { OrderV2Service } from '../services/order-v2.service';
 import { FulfillmentService } from '../services/fulfillment.service';
+import { SettlementV2Service } from '../services/settlement.service';
 import { AdminJwtAuthGuard } from '../../auth/guards/admin-jwt-auth.guard';
 import { ResponseInterceptor } from '../../../common/interceptors/response.interceptor';
 
@@ -24,6 +25,7 @@ export class AdminController {
   constructor(
     private readonly orderService: OrderV2Service,
     private readonly fulfillmentService: FulfillmentService,
+    private readonly settlementService: SettlementV2Service,
   ) {}
 
   /**
@@ -107,5 +109,79 @@ export class AdminController {
   ) {
     // TODO: 实现改派逻辑（多次派单链）
     return { success: true };
+  }
+
+  // ============ 结算（财务/运营） ============
+
+  /**
+   * 结算单列表
+   * GET /api/v2/admin/settlements
+   */
+  @UseGuards(AdminJwtAuthGuard)
+  @Get('settlements')
+  async listSettlements(
+    @Query('status') status?: string,
+    @Query('supplierId') supplierId?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.settlementService.listSettlements({
+      status,
+      supplierId,
+      page: page ? parseInt(page) : 1,
+      pageSize: pageSize ? parseInt(pageSize) : 20,
+    });
+  }
+
+  /**
+   * 结算单详情
+   * GET /api/v2/admin/settlements/:id
+   */
+  @UseGuards(AdminJwtAuthGuard)
+  @Get('settlements/:id')
+  async getSettlementDetail(@Param('id') id: string) {
+    return this.settlementService.getSettlementDetail(id);
+  }
+
+  /**
+   * 生成结算单
+   * POST /api/v2/admin/settlements/generate
+   */
+  @UseGuards(AdminJwtAuthGuard)
+  @Post('settlements/generate')
+  async generateSettlement(@Request() req: any, @Body() body: { supplierId: string; periodStart: string; periodEnd: string }) {
+    return this.settlementService.generateSettlement({
+      supplierId: body.supplierId,
+      periodStart: body.periodStart,
+      periodEnd: body.periodEnd,
+      operatorId: req.user.adminId,
+    });
+  }
+
+  /**
+   * 确认结算单
+   * PUT /api/v2/admin/settlements/:id/confirm
+   */
+  @UseGuards(AdminJwtAuthGuard)
+  @Put('settlements/:id/confirm')
+  async confirmSettlement(@Param('id') id: string, @Request() req: any, @Body() body: { remark?: string }) {
+    return this.settlementService.confirmSettlement(id, req.user.adminId, body?.remark);
+  }
+
+  /**
+   * 结算单付款（财务）
+   * POST /api/v2/admin/settlements/:id/pay
+   */
+  @UseGuards(AdminJwtAuthGuard)
+  @Post('settlements/:id/pay')
+  async paySettlement(@Param('id') id: string, @Request() req: any, @Body() body: any) {
+    return this.settlementService.paySettlement(id, {
+      operatorId: req.user.adminId,
+      paymentMethod: body?.paymentMethod,
+      transactionNo: body?.transactionNo,
+      bankName: body?.bankName,
+      bankAccountName: body?.bankAccountName,
+      bankAccountNo: body?.bankAccountNo,
+    });
   }
 }

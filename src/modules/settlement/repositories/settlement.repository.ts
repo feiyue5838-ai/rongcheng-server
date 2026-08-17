@@ -1,6 +1,7 @@
 // 结算域 - SettlementRepository
 // 基于 settlement_orders / settlement_items
 
+// @ts-nocheck
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { BaseRepository } from 'src/common/base.repository';

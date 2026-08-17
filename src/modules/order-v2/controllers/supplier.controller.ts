@@ -13,13 +13,17 @@ import {
   Request,
 } from '@nestjs/common';
 import { FulfillmentService } from '../services/fulfillment.service';
+import { SettlementV2Service } from '../services/settlement.service';
 import { SupplierJwtAuthGuard } from '../../../common/guards/supplier-jwt.guard';
 import { ResponseInterceptor } from '../../../common/interceptors/response.interceptor';
 
 @Controller('v2/supplier')
 @UseInterceptors(ResponseInterceptor)
 export class SupplierController {
-  constructor(private readonly fulfillmentService: FulfillmentService) {}
+  constructor(
+    private readonly fulfillmentService: FulfillmentService,
+    private readonly settlementService: SettlementV2Service,
+  ) {}
 
   /**
    * 获取待接单/进行中订单
@@ -105,5 +109,34 @@ export class SupplierController {
     @Request() req: any,
   ) {
     return this.fulfillmentService.completeOrder(fulfillmentId, req.user.supplierId);
+  }
+
+  // ============ 结算 ============
+
+  /**
+   * 我的结算单列表
+   * GET /api/v2/supplier/settlements
+   */
+  @UseGuards(SupplierJwtAuthGuard)
+  @Get('settlements')
+  async getSettlements(
+    @Request() req: any,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.settlementService.getSupplierSettlements(req.user.supplierId, {
+      page: page ? parseInt(page, 10) : 1,
+      pageSize: pageSize ? parseInt(pageSize, 10) : 20,
+    });
+  }
+
+  /**
+   * 结算单详情（含逐订单明细）
+   * GET /api/v2/supplier/settlements/:id
+   */
+  @UseGuards(SupplierJwtAuthGuard)
+  @Get('settlements/:id')
+  async getSettlementDetail(@Param('id') id: string, @Request() req: any) {
+    return this.settlementService.getSupplierSettlementDetail(id, req.user.supplierId);
   }
 }
