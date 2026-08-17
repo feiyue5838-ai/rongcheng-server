@@ -976,6 +976,8 @@ model suppliers {
   total_orders     Int       @default(0)
   last_login_at    DateTime?
   last_login_ip    String?
+  outlet_openid    String?
+  subscribe_msg    Int       @default(1)
   created_at       DateTime  @default(now())
   updated_at       DateTime  @updatedAt
 

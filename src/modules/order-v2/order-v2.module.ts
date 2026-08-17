@@ -7,13 +7,14 @@ import { OrderV2Service } from './services/order-v2.service';
 import { FulfillmentService } from './services/fulfillment.service';
 import { SettlementV2Service } from './services/settlement.service';
 import { WechatPayService } from './services/wechat-pay.service';
+import { SupplierNotificationService } from './services/supplier-notification.service';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { UploadModule } from '../upload/upload.module';
 
 @Module({
   imports: [PrismaModule, UploadModule],
   controllers: [OrderV2Controller, SupplierController, AdminController, PaymentsV2Controller],
-  providers: [OrderV2Service, FulfillmentService, SettlementV2Service, WechatPayService],
-  exports: [OrderV2Service, FulfillmentService, SettlementV2Service, WechatPayService],
+  providers: [OrderV2Service, FulfillmentService, SettlementV2Service, WechatPayService, SupplierNotificationService],
+  exports: [OrderV2Service, FulfillmentService, SettlementV2Service, WechatPayService, SupplierNotificationService],
 })
 export class OrderV2Module {}

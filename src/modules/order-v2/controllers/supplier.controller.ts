@@ -5,6 +5,8 @@ import {
   Controller,
   Get,
   Post,
+  Put,
+  Delete,
   Body,
   Param,
   Query,
@@ -17,6 +19,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { FulfillmentService } from '../services/fulfillment.service';
 import { SettlementV2Service } from '../services/settlement.service';
+import { SupplierNotificationService } from '../services/supplier-notification.service';
 import { SupplierJwtAuthGuard } from '../../../common/guards/supplier-jwt.guard';
 import { ResponseInterceptor } from '../../../common/interceptors/response.interceptor';
 import { UploadService } from '../../upload/upload.service';
@@ -28,6 +31,7 @@ export class SupplierController {
     private readonly fulfillmentService: FulfillmentService,
     private readonly settlementService: SettlementV2Service,
     private readonly uploadService: UploadService,
+    private readonly notificationService: SupplierNotificationService,
   ) {}
 
   /**
@@ -165,5 +169,86 @@ export class SupplierController {
   @Get('settlements/:id')
   async getSettlementDetail(@Param('id') id: string, @Request() req: any) {
     return this.settlementService.getSupplierSettlementDetail(id, req.user.supplierId);
+  }
+
+  // ============ 通知 / 订阅 ============
+
+  /**
+   * 绑定微信 openid（接收订阅消息）
+   * PUT /api/v2/supplier/me/openid
+   */
+  @UseGuards(SupplierJwtAuthGuard)
+  @Put('me/openid')
+  async bindOpenid(@Body() body: { openid: string }, @Request() req: any) {
+    return this.notificationService.bindOpenid(req.user.supplierId, body.openid);
+  }
+
+  /**
+   * 订阅消息开关
+   * PUT /api/v2/supplier/me/subscribe
+   */
+  @UseGuards(SupplierJwtAuthGuard)
+  @Put('me/subscribe')
+  async toggleSubscribe(@Body() body: { enabled: boolean }, @Request() req: any) {
+    return this.notificationService.toggleSubscribe(req.user.supplierId, !!body.enabled);
+  }
+
+  /**
+   * 订阅/绑定状态
+   * GET /api/v2/supplier/me/subscribe-status
+   */
+  @UseGuards(SupplierJwtAuthGuard)
+  @Get('me/subscribe-status')
+  async getSubscribeStatus(@Request() req: any) {
+    return this.notificationService.getSubscribeStatus(req.user.supplierId);
+  }
+
+  /**
+   * 我的通知列表
+   * GET /api/v2/supplier/me/notifications?page=&pageSize=&unreadOnly=
+   */
+  @UseGuards(SupplierJwtAuthGuard)
+  @Get('me/notifications')
+  async getMyNotifications(
+    @Request() req: any,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('unreadOnly') unreadOnly?: string,
+  ) {
+    return this.notificationService.getMyNotifications(req.user.supplierId, {
+      page: page ? parseInt(page, 10) : 1,
+      pageSize: pageSize ? parseInt(pageSize, 10) : 20,
+      unreadOnly: unreadOnly === 'true',
+    });
+  }
+
+  /**
+   * 标记单条已读
+   * PUT /api/v2/supplier/me/notifications/:id/read
+   */
+  @UseGuards(SupplierJwtAuthGuard)
+  @Put('me/notifications/:id/read')
+  async markNotificationRead(@Param('id') id: string, @Request() req: any) {
+    return this.notificationService.markRead(req.user.supplierId, id);
+  }
+
+  /**
+   * 全部已读
+   * PUT /api/v2/supplier/me/notifications/read-all
+   */
+  @UseGuards(SupplierJwtAuthGuard)
+  @Put('me/notifications/read-all')
+  async markAllNotificationsRead(@Request() req: any) {
+    return this.notificationService.markAllRead(req.user.supplierId);
+  }
+
+  /**
+   * 删除通知
+   * DELETE /api/v2/supplier/me/notifications/:id
+   */
+  @UseGuards(SupplierJwtAuthGuard)
+  @Delete('me/notifications/:id')
+  async deleteNotification(@Param('id') id: string, @Request() req: any) {
+    return this.notificationService.deleteNotification(req.user.supplierId, id);
   }
 }
