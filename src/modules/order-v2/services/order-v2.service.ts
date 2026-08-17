@@ -396,8 +396,15 @@ export class OrderV2Service {
     // 从解密后 body 提取字段（V3: out_trade_no/transaction_id/trade_state/amount.total 单位分）
     const paymentNo = body.out_trade_no;
     const providerTxnId = body.transaction_id;
-    // V3: total 单位分；V2: total_fee 单位分
-    const feeFen = body.total != null ? Number(body.total) : body.total_fee != null ? Number(body.total_fee) : null;
+    // V3: amount.total 单位分；V2: total_fee 单位分
+    const feeFen =
+      body.amount?.total != null
+        ? Number(body.amount.total)
+        : body.total != null
+          ? Number(body.total)
+          : body.total_fee != null
+            ? Number(body.total_fee)
+            : null;
     const tradeState = body.trade_state || body.result_code;
     const returnCode = body.return_code;
 
