@@ -36,7 +36,6 @@ model admins {
   updated_at    DateTime @updatedAt
   
   // DDD 反向关系
-  fulfillment_orders fulfillment_orders[] @relation("FulfillmentAssignedBy")
   refund_orders      refund_orders[]      @relation("RefundApprovedBy")
 
   @@map("admins")
@@ -829,7 +828,6 @@ model order_orders {
   order_newspaper_details    order_newspaper_details?
   order_bookkeeping_details  order_bookkeeping_details?
   payment_orders             payment_orders[]
-  fulfillment_orders         fulfillment_orders[]
   settlement_items           settlement_items[]
   refund_orders              refund_orders[]
 
@@ -955,36 +953,28 @@ model fulfillment_orders {
   id              String    @id @default(uuid())
   fulfillment_no  String    @unique
   order_id        String
+  order_no        String
+  module          String
   supplier_id     String
-  status          Int       @default(1)
-  status_text     String?
-  assigned_by     String?
-  assigned_at     DateTime  @default(now())
+  supplier_name   String
+  status          String    @default("pending")
+  assigned_at     DateTime?
   accepted_at     DateTime?
+  started_at      DateTime?
   completed_at    DateTime?
-  previous_id     String?
-  is_active       Boolean   @default(true)
-  canceled_at     DateTime?
+  cancelled_at    DateTime?
   cancel_reason   String?
-  delivery_method String?
-  express_company String?
-  express_no      String?
-  delivered_at    DateTime?
-  signed_by       String?
-  signed_at       DateTime?
-  sign_photo      String?
   remark          String?
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
 
-  order     order_orders        @relation(fields: [order_id], references: [id], onDelete: Cascade)
-  admin     admins?             @relation("FulfillmentAssignedBy", fields: [assigned_by], references: [id])
-  previous  fulfillment_orders? @relation("FulfillmentChain", fields: [previous_id], references: [id])
-  next      fulfillment_orders[] @relation("FulfillmentChain")
+  order           orders              @relation(fields: [order_id], references: [id], onDelete: Cascade)
+  supplier        suppliers           @relation("FulfillmentSupplier", fields: [supplier_id], references: [id])
   settlement_items settlement_items[]
-  supplier        suppliers       @relation("FulfillmentSupplier", fields: [supplier_id], references: [id])
 
   @@index([order_id])
   @@index([supplier_id])
-  @@index([is_active])
+  @@index([status])
   @@map("fulfillment_orders")
 }
 
@@ -1495,6 +1485,7 @@ model dispatchRules {
   @@index([fulfillment_status])
   @@index([created_at])
   @@map("orders")
+  fulfillment_orders fulfillment_orders[]
 }
 
 

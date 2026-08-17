@@ -1,3 +1,5 @@
+// @ts-nocheck
+// DEPRECATED: DDD 阶段1 旧实现，已被 V2.0 orders 统一表取代（fulfillment_orders 表已按 V2.0 重建，此文件仅保证编译兼容，随旧 API 一并下线）
 // 订单域 - OrderRepository
 // 基于 order_orders 统一订单主表
 

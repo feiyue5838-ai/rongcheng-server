@@ -1,5 +1,5 @@
-// V2.0 履约服务（简化版）
-// 基于 fulfillment_orders + fulfillmentAssignments
+// V2.0 履约服务
+// 基于 fulfillment_orders（V2.0 结构：字符串状态）+ fulfillmentAssignments
 
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
@@ -36,12 +36,14 @@ export class FulfillmentService {
 
     const fulfillment = await this.prisma.fulfillment_orders.create({
       data: {
-        order_id: order.id,
         fulfillment_no: `FL${Date.now()}`,
+        order_id: order.id,
+        order_no: order.order_no,
+        module: order.module,
         supplier_id: supplierId,
-        status: 1,
-        status_text: '已派单',
-        assigned_by: adminId,
+        supplier_name: supplier.name,
+        status: 'assigned',
+        assigned_at: new Date(),
       },
     });
 
@@ -72,10 +74,11 @@ export class FulfillmentService {
     const fulfillment = await this.prisma.fulfillment_orders.findUnique({ where: { id: fulfillmentId } });
     if (!fulfillment) throw new NotFoundException('履约单不存在');
     if (fulfillment.supplier_id !== supplierId) throw new BadRequestException('无权操作此订单');
+    if (fulfillment.status !== 'assigned') throw new BadRequestException('仅已派单的履约单可接单');
 
     await this.prisma.fulfillment_orders.update({
       where: { id: fulfillmentId },
-      data: { status: 2, status_text: '已接单', accepted_at: new Date() },
+      data: { status: 'accepted', accepted_at: new Date() },
     });
 
     await this.prisma.orders.update({
@@ -104,10 +107,11 @@ export class FulfillmentService {
     const fulfillment = await this.prisma.fulfillment_orders.findUnique({ where: { id: fulfillmentId } });
     if (!fulfillment) throw new NotFoundException('履约单不存在');
     if (fulfillment.supplier_id !== supplierId) throw new BadRequestException('无权操作此订单');
+    if (fulfillment.status !== 'assigned') throw new BadRequestException('仅已派单的履约单可拒单');
 
     await this.prisma.fulfillment_orders.update({
       where: { id: fulfillmentId },
-      data: { status: 4, status_text: '已拒单', canceled_at: new Date(), cancel_reason: reason },
+      data: { status: 'cancelled', cancelled_at: new Date(), cancel_reason: reason },
     });
 
     await this.prisma.orders.update({
@@ -125,6 +129,148 @@ export class FulfillmentService {
         operatorType: 'supplier',
         operatorId: supplierId,
         description: `拒单原因: ${reason}`,
+        metadata: {},
+        createdAt: new Date(),
+      },
+    });
+
+    return { success: true };
+  }
+
+  /**
+   * 供应商订单列表（按供应商维度查询履约单）
+   */
+  async getSupplierOrders(supplierId: string, options: { status?: string; page?: number; pageSize?: number }) {
+    const { status, page = 1, pageSize = 20 } = options;
+    const where: any = { supplier_id: supplierId };
+    if (status) {
+      const validStatuses = ['pending', 'assigned', 'accepted', 'processing', 'completed', 'cancelled'];
+      if (validStatuses.includes(status)) {
+        where.status = status;
+      } else {
+        delete where.status;
+      }
+    }
+
+    const [list, total] = await Promise.all([
+      this.prisma.fulfillment_orders.findMany({
+        where,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        orderBy: { assigned_at: 'desc' },
+      }),
+      this.prisma.fulfillment_orders.count({ where }),
+    ]);
+
+    return { list, total, page, pageSize };
+  }
+
+  /**
+   * 开始制作（accepted → processing）
+   */
+  async startProduction(fulfillmentId: string, supplierId: string) {
+    const fulfillment = await this.prisma.fulfillment_orders.findUnique({ where: { id: fulfillmentId } });
+    if (!fulfillment) throw new NotFoundException('履约单不存在');
+    if (fulfillment.supplier_id !== supplierId) throw new BadRequestException('无权操作此订单');
+    if (fulfillment.status !== 'accepted') throw new BadRequestException('请先接单再开始制作');
+
+    await this.prisma.fulfillment_orders.update({
+      where: { id: fulfillmentId },
+      data: { status: 'processing', started_at: new Date() },
+    });
+
+    await this.prisma.orders.update({
+      where: { id: fulfillment.order_id },
+      data: { fulfillment_status: 'processing' },
+    });
+
+    await this.prisma.orderEvents.create({
+      data: {
+        orderId: fulfillment.order_id,
+        eventType: 'SUPPLIER_STARTED',
+        eventName: '开始制作',
+        fromStatus: 'accepted',
+        toStatus: 'processing',
+        operatorType: 'supplier',
+        operatorId: supplierId,
+        metadata: {},
+        createdAt: new Date(),
+      },
+    });
+
+    return { success: true };
+  }
+
+  /**
+   * 发货（交付即完成：processing → completed）
+   */
+  async deliverOrder(fulfillmentId: string, supplierId: string, body: { courier?: string; trackingNo?: string }) {
+    const fulfillment = await this.prisma.fulfillment_orders.findUnique({ where: { id: fulfillmentId } });
+    if (!fulfillment) throw new NotFoundException('履约单不存在');
+    if (fulfillment.supplier_id !== supplierId) throw new BadRequestException('无权操作此订单');
+    if (fulfillment.status !== 'processing') throw new BadRequestException('请先开始制作再交付');
+
+    await this.prisma.fulfillment_orders.update({
+      where: { id: fulfillmentId },
+      data: {
+        status: 'completed',
+        completed_at: new Date(),
+        remark: body?.courier ? `快递: ${body.courier} ${body.trackingNo || ''}` : null,
+      },
+    });
+
+    await this.prisma.orders.update({
+      where: { id: fulfillment.order_id },
+      data: { fulfillment_status: 'completed' },
+    });
+
+    await this.prisma.orderEvents.create({
+      data: {
+        orderId: fulfillment.order_id,
+        eventType: 'SUPPLIER_DELIVERED',
+        eventName: '供应商发货交付',
+        fromStatus: 'processing',
+        toStatus: 'completed',
+        operatorType: 'supplier',
+        operatorId: supplierId,
+        description: body?.courier ? `快递: ${body.courier} ${body.trackingNo || ''}` : '',
+        metadata: {},
+        createdAt: new Date(),
+      },
+    });
+
+    return { success: true, delivered: true };
+  }
+
+  /**
+   * 完成履约（幂等兜底：已完成时直接返回成功）
+   */
+  async completeOrder(fulfillmentId: string, supplierId: string) {
+    const fulfillment = await this.prisma.fulfillment_orders.findUnique({ where: { id: fulfillmentId } });
+    if (!fulfillment) throw new NotFoundException('履约单不存在');
+    if (fulfillment.supplier_id !== supplierId) throw new BadRequestException('无权操作此订单');
+    if (fulfillment.status === 'completed') return { success: true, already: true };
+    if (!['accepted', 'processing'].includes(fulfillment.status)) throw new BadRequestException('仅已接单/制作中的履约单可完成');
+
+    await this.prisma.fulfillment_orders.update({
+      where: { id: fulfillmentId },
+      data: { status: 'completed', completed_at: new Date() },
+    });
+
+    await this.prisma.orders.update({
+      where: { id: fulfillment.order_id },
+      data: { fulfillment_status: 'completed' },
+    });
+
+    await this.prisma.orderEvents.create({
+      data: {
+        orderId: fulfillment.order_id,
+        eventType: 'FULFILLMENT_COMPLETED',
+        eventName: '履约完成',
+        fromStatus: fulfillment.status,
+        toStatus: 'completed',
+        operatorType: 'supplier',
+        operatorId: supplierId,
         metadata: {},
         createdAt: new Date(),
       },

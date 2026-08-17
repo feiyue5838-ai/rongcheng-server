@@ -33,8 +33,11 @@ export class SupplierController {
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
   ) {
-    // TODO: 实现供应商订单列表
-    return { list: [], total: 0, page: 1, pageSize: 20 };
+    return this.fulfillmentService.getSupplierOrders(req.user.supplierId, {
+      status,
+      page: page ? parseInt(page, 10) : 1,
+      pageSize: pageSize ? parseInt(pageSize, 10) : 20,
+    });
   }
 
   /**
@@ -74,8 +77,7 @@ export class SupplierController {
     @Param('fulfillmentId') fulfillmentId: string,
     @Request() req: any,
   ) {
-    // TODO: 实现开始制作逻辑
-    return { success: true };
+    return this.fulfillmentService.startProduction(fulfillmentId, req.user.supplierId);
   }
 
   /**
@@ -89,8 +91,7 @@ export class SupplierController {
     @Request() req: any,
     @Body() body: { courier?: string; trackingNo?: string },
   ) {
-    // TODO: 实现发货逻辑
-    return { success: true };
+    return this.fulfillmentService.deliverOrder(fulfillmentId, req.user.supplierId, body);
   }
 
   /**
@@ -103,7 +104,6 @@ export class SupplierController {
     @Param('fulfillmentId') fulfillmentId: string,
     @Request() req: any,
   ) {
-    // TODO: 实现完成逻辑
-    return { success: true };
+    return this.fulfillmentService.completeOrder(fulfillmentId, req.user.supplierId);
   }
 }
