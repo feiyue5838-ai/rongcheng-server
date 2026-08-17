@@ -906,22 +906,26 @@ model order_bookkeeping_details {
 }
 
 model payment_orders {
-  id             String    @id @default(uuid())
-  payment_no     String    @unique
-  order_id       String
-  user_id        String
-  amount         Decimal   @db.Decimal(10, 2)
-  paid_amount    Decimal?  @db.Decimal(10, 2)
-  status         Int       @default(1)
-  pay_method     String?
-  transaction_id String?
-  created_at     DateTime  @default(now())
-  paid_at        DateTime?
-  expired_at     DateTime?
-  notify_data    String?
+  id              String    @id @default(uuid())
+  payment_no      String    @unique
+  order_id        String
+  user_id         String
+  amount          Decimal   @db.Decimal(18, 2)
+  paid_amount     Decimal   @default(0) @db.Decimal(18, 2)
+  discount_amount Decimal   @default(0) @db.Decimal(18, 2)
+  refund_amount   Decimal   @default(0) @db.Decimal(18, 2)
+  payment_method  String?
+  status          String    @default("pending")
+  transaction_id  String?
+  paid_at         DateTime?
+  payment_params  Json?
+  prepay_id       String?
+  nonce_str       String?
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
 
-  order              order_orders             @relation(fields: [order_id], references: [id], onDelete: Cascade)
-  user               users                    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  order               order_orders             @relation(fields: [order_id], references: [id], onDelete: Cascade)
+  user                users                    @relation(fields: [user_id], references: [id], onDelete: Cascade)
   payment_transactions payment_transactions[]
   refund_orders         refund_orders[]         @relation("RefundPayment")
 
@@ -930,17 +934,23 @@ model payment_orders {
   @@index([status])
   @@map("payment_orders")
 }
-
 model payment_transactions {
-  id             String   @id @default(uuid())
-  payment_id     String
-  transaction_no String   @unique
-  amount         Decimal  @db.Decimal(10, 2)
-  type           String
-  method         String?
-  status         Int      @default(1)
-  notify_data    String?
-  created_at     DateTime @default(now())
+  id              String    @id @default(uuid())
+  payment_id      String
+  transaction_no  String
+  provider_txn_id String?   @unique
+  provider        String
+  channel         String?
+  transaction_type String
+  amount          Decimal   @db.Decimal(18, 2)
+  fee             Decimal   @default(0) @db.Decimal(18, 2)
+  net_amount      Decimal   @db.Decimal(18, 2)
+  currency        String    @default("CNY")
+  status          String
+  occurred_at     DateTime
+  raw_data        Json?
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
 
   payment payment_orders @relation(fields: [payment_id], references: [id], onDelete: Cascade)
 
@@ -948,7 +958,6 @@ model payment_transactions {
   @@index([transaction_no])
   @@map("payment_transactions")
 }
-
 model fulfillment_orders {
   id              String    @id @default(uuid())
   fulfillment_no  String    @unique
@@ -1049,28 +1058,37 @@ model settlement_items {
 }
 
 model refund_orders {
-  id          String    @id @default(uuid())
-  refund_no   String    @unique
-  order_id    String
-  payment_id  String?
-  amount      Decimal   @db.Decimal(10, 2)
-  reason      String?
-  status      Int       @default(1)
-  approved_by String?
-  approved_at DateTime?
-  refunded_at DateTime?
-  created_at  DateTime  @default(now())
-  updated_at  DateTime  @updatedAt
+  id                     String    @id @default(uuid())
+  refund_no              String    @unique
+  order_id               String
+  payment_id             String?
+  payment_transaction_id String?
+  refund_type            String    @default("full")
+  refund_amount          Decimal   @db.Decimal(18, 2)
+  refund_reason          String?
+  refund_remark          String?
+  status                 String    @default("applying")
+  applied_by             String?
+  applied_at             DateTime?
+  reviewed_by            String?
+  reviewed_at            DateTime?
+  review_remark          String?
+  processed_by           String?
+  processed_at           DateTime?
+  refund_txn_id          String?
+  refund_at              DateTime?
+  failure_reason         String?
+  created_at             DateTime  @default(now())
+  updated_at             DateTime  @updatedAt
 
-  order   order_orders  @relation(fields: [order_id], references: [id], onDelete: Cascade)
-  payment payment_orders? @relation("RefundPayment", fields: [payment_id], references: [id])
-  admin   admins?       @relation("RefundApprovedBy", fields: [approved_by], references: [id])
+  order   order_orders     @relation(fields: [order_id], references: [id], onDelete: Cascade)
+  payment payment_orders?  @relation("RefundPayment", fields: [payment_id], references: [id])
+  admin   admins?          @relation("RefundApprovedBy", fields: [reviewed_by], references: [id])
 
   @@index([order_id])
   @@index([status])
   @@map("refund_orders")
 }
-
 
 model adminOperationLogs {
   id String @id @default(uuid()) @map("id")

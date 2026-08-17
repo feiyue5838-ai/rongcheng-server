@@ -291,8 +291,164 @@ export class OrderV2Service {
     if (!order) throw new NotFoundException('订单不存在');
     if (order.user_id !== userId) throw new BadRequestException('无权操作此订单');
     if (order.order_status !== 'pending_payment') throw new BadRequestException('订单状态不允许支付');
-    // TODO: 实现微信支付下单
-    return { paymentNo: `PAY${Date.now()}`, params: {} };
+
+    // 幂等：复用已有 pending 支付单
+    let pay = await this.prisma.payment_orders.findFirst({
+      where: { order_id: order.id, status: 'pending' },
+      orderBy: { created_at: 'desc' },
+    });
+
+    if (!pay) {
+      pay = await this.prisma.payment_orders.create({
+        data: {
+          payment_no: `PAY${Date.now()}${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
+          order_id: order.id,
+          user_id: userId,
+          amount: order.pay_amount ?? order.total_amount ?? 0,
+          payment_method: paymentMethod,
+          status: 'pending',
+        },
+      });
+    }
+
+    // TODO: 调用微信统一下单（unifiedorder），写入 prepay_id/nonce_str/payment_params
+    // 此处返回占位参数，微信支付联调时替换
+    return {
+      paymentNo: pay.payment_no,
+      params: {
+        appId: '',
+        timeStamp: '',
+        nonceStr: '',
+        package: '',
+        signType: 'RSA',
+        paySign: '',
+      },
+    };
+  }
+
+  /**
+   * 微信支付成功回调（幂等）
+   * 微信服务器调用，免鉴权
+   * 双保险：payment_orders.payment_no 唯一 + payment_transactions.provider_txn_id 唯一
+   */
+  async notifyPayment(payload: any) {
+    // 解析微信回调（兼容 XML 解析后的 JSON 对象）
+    const { out_trade_no: paymentNo, transaction_id: providerTxnId, total_fee, result_code, return_code } = payload || {};
+    if (!paymentNo || !providerTxnId) {
+      return { success: false, message: '参数缺失' };
+    }
+    if (return_code !== 'SUCCESS' || result_code !== 'SUCCESS') {
+      return { success: false, message: '支付未成功' };
+    }
+
+    // 查支付单
+    const pay = await this.prisma.payment_orders.findUnique({ where: { payment_no: paymentNo } });
+    if (!pay) {
+      return { success: false, message: '支付单不存在' };
+    }
+
+    // 幂等：已支付直接返回成功
+    if (pay.status === 'paid') {
+      return { success: true, idempotent: true };
+    }
+
+    // 金额校验（total_fee 单位分，转元）
+    const feeYuan = total_fee != null ? Number(total_fee) / 100 : null;
+    if (feeYuan != null && Math.abs(feeYuan - Number(pay.amount)) > 0.01) {
+      return { success: false, message: '金额不匹配' };
+    }
+
+    try {
+      // 写交易流水（provider_txn_id 唯一约束兜底防重）
+      await this.prisma.payment_transactions.create({
+        data: {
+          payment_id: pay.id,
+          transaction_no: `PT${Date.now()}${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
+          provider_txn_id: providerTxnId,
+          provider: 'wechat',
+          channel: 'JSAPI',
+          transaction_type: 'payment',
+          amount: pay.amount,
+          fee: 0,
+          net_amount: pay.amount,
+          currency: 'CNY',
+          status: 'success',
+          occurred_at: new Date(),
+          raw_data: payload,
+        },
+      });
+    } catch (e: any) {
+      // provider_txn_id 重复 → 说明已入账，幂等返回成功
+      if (e?.code === 'P2002') {
+        return { success: true, idempotent: true };
+      }
+      throw e;
+    }
+
+    const now = new Date();
+
+    // 更新支付单
+    await this.prisma.payment_orders.update({
+      where: { id: pay.id },
+      data: { status: 'paid', paid_amount: pay.amount, transaction_id: providerTxnId, paid_at: now },
+    });
+
+    // 更新订单（仅未支付时推进）
+    const order = await this.prisma.orders.findUnique({ where: { id: pay.order_id } });
+    if (order && order.payment_status === 'unpaid') {
+      await this.prisma.orders.update({
+        where: { id: order.id },
+        data: {
+          order_status: 'paid',
+          payment_status: 'paid',
+          paid_amount: pay.amount,
+          paid_at: now,
+        },
+      });
+
+      // 事件溯源
+      await this.prisma.orderEvents.create({
+        data: {
+          orderId: order.id,
+          eventType: 'PAYMENT_SUCCESS',
+          eventName: '支付成功',
+          fromStatus: 'pending_payment',
+          toStatus: 'paid',
+          operatorType: 'system',
+          description: `支付单 ${paymentNo}，微信流水 ${providerTxnId}`,
+          metadata: { paymentNo, providerTxnId },
+          createdAt: now,
+        },
+      });
+    }
+
+    return { success: true };
+  }
+
+  /**
+   * 微信退款回调（幂等，骨架）
+   */
+  async notifyRefund(payload: any) {
+    const { out_refund_no: refundNo, refund_status, success_time } = payload || {};
+    if (!refundNo) return { success: false, message: '参数缺失' };
+
+    const refund = await this.prisma.refund_orders.findUnique({ where: { refund_no: refundNo } });
+    if (!refund) return { success: false, message: '退款单不存在' };
+
+    if (refund.status === 'completed') {
+      return { success: true, idempotent: true };
+    }
+
+    if (refund_status === 'SUCCESS') {
+      const now = new Date();
+      await this.prisma.refund_orders.update({
+        where: { id: refund.id },
+        data: { status: 'completed', refund_txn_id: payload.refund_id, refund_at: success_time ? new Date(success_time) : now },
+      });
+      return { success: true };
+    }
+
+    return { success: false, message: '退款未成功' };
   }
 
   /**
