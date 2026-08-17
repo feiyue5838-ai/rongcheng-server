@@ -6,12 +6,13 @@ import { PaymentsV2Controller } from './controllers/payments.controller';
 import { OrderV2Service } from './services/order-v2.service';
 import { FulfillmentService } from './services/fulfillment.service';
 import { SettlementV2Service } from './services/settlement.service';
+import { WechatPayService } from './services/wechat-pay.service';
 import { PrismaModule } from '../../prisma/prisma.module';
 
 @Module({
   imports: [PrismaModule],
   controllers: [OrderV2Controller, SupplierController, AdminController, PaymentsV2Controller],
-  providers: [OrderV2Service, FulfillmentService, SettlementV2Service],
-  exports: [OrderV2Service, FulfillmentService, SettlementV2Service],
+  providers: [OrderV2Service, FulfillmentService, SettlementV2Service, WechatPayService],
+  exports: [OrderV2Service, FulfillmentService, SettlementV2Service, WechatPayService],
 })
 export class OrderV2Module {}

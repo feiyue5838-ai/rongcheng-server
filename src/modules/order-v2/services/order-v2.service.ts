@@ -3,10 +3,14 @@
 
 import { Injectable, BadRequestException, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { WechatPayService } from './wechat-pay.service';
 
 @Injectable()
 export class OrderV2Service {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly wechatPay: WechatPayService,
+  ) {}
 
   private async generateOrderNo(prefix: string): Promise<string> {
     const timestamp = Date.now().toString().slice(-10);
@@ -311,18 +315,60 @@ export class OrderV2Service {
       });
     }
 
-    // TODO: 调用微信统一下单（unifiedorder），写入 prepay_id/nonce_str/payment_params
-    // 此处返回占位参数，微信支付联调时替换
+    // 微信 JSAPI 统一下单（V3）
+    // 配置齐全 → 真实下单；配置缺失 → 降级返回占位参数（开发模式）
+    const user = await this.prisma.users.findUnique({ where: { id: userId } });
+    const openid = user?.openid || '';
+
+    let prepayResult: Awaited<ReturnType<typeof this.wechatPay.createJsapiOrder>> = null;
+    try {
+      prepayResult = await this.wechatPay.createJsapiOrder({
+        description: `蓉城企服-${order.module === 'seal' ? '刻章' : order.module === 'newspaper' ? '登报' : '记账'}-${order.order_no}`,
+        outTradeNo: pay.payment_no,
+        amountYuan: Number(pay.amount),
+        openid,
+        attach: JSON.stringify({ orderNo: order.order_no, orderId: order.id }),
+      });
+    } catch (e: any) {
+      // 微信下单失败：记录但不阻塞，返回占位参数便于开发环境联调
+      console.error(`[wechat-pay] 统一下单失败 order_no=${order.order_no}:`, e?.message || e);
+    }
+
+    if (prepayResult) {
+      // 回写 prepay_id / nonce_str / payment_params
+      await this.prisma.payment_orders.update({
+        where: { id: pay.id },
+        data: {
+          prepay_id: prepayResult.prepayId,
+          nonce_str: prepayResult.nonceStr,
+          payment_params: prepayResult as any,
+        },
+      });
+      return {
+        paymentNo: pay.payment_no,
+        params: {
+          appId: prepayResult.appId,
+          timeStamp: prepayResult.timeStamp,
+          nonceStr: prepayResult.nonceStr,
+          package: prepayResult.package,
+          signType: 'RSA',
+          paySign: prepayResult.paySign,
+        },
+      };
+    }
+
+    // 降级：返回占位参数（开发模式/配置缺失）
     return {
       paymentNo: pay.payment_no,
       params: {
-        appId: '',
+        appId: this.wechatPay.isConfigured() ? '' : '',
         timeStamp: '',
         nonceStr: '',
         package: '',
         signType: 'RSA',
         paySign: '',
       },
+      devMode: true,
     };
   }
 
@@ -332,12 +378,33 @@ export class OrderV2Service {
    * 双保险：payment_orders.payment_no 唯一 + payment_transactions.provider_txn_id 唯一
    */
   async notifyPayment(payload: any) {
-    // 解析微信回调（兼容 XML 解析后的 JSON 对象）
-    const { out_trade_no: paymentNo, transaction_id: providerTxnId, total_fee, result_code, return_code } = payload || {};
+    // 兼容两种回调格式：
+    // 1. V2/XML 解析后的 JSON：{ out_trade_no, transaction_id, total_fee, return_code, result_code }
+    // 2. V3 回调：{ resource: { ciphertext, nonce, associated_data } } → 解密后得到业务字段
+    let body = payload || {};
+
+    // V3 格式：解密 resource
+    if (payload?.resource?.ciphertext) {
+      try {
+        const decrypted = this.wechatPay.decryptResource(payload.resource);
+        body = decrypted;
+      } catch (e: any) {
+        return { success: false, message: `解密失败: ${e?.message || e}` };
+      }
+    }
+
+    // 从解密后 body 提取字段（V3: out_trade_no/transaction_id/trade_state/amount.total 单位分）
+    const paymentNo = body.out_trade_no;
+    const providerTxnId = body.transaction_id;
+    // V3: total 单位分；V2: total_fee 单位分
+    const feeFen = body.total != null ? Number(body.total) : body.total_fee != null ? Number(body.total_fee) : null;
+    const tradeState = body.trade_state || body.result_code;
+    const returnCode = body.return_code;
+
     if (!paymentNo || !providerTxnId) {
       return { success: false, message: '参数缺失' };
     }
-    if (return_code !== 'SUCCESS' || result_code !== 'SUCCESS') {
+    if ((returnCode && returnCode !== 'SUCCESS') || (tradeState && tradeState !== 'SUCCESS')) {
       return { success: false, message: '支付未成功' };
     }
 
@@ -352,8 +419,8 @@ export class OrderV2Service {
       return { success: true, idempotent: true };
     }
 
-    // 金额校验（total_fee 单位分，转元）
-    const feeYuan = total_fee != null ? Number(total_fee) / 100 : null;
+    // 金额校验（单位分，转元）
+    const feeYuan = feeFen != null ? feeFen / 100 : null;
     if (feeYuan != null && Math.abs(feeYuan - Number(pay.amount)) > 0.01) {
       return { success: false, message: '金额不匹配' };
     }
@@ -429,7 +496,19 @@ export class OrderV2Service {
    * 微信退款回调（幂等，骨架）
    */
   async notifyRefund(payload: any) {
-    const { out_refund_no: refundNo, refund_status, success_time } = payload || {};
+    // 兼容 V2/XML JSON 与 V3 回调（V3: resource 密文需解密）
+    let body = payload || {};
+    if (payload?.resource?.ciphertext) {
+      try {
+        body = this.wechatPay.decryptResource(payload.resource);
+      } catch (e: any) {
+        return { success: false, message: `解密失败: ${e?.message || e}` };
+      }
+    }
+
+    // V3 解密后：{ out_refund_no, refund_status, success_time, refund_id, amount:{refund,total}, ... }
+    // V2: { out_refund_no, refund_status, success_time, refund_id }
+    const { out_refund_no: refundNo, refund_status, success_time } = body || {};
     if (!refundNo) return { success: false, message: '参数缺失' };
 
     const refund = await this.prisma.refund_orders.findUnique({ where: { refund_no: refundNo } });
@@ -443,7 +522,7 @@ export class OrderV2Service {
       const now = new Date();
       await this.prisma.refund_orders.update({
         where: { id: refund.id },
-        data: { status: 'completed', refund_txn_id: payload.refund_id, refund_at: success_time ? new Date(success_time) : now },
+        data: { status: 'completed', refund_txn_id: body.refund_id, refund_at: success_time ? new Date(success_time) : now },
       });
       // 同步订单退款状态
       await this.prisma.orders.update({
