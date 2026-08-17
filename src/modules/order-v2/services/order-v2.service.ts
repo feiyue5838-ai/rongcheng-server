@@ -91,9 +91,10 @@ export class OrderV2Service {
     if (userId && order.user_id !== userId) throw new BadRequestException('无权查看此订单');
 
     // 分开查询 details/events/fulfillment
-    const [sealDetails, newspaperDetails, events, fulfillments] = await Promise.all([
+    const [sealDetails, newspaperDetails, bookkeepingDetails, events, fulfillments] = await Promise.all([
       this.prisma.sealOrderDetails.findMany({ where: { orderId: order.id } }),
       this.prisma.newspaperOrderDetails.findMany({ where: { orderId: order.id } }),
+      this.prisma.bookkeepingOrderDetails.findMany({ where: { orderId: order.id } }),
       this.prisma.orderEvents.findMany({ where: { orderId: order.id }, orderBy: { createdAt: 'desc' }, take: 20 }),
       this.prisma.fulfillment_orders.findMany({
         where: { order_id: order.id },
@@ -121,6 +122,7 @@ export class OrderV2Service {
       },
       sealDetails: sealDetails[0] || null,
       newspaperDetails: newspaperDetails[0] || null,
+      bookkeepingDetails: bookkeepingDetails[0] || null,
       events: events.map(e => ({
         eventType: e.eventType,
         eventName: e.eventName,
@@ -753,7 +755,7 @@ export class OrderV2Service {
     const { status, page = 1, pageSize = 20 } = options;
     const where: any = {};
     if (status) where.status = status;
-    const [total, list] = await Promise.all([
+    const [total, rows] = await Promise.all([
       this.prisma.refund_orders.count({ where }),
       this.prisma.refund_orders.findMany({
         where,
@@ -762,6 +764,40 @@ export class OrderV2Service {
         take: pageSize,
       }),
     ]);
+    // 关联订单（orders 表，order_no/module）
+    const orderIds = rows.map(r => r.order_id).filter(Boolean);
+    let orderMap: Record<string, { order_no: string; module: string }> = {};
+    if (orderIds.length) {
+      const orders = await this.prisma.orders.findMany({
+        where: { id: { in: orderIds } },
+        select: { id: true, order_no: true, module: true },
+      });
+      orderMap = Object.fromEntries(orders.map(o => [o.id, { order_no: o.order_no, module: o.module }]));
+    }
+    // camelCase 映射（对齐 V2.0 接口规范）
+    const list = rows.map(r => {
+      const ord = orderMap[r.order_id];
+      return {
+        id: r.id,
+        refundNo: r.refund_no,
+        orderId: r.order_id,
+        orderNo: ord?.order_no || null,
+        module: ord?.module || null,
+        paymentId: r.payment_id,
+        refundType: r.refund_type,
+        amount: r.refund_amount,
+        reason: r.refund_reason,
+        remark: r.refund_remark,
+        status: r.status,
+        appliedBy: r.applied_by,
+        appliedAt: r.applied_at,
+        reviewedBy: r.reviewed_by,
+        reviewedAt: r.reviewed_at,
+        reviewRemark: r.review_remark,
+        failureReason: r.failure_reason,
+        createdAt: r.created_at,
+      };
+    });
     return { list, total, page, pageSize };
   }
 
