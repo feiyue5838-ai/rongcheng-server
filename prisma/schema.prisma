@@ -1493,8 +1493,28 @@ model dispatchRules {
   @@index([fulfillment_status])
   @@index([created_at])
   @@map("orders")
+  order_items_v2     order_items_v2[]
   fulfillment_orders fulfillment_orders[]
   settlement_items settlement_items[]
 }
 
+model order_items_v2 {
+  id         String   @id @default(uuid()) @db.Uuid
+  order_id   String   @db.Uuid
+  item_name  String
+  item_type  String
+  item_id    String?  @db.Uuid
+  quantity   Int      @default(1)
+  unit_price Decimal  @db.Decimal(18, 2)
+  cost_price Decimal  @default(0) @db.Decimal(18, 2)
+  subtotal   Decimal  @db.Decimal(18, 2)
+  extra_data Json?    @default("{}")
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+
+  orders orders @relation(fields: [order_id], references: [id], onDelete: Cascade)
+
+  @@index([order_id])
+  @@map("order_items_v2")
+}
 
