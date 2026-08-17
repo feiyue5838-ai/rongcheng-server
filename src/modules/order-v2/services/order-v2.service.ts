@@ -600,6 +600,33 @@ export class OrderV2Service {
   }
 
   /**
+   * 管理端订单列表（全量筛选）
+   * 支持 orderStatus / module / keyword 过滤
+   */
+  async listOrders(options: { orderStatus?: string; module?: string; keyword?: string; page?: number; pageSize?: number }) {
+    const { orderStatus, module, keyword, page = 1, pageSize = 20 } = options;
+    const where: any = { deleted_at: null };
+    if (orderStatus) where.order_status = orderStatus;
+    if (module) where.module = module;
+    if (keyword) {
+      where.OR = [
+        { order_no: { contains: keyword } },
+        { customer_remark: { contains: keyword } },
+      ];
+    }
+    const [list, total] = await Promise.all([
+      this.prisma.orders.findMany({
+        where,
+        orderBy: { created_at: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      this.prisma.orders.count({ where }),
+    ]);
+    return { list, total, page, pageSize };
+  }
+
+  /**
    * 管理端退款列表
    * GET /api/v2/admin/refunds
    */

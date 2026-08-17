@@ -52,22 +52,18 @@ export class AdminController {
     @Query('page') page?: string,
     @Query('pageSize') pageSize?: string,
   ) {
-    // TODO: 实现管理端订单列表
-    return { list: [], total: 0, page: 1, pageSize: 20 };
+    // 管理端订单全量列表
+    return this.orderService.listOrders({
+      orderStatus,
+      module,
+      keyword,
+      page: page ? parseInt(page) : 1,
+      pageSize: pageSize ? parseInt(pageSize) : 20,
+    });
   }
 
   /**
-   * 订单详情（供应链视图）
-   * GET /api/v2/admin/orders/:orderNo
-   */
-  @UseGuards(AdminJwtAuthGuard)
-  @Get('orders/:orderNo')
-  async getOrderDetail(@Param('orderNo') orderNo: string) {
-    return this.orderService.getOrderDetail(orderNo);
-  }
-
-  /**
-   * 待派单订单
+   * 待派单订单（静态路由，必须在 :orderNo 动态路由之前声明）
    * GET /api/v2/admin/orders/unassigned
    */
   @UseGuards(AdminJwtAuthGuard)
@@ -80,6 +76,16 @@ export class AdminController {
       page: page ? parseInt(page) : 1,
       pageSize: pageSize ? parseInt(pageSize) : 20,
     });
+  }
+
+  /**
+   * 订单详情（供应链视图）
+   * GET /api/v2/admin/orders/:orderNo
+   */
+  @UseGuards(AdminJwtAuthGuard)
+  @Get('orders/:orderNo')
+  async getOrderDetail(@Param('orderNo') orderNo: string) {
+    return this.orderService.getOrderDetail(orderNo);
   }
 
   /**
