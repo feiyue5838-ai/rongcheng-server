@@ -184,4 +184,44 @@ export class AdminController {
       bankAccountNo: body?.bankAccountNo,
     });
   }
+
+  // ============ 退款审核 ============
+
+  /**
+   * 退款单列表
+   * GET /api/v2/admin/refunds
+   */
+  @UseGuards(AdminJwtAuthGuard)
+  @Get('refunds')
+  async listRefunds(
+    @Query('status') status?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.orderService.listRefunds({
+      status,
+      page: page ? parseInt(page) : 1,
+      pageSize: pageSize ? parseInt(pageSize) : 20,
+    });
+  }
+
+  /**
+   * 审核通过退款
+   * POST /api/v2/admin/refunds/:id/approve
+   */
+  @UseGuards(AdminJwtAuthGuard)
+  @Post('refunds/:id/approve')
+  async approveRefund(@Param('id') id: string, @Request() req: any, @Body() body?: any) {
+    return this.orderService.reviewRefund(id, true, req.user.adminId, body?.remark);
+  }
+
+  /**
+   * 驳回退款
+   * POST /api/v2/admin/refunds/:id/reject
+   */
+  @UseGuards(AdminJwtAuthGuard)
+  @Post('refunds/:id/reject')
+  async rejectRefund(@Param('id') id: string, @Request() req: any, @Body() body?: any) {
+    return this.orderService.reviewRefund(id, false, req.user.adminId, body?.remark);
+  }
 }

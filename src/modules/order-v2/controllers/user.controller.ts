@@ -131,4 +131,22 @@ export class OrderV2Controller {
   ) {
     return this.orderService.confirmReceive(orderNo, req.user.id);
   }
+
+  /**
+   * 申请退款
+   * POST /api/v2/user/orders/:orderNo/refund
+   */
+  @UseGuards(JwtAuthGuard)
+  @Post('orders/:orderNo/refund')
+  async applyRefund(
+    @Param('orderNo') orderNo: string,
+    @Request() req: any,
+    @Body() body?: any,
+  ) {
+    return this.orderService.applyRefund(orderNo, req.user.id, {
+      refundType: body?.refundType,
+      refundAmount: body?.refundAmount,
+      reason: body?.reason,
+    });
+  }
 }
