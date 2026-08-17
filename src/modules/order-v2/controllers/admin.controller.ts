@@ -39,6 +39,24 @@ export class AdminController {
   }
 
   /**
+   * 供应商列表（派单/改派选择用）
+   * GET /api/v2/admin/suppliers?keyword=&page=&pageSize=
+   */
+  @UseGuards(AdminJwtAuthGuard)
+  @Get('suppliers')
+  async listSuppliers(
+    @Query('keyword') keyword?: string,
+    @Query('page') page?: string,
+    @Query('pageSize') pageSize?: string,
+  ) {
+    return this.fulfillmentService.listSuppliers({
+      keyword,
+      page: page ? parseInt(page) : 1,
+      pageSize: pageSize ? parseInt(pageSize) : 50,
+    });
+  }
+
+  /**
    * 订单列表（全量筛选）
    * GET /api/v2/admin/orders
    */

@@ -8,6 +8,44 @@ import { PrismaService } from '../../../prisma/prisma.service';
 export class FulfillmentService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /**
+   * 管理端：供应商列表（派单/改派选择用）
+   * GET /api/v2/admin/suppliers
+   */
+  async listSuppliers(options: { page?: number; pageSize?: number; keyword?: string }) {
+    const { page = 1, pageSize = 50, keyword } = options;
+    const where: any = {};
+    if (keyword) {
+      where.OR = [
+        { name: { contains: keyword } },
+        { contact: { contains: keyword } },
+      ];
+    }
+    const [suppliers, total] = await Promise.all([
+      this.prisma.suppliers.findMany({
+        where,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        orderBy: { created_at: 'desc' },
+      }),
+      this.prisma.suppliers.count({ where }),
+    ]);
+    return {
+      list: suppliers.map(s => ({
+        id: s.id,
+        name: s.name,
+        contactName: s.contact,
+        contactPhone: s.phone,
+        region: [s.province, s.city, s.district].filter(Boolean).join(''),
+        status: s.status,
+        createdAt: s.created_at?.toISOString(),
+      })),
+      total,
+      page,
+      pageSize,
+    };
+  }
+
   async getUnassignedOrders(options: { page?: number; pageSize?: number }) {
     const { page = 1, pageSize = 20 } = options;
     const where = { fulfillment_status: 'pending_assignment', deleted_at: null };
@@ -22,7 +60,23 @@ export class FulfillmentService {
       this.prisma.orders.count({ where }),
     ]);
 
-    return { list: orders, total, page, pageSize };
+    return {
+      list: orders.map(o => ({
+        id: o.id,
+        orderNo: o.order_no,
+        module: o.module,
+        orderStatus: o.order_status,
+        paymentStatus: o.payment_status,
+        fulfillmentStatus: o.fulfillment_status,
+        refundStatus: o.refund_status,
+        totalAmount: o.total_amount?.toString(),
+        customerRemark: o.customer_remark,
+        createdAt: o.created_at?.toISOString(),
+      })),
+      total,
+      page,
+      pageSize,
+    };
   }
 
   async assignOrder(orderNo: string, supplierId: string, adminId: string) {

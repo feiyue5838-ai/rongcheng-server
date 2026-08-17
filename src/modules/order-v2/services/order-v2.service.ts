@@ -76,11 +76,15 @@ export class OrderV2Service {
     if (!order) throw new NotFoundException('订单不存在');
     if (userId && order.user_id !== userId) throw new BadRequestException('无权查看此订单');
 
-    // 分开查询 details/events
-    const [sealDetails, newspaperDetails, events] = await Promise.all([
+    // 分开查询 details/events/fulfillment
+    const [sealDetails, newspaperDetails, events, fulfillments] = await Promise.all([
       this.prisma.sealOrderDetails.findMany({ where: { orderId: order.id } }),
       this.prisma.newspaperOrderDetails.findMany({ where: { orderId: order.id } }),
       this.prisma.orderEvents.findMany({ where: { orderId: order.id }, orderBy: { createdAt: 'desc' }, take: 20 }),
+      this.prisma.fulfillment_orders.findMany({
+        where: { order_id: order.id },
+        orderBy: { created_at: 'asc' },
+      }),
     ]);
 
     return {
@@ -107,6 +111,21 @@ export class OrderV2Service {
         eventType: e.eventType,
         eventName: e.eventName,
         createdAt: e.createdAt?.toISOString(),
+      })),
+      // 供应链视图：派单链/履约记录
+      fulfillments: fulfillments.map(f => ({
+        id: f.id,
+        fulfillmentNo: f.fulfillment_no,
+        supplierId: f.supplier_id,
+        supplierName: f.supplier_name,
+        status: f.status,
+        assignedAt: f.assigned_at?.toISOString(),
+        acceptedAt: f.accepted_at?.toISOString(),
+        startedAt: f.started_at?.toISOString(),
+        completedAt: f.completed_at?.toISOString(),
+        cancelledAt: f.cancelled_at?.toISOString(),
+        cancelReason: f.cancel_reason,
+        remark: f.remark,
       })),
     };
   }
@@ -623,7 +642,31 @@ export class OrderV2Service {
       }),
       this.prisma.orders.count({ where }),
     ]);
-    return { list, total, page, pageSize };
+    return {
+      list: list.map(o => ({
+        id: o.id,
+        orderNo: o.order_no,
+        userId: o.user_id,
+        module: o.module,
+        orderStatus: o.order_status,
+        paymentStatus: o.payment_status,
+        fulfillmentStatus: o.fulfillment_status,
+        refundStatus: o.refund_status,
+        invoiceStatus: o.invoice_status,
+        totalAmount: o.total_amount?.toString(),
+        discountAmount: o.discount_amount?.toString(),
+        payAmount: o.pay_amount?.toString(),
+        refundAmount: o.refund_amount?.toString(),
+        paidAmount: o.paid_amount?.toString(),
+        customerRemark: o.customer_remark,
+        createdAt: o.created_at?.toISOString(),
+        paidAt: o.paid_at?.toISOString(),
+        completedAt: o.completed_at?.toISOString(),
+      })),
+      total,
+      page,
+      pageSize,
+    };
   }
 
   /**
