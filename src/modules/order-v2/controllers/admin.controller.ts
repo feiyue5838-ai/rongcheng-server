@@ -35,8 +35,7 @@ export class AdminController {
   @UseGuards(AdminJwtAuthGuard)
   @Get('dashboard')
   async getDashboard() {
-    // TODO: 实现看板数据
-    return { totalOrders: 0, gmv: '0.00', pendingAssign: 0, refunding: 0 };
+    return this.orderService.getDashboardStats();
   }
 
   /**
@@ -113,8 +112,7 @@ export class AdminController {
     @Request() req: any,
     @Body() body: { supplierId: string; cancelRemark?: string },
   ) {
-    // TODO: 实现改派逻辑（多次派单链）
-    return { success: true };
+    return this.fulfillmentService.reassignOrder(orderNo, body.supplierId, req.user.adminId, body?.cancelRemark);
   }
 
   // ============ 结算（财务/运营） ============

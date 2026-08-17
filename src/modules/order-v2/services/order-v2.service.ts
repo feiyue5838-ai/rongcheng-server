@@ -627,6 +627,67 @@ export class OrderV2Service {
   }
 
   /**
+   * 管理端数据看板统计
+   */
+  async getDashboardStats() {
+    const base = { deleted_at: null };
+    const [
+      totalOrders,
+      gmvAgg,
+      pendingAssign,
+      refunding,
+      todayOrders,
+      monthOrders,
+      moduleOrders,
+      orderStatusGroups,
+    ] = await Promise.all([
+      this.prisma.orders.count({ where: base }),
+      this.prisma.orders.aggregate({
+        where: { ...base, payment_status: { in: ['paid', 'partial_refund', 'full_refund'] } },
+        _sum: { paid_amount: true },
+      }),
+      this.prisma.orders.count({
+        where: { ...base, fulfillment_status: 'pending_assignment', payment_status: 'paid' },
+      }),
+      this.prisma.orders.count({
+        where: { ...base, refund_status: { in: ['applying', 'partial_refund'] } },
+      }),
+      this.prisma.orders.count({
+        where: { ...base, created_at: { gte: new Date(new Date().setHours(0, 0, 0, 0)) } },
+      }),
+      this.prisma.orders.count({
+        where: { ...base, created_at: { gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) } },
+      }),
+      this.prisma.orders.groupBy({
+        by: ['module'],
+        where: base,
+        _count: { _all: true },
+      }),
+      this.prisma.orders.groupBy({
+        by: ['order_status'],
+        where: base,
+        _count: { _all: true },
+      }),
+    ]);
+
+    const moduleMap: Record<string, number> = {};
+    moduleOrders.forEach((m) => (moduleMap[m.module] = m._count._all));
+    const statusMap: Record<string, number> = {};
+    orderStatusGroups.forEach((s) => (statusMap[s.order_status] = s._count._all));
+
+    return {
+      totalOrders,
+      gmv: gmvAgg._sum.paid_amount ? gmvAgg._sum.paid_amount.toString() : '0.00',
+      pendingAssign,
+      refunding,
+      todayOrders,
+      monthOrders,
+      moduleMap,
+      statusMap,
+    };
+  }
+
+  /**
    * 管理端退款列表
    * GET /api/v2/admin/refunds
    */

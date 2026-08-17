@@ -72,6 +72,85 @@ export class FulfillmentService {
     return { success: true, fulfillmentId: fulfillment.id };
   }
 
+  async reassignOrder(orderNo: string, newSupplierId: string, adminId: string, cancelRemark?: string) {
+    const order = await this.prisma.orders.findUnique({ where: { order_no: orderNo } });
+    if (!order) throw new NotFoundException('订单不存在');
+    if (order.fulfillment_status !== 'assigned' && order.fulfillment_status !== 'pending_assignment') {
+      throw new BadRequestException('当前状态不可改派');
+    }
+
+    const newSupplier = await this.prisma.suppliers.findUnique({ where: { id: newSupplierId } });
+    if (!newSupplier) throw new NotFoundException('供应商不存在');
+    if (newSupplier.status !== 1) throw new BadRequestException('供应商未启用');
+
+    // 取消旧的未完成履约单（若存在）
+    const oldFulfillments = await this.prisma.fulfillment_orders.findMany({
+      where: { order_id: order.id, status: { in: ['assigned', 'accepted', 'processing'] } },
+    });
+    for (const f of oldFulfillments) {
+      await this.prisma.fulfillment_orders.update({
+        where: { id: f.id },
+        data: { status: 'cancelled', cancelled_at: new Date(), cancel_reason: cancelRemark || '改派' },
+      });
+    }
+
+    // 创建新履约单
+    const fulfillment = await this.prisma.fulfillment_orders.create({
+      data: {
+        fulfillment_no: `FL${Date.now()}`,
+        order_id: order.id,
+        order_no: order.order_no,
+        module: order.module,
+        supplier_id: newSupplierId,
+        supplier_name: newSupplier.name,
+        status: 'assigned',
+        assigned_at: new Date(),
+      },
+    });
+
+    // 乐观锁更新订单
+    await this.prisma.orders.updateMany({
+      where: { id: order.id, version: order.version },
+      data: { fulfillment_status: 'assigned', version: { increment: 1 } },
+    }).then((r) => {
+      if (r.count === 0) throw new ConflictException('订单状态已变更，请刷新后重试');
+    });
+
+    // 事件链
+    if (oldFulfillments.length) {
+      await this.prisma.orderEvents.create({
+        data: {
+          orderId: order.id,
+          eventType: 'ASSIGNMENT_CANCELLED',
+          eventName: '改派取消旧派单',
+          fromStatus: order.fulfillment_status,
+          toStatus: 'pending_assignment',
+          operatorType: 'admin',
+          operatorId: adminId,
+          description: `改派：取消原供应商派单（${cancelRemark || '无备注'}）`,
+          metadata: {},
+          createdAt: new Date(),
+        },
+      });
+    }
+    await this.prisma.orderEvents.create({
+      data: {
+        orderId: order.id,
+        eventType: 'ASSIGNMENT_CREATED',
+        eventName: '派单成功',
+        fromStatus: oldFulfillments.length ? 'pending_assignment' : order.fulfillment_status,
+        toStatus: 'assigned',
+        operatorType: 'admin',
+        operatorId: adminId,
+        description: `改派给供应商: ${newSupplier.name}`,
+        metadata: {},
+        createdAt: new Date(),
+      },
+    });
+
+    return { success: true, fulfillmentId: fulfillment.id, cancelledOld: oldFulfillments.length };
+  }
+
   async acceptOrder(fulfillmentId: string, supplierId: string) {
     const fulfillment = await this.prisma.fulfillment_orders.findUnique({ where: { id: fulfillmentId } });
     if (!fulfillment) throw new NotFoundException('履约单不存在');
