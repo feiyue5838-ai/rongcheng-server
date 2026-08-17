@@ -3,10 +3,14 @@
 
 import { Injectable, BadRequestException, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
+import { UploadService } from '../../upload/upload.service';
 
 @Injectable()
 export class FulfillmentService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly uploadService: UploadService,
+  ) {}
 
   /**
    * 管理端：供应商列表（派单/改派选择用）
@@ -309,6 +313,18 @@ export class FulfillmentService {
       this.prisma.fulfillment_orders.count({ where }),
     ]);
 
+    // 批量查询回执照片（production_photos 等）
+    const fIds = list.map(f => f.id);
+    const receiptMap: Record<string, any> = {};
+    if (fIds.length > 0) {
+      const recs = await this.prisma.sealFulfillmentRecords.findMany({
+        where: { fulfillmentOrderId: { in: fIds } },
+      });
+      for (const r of recs) {
+        receiptMap[r.fulfillmentOrderId] = r;
+      }
+    }
+
     const statusText: Record<string, string> = {
       assigned: '待接单',
       accepted: '已接单',
@@ -339,6 +355,10 @@ export class FulfillmentService {
         expressNo: f.express_no,
         deliveredAt: f.delivered_at?.toISOString(),
         remark: f.remark,
+        // 回执照片（数组字段）
+        productionPhotos: (receiptMap[f.id]?.productionPhotos || []) as string[],
+        filingPhotos: (receiptMap[f.id]?.filingPhotos || []) as string[],
+        qualityCheckPhotos: (receiptMap[f.id]?.qualityCheckPhotos || []) as string[],
       })),
       total,
       page,
@@ -471,5 +491,80 @@ export class FulfillmentService {
     });
 
     return { success: true };
+  }
+
+  /**
+   * 供应商上传回执照片（制作完成图/备案图/质检图）
+   * POST /api/v2/supplier/fulfillments/:id/receipts
+   * body: { type: 'production'|'filing'|'quality', urls: string[] }
+   */
+  async uploadReceipt(
+    fulfillmentId: string,
+    supplierId: string,
+    body: { type: 'production' | 'filing' | 'quality'; urls: string[] },
+  ) {
+    const fulfillment = await this.prisma.fulfillment_orders.findUnique({
+      where: { id: fulfillmentId },
+    });
+    if (!fulfillment) throw new NotFoundException('履约单不存在');
+    if (fulfillment.supplier_id !== supplierId) throw new BadRequestException('无权操作此订单');
+
+    const { type, urls } = body;
+    if (!urls || urls.length === 0) throw new BadRequestException('请上传至少一张图片');
+
+    const photoFieldMap = {
+      production: 'productionPhotos',
+      filing: 'filingPhotos',
+      quality: 'qualityCheckPhotos',
+    } as const;
+    const field = photoFieldMap[type] || 'production_photos';
+
+    // 查已有记录（表无唯一约束，用 findFirst）
+    let record = await this.prisma.sealFulfillmentRecords.findFirst({
+      where: { fulfillmentOrderId: fulfillmentId },
+    });
+
+    if (record) {
+      // 追加到现有数组
+      const existing: string[] = (record as any)[field] || [];
+      await this.prisma.sealFulfillmentRecords.update({
+        where: { id: record.id },
+        data: { [field]: [...existing, ...urls] },
+      });
+    } else {
+      // 新建记录（补齐必填字段）
+      const initData: any = {
+        fulfillmentOrderId: fulfillmentId,
+        orderId: fulfillment.order_id,
+        filingRequired: true,
+        filingStatus: 'pending',
+        productionPhotos: [],
+        filingPhotos: [],
+        qualityCheckPhotos: [],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      initData[field] = urls;
+      await this.prisma.sealFulfillmentRecords.create({ data: initData });
+    }
+
+    // 写订单事件
+    const eventName = { production: '上传制作图', filing: '上传备案图', quality: '上传质检图' }[type] || '上传回执';
+    await this.prisma.orderEvents.create({
+      data: {
+        orderId: fulfillment.order_id,
+        eventType: 'RECEIPT_UPLOADED',
+        eventName: eventName,
+        fromStatus: fulfillment.status,
+        toStatus: fulfillment.status,
+        operatorType: 'supplier',
+        operatorId: supplierId,
+        description: `${urls.length} 张${eventName}`,
+        metadata: { type, urls },
+        createdAt: new Date(),
+      },
+    });
+
+    return { success: true, type, urls, count: urls.length };
   }
 }

@@ -11,11 +11,15 @@ import {
   UseGuards,
   UseInterceptors,
   Request,
+  UploadedFile,
+  BadRequestException,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { FulfillmentService } from '../services/fulfillment.service';
 import { SettlementV2Service } from '../services/settlement.service';
 import { SupplierJwtAuthGuard } from '../../../common/guards/supplier-jwt.guard';
 import { ResponseInterceptor } from '../../../common/interceptors/response.interceptor';
+import { UploadService } from '../../upload/upload.service';
 
 @Controller('v2/supplier')
 @UseInterceptors(ResponseInterceptor)
@@ -23,6 +27,7 @@ export class SupplierController {
   constructor(
     private readonly fulfillmentService: FulfillmentService,
     private readonly settlementService: SettlementV2Service,
+    private readonly uploadService: UploadService,
   ) {}
 
   /**
@@ -109,6 +114,28 @@ export class SupplierController {
     @Request() req: any,
   ) {
     return this.fulfillmentService.completeOrder(fulfillmentId, req.user.supplierId);
+  }
+
+  /**
+   * 上传回执照片（制作完成图/备案图/质检图）
+   * POST /api/v2/supplier/fulfillments/:id/receipts
+   * body(form-data): file=图片, type=production|filing|quality
+   */
+  @UseGuards(SupplierJwtAuthGuard)
+  @Post('fulfillments/:fulfillmentId/receipts')
+  @UseInterceptors(FileInterceptor('file'))
+  async uploadReceipt(
+    @Param('fulfillmentId') fulfillmentId: string,
+    @Request() req: any,
+    @UploadedFile() file: Express.Multer.File,
+    @Body('type') type: 'production' | 'filing' | 'quality',
+  ) {
+    if (!file) throw new BadRequestException('请上传回执图片');
+    const url = await this.uploadService.uploadFile(file, 'receipts');
+    return this.fulfillmentService.uploadReceipt(fulfillmentId, req.user.supplierId, {
+      type: type || 'production',
+      urls: [url],
+    });
   }
 
   // ============ 结算 ============
