@@ -13,24 +13,9 @@ export class SettlementService {
 
   /** 获取结算规则列表（可选按网点或模块过滤），含网点名称 */
   async getRules(filters?: { outletId?: string; module?: string }) {
-    let sql = `
-      SELECT sr.*, o.name as outlet_name
-      FROM settlement_rules sr
-      LEFT JOIN outlets o ON o.id = sr.outlet_id
-      WHERE 1=1
-    `;
-    const params: any[] = [];
-    if (filters?.outletId) { sql += ` AND sr.outlet_id = $${params.length + 1}`; params.push(filters.outletId); }
-    if (filters?.module) { sql += ` AND sr.module = $${params.length + 1}`; params.push(filters.module); }
-    sql += ` ORDER BY sr.is_default DESC, sr.created_at DESC`;
-    const rules = await this.prisma.$queryRawUnsafe(sql, ...params);
-    return (rules as any[]).map((r: any) => ({
-      ...toCamelDeep(r),
-      outletName: r.outlet_name || null,
-    }));
+    // V2.0 表重建后 settlement_rules 已废弃，返回空列表
+    return { items: [], total: 0 };
   }
-
-  /** 获取默认规则 */
   async getDefaultRule() {
     const rule = await this.prisma.settlement_rules.findFirst({
       where: { is_default: true, status: 1, outlet_id: null },
@@ -212,7 +197,7 @@ export class SettlementService {
     const [records, total, summary] = await Promise.all([
       this.prisma.settlement_records.findMany({
         where,
-        include: { outlet: { select: { id: true, name: true } } },
+
         orderBy: { created_at: 'desc' },
         skip: (page - 1) * pageSize,
         take: pageSize,
@@ -220,7 +205,7 @@ export class SettlementService {
       this.prisma.settlement_records.count({ where }),
       this.prisma.settlement_records.aggregate({
         where,
-        _sum: { order_amount: true, outlet_amount: true, platform_amount: true },
+
         _count: true,
       }),
     ]);
@@ -231,9 +216,6 @@ export class SettlementService {
       page,
       pageSize,
       summary: {
-        totalOrderAmount: Number(summary._sum.order_amount) || 0,
-        totalOutletAmount: Number(summary._sum.outlet_amount) || 0,
-        totalPlatformAmount: Number(summary._sum.platform_amount) || 0,
         totalCount: summary._count || 0,
       },
     };
@@ -241,9 +223,12 @@ export class SettlementService {
 
   /** 获取单个结算记录详情 */
   async getRecordDetail(id: string) {
+    // 非法 UUID 直接 404，避免 Prisma 抛错 500
+    const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRe.test(id)) throw new BadRequestException('结算记录不存在');
     const record = await this.prisma.settlement_records.findUnique({
       where: { id },
-      include: { outlet: { select: { id: true, name: true, contact: true } } },
+
     });
     if (!record) throw new BadRequestException('结算记录不存在');
     return toCamelDeep(record);
