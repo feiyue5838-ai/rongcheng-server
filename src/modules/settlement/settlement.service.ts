@@ -13,8 +13,8 @@ export class SettlementService {
 
   /** 获取结算规则列表（可选按网点或模块过滤），含网点名称 */
   async getRules(filters?: { outletId?: string; module?: string }) {
-    // V2.0 表重建后 settlement_rules 已废弃，返回空列表
-    return { items: [], total: 0 };
+    // V2.0 表重建后 settlement_rules 已废弃，返回空数组（旧前端期望数组）
+    return [];
   }
   async getDefaultRule() {
     const rule = await this.prisma.settlement_rules.findFirst({
@@ -186,8 +186,10 @@ export class SettlementService {
     const where: any = {};
 
     if (outletId) where.outlet_id = outletId;
+    // V1 数字状态 → V2.0 字符串状态映射（1=待确认 pending / 2=已确认 confirmed / 3=已付款 paid）
+    const STATUS_MAP: Record<number, string> = { 1: 'pending', 2: 'confirmed', 3: 'paid' };
     const s = status !== undefined && status !== null ? Number(status) : NaN;
-    if (!Number.isNaN(s)) where.status = s;
+    if (!Number.isNaN(s)) where.status = STATUS_MAP[s] ?? String(s);
     if (startDate || endDate) {
       where.period_start = {};
       if (startDate) where.period_start.gte = new Date(startDate);
