@@ -43,8 +43,8 @@ export class FinanceService {
         GROUP BY module, trade_type, business_type ORDER BY amount DESC
       `,
       this.prisma.settlement_records.aggregate({
-        where: { created_at: { gte: start, lte: end }, status: 3 }, // F-08: 仅统计已付款结算
-        _sum: { outlet_amount: true, platform_amount: true, order_amount: true },
+        where: { created_at: { gte: start, lte: end }, status: 'paid' }, // V2.0: 仅统计已付款结算
+        _sum: { payable_amount: true, gross_amount: true },
         _count: true,
       }),
       // 生成完整日期序列（无数据的天也返回 0），避免图表柱子缺失
@@ -67,10 +67,10 @@ export class FinanceService {
       `,
     ]);
 
-    // 待确认结算（status=1）单独展示
+    // 待确认结算（status=pending）单独展示
     const pendingAgg = await this.prisma.settlement_records.aggregate({
-      where: { status: 1 },
-      _sum: { outlet_amount: true, platform_amount: true },
+      where: { status: 'pending' },
+      _sum: { payable_amount: true, gross_amount: true },
       _count: true,
     });
 
@@ -80,10 +80,10 @@ export class FinanceService {
     const refund = Number(refundAgg._sum.amount || 0);
     // refundAgg._sum.fee（退款手续费）：退款交易通常免手续费，当前为0，保留供未来扩展
     const refundCount = refundAgg._count;
-    const outletSettle = Number(settleAgg._sum.outlet_amount || 0);
-    const platformSettle = Number(settleAgg._sum.platform_amount || 0);
+    const outletSettle = Number(settleAgg._sum.payable_amount || 0);
+    const platformSettle = Number(settleAgg._sum.gross_amount || 0);
     const settleCount = settleAgg._count;
-    const pendingOutlet = Number(pendingAgg._sum.outlet_amount || 0);
+    const pendingOutlet = Number(pendingAgg._sum.payable_amount || 0);
     const pendingCount = pendingAgg._count;
 
     const netIncome = Math.round((income - incomeFee - refund) * 100) / 100; // 资金净流入（未扣分成）
