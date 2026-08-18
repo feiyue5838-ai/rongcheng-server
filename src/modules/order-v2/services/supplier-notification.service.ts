@@ -41,6 +41,7 @@ export class SupplierNotificationService {
     return {
       bound: !!(s && s.outlet_openid),
       enabled: s ? s.subscribe_msg === 1 : true,
+      openid: s ? s.outlet_openid : null,
     };
   }
 
