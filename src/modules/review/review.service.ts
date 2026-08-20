@@ -1,5 +1,6 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { WechatService } from '../wechat/wechat.service';
 
 function snakeToCamel(s) { return s.replace(/_([a-z])/g, (_, c) => c.toUpperCase()); }
 function toCamelDeep(obj) {
@@ -12,10 +13,10 @@ function toCamelDeep(obj) {
 
 @Injectable()
 export class ReviewService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private wechatService: WechatService) {}
 
   /** 提交评价（小程序端） */
-  async submitReview(user_id: string, dto: any) {
+  async submitReview(user_id: string, dto: any, openid?: string) {
     const { order_id, rating, content, images } = dto;
 
     if (!rating || rating < 1 || rating > 5) {
@@ -23,6 +24,18 @@ export class ReviewService {
     }
     if (!content || content.trim().length < 5) {
       throw new BadRequestException('评价内容至少 5 个字符');
+    }
+
+    // 内容安全检测（文本）
+    await this.wechatService.checkTextSecurity(content.trim(), 2, openid);
+
+    // 内容安全检测（图片，异步提交）
+    if (images && images.length) {
+      for (const img of images) {
+        if (typeof img === 'string' && /^https?:\/\//.test(img)) {
+          await this.wechatService.checkImageSecurity(img, 2, openid);
+        }
+      }
     }
 
     // 验证订单归属且已完成

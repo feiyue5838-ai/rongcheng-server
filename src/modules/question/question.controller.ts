@@ -17,7 +17,8 @@ export class QuestionController {
   @ApiBearerAuth()
   @ApiOperation({ summary: '提交问题' })
   async create(@Request() req, @Body() dto: any) {
-    return this.questionService.create(req.user.id, dto);
+    const openid = (req.user as any)?.openid;
+    return this.questionService.create(req.user.id, dto, openid);
   }
 
   /** 公开问答列表 */

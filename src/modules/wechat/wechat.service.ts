@@ -104,6 +104,103 @@ export class WechatService {
     throw new BadRequestException('获取 AccessToken 失败');
   }
 
+  // ==================== 内容安全（UGC 审核） ====================
+
+  /**
+   * 检测 UGC 文本内容是否合规（微信 msgSecCheck v2）
+   * @param content 用户提交的文本
+   * @param scene 场景：1-资料 2-评论 3-论坛 4-社交日志（默认 2）
+   * @param openid 用户 openid（可选，辅助风控）
+   * @returns true=合规；抛异常=违规
+   */
+  async checkTextSecurity(content: string, scene: number = 2, openid?: string): Promise<boolean> {
+    if (!this.appId || !this.appSecret) {
+      // 未配置微信凭证（开发环境）降级放行
+      console.warn('[content-security] WECHAT_APP_ID/SECRET 未配置，跳过文本检测');
+      return true;
+    }
+    const accessToken = await this.getAccessToken();
+    if (accessToken === 'mock_access_token') {
+      console.warn('[content-security] 获取 AccessToken 失败（mock），跳过文本检测');
+      return true;
+    }
+    const url = `https://api.weixin.qq.com/wxa/msg_sec_check?access_token=${accessToken}`;
+    const payload: any = {
+      version: 2,
+      openid: openid || 'otozo5TqL5mF2G7q0z7q0z7q0z7q0',
+      scene,
+      content,
+    };
+    const response = await axios.post(url, payload, { timeout: 5000 });
+    const data = response.data;
+    if (data.errcode === 0 && data.result?.suggest !== 'risky') {
+      return true;
+    }
+    if (data.errcode === 87014) {
+      throw new BadRequestException('内容包含违规信息，请修改后重试');
+    }
+    if (data.errcode === 40001) {
+      // access_token 失效，清理缓存重试一次
+      delete (global as any).__wxAccessToken;
+      const token2 = await this.getAccessToken();
+      if (token2 === 'mock_access_token') return true;
+      const retry = await axios.post(`https://api.weixin.qq.com/wxa/msg_sec_check?access_token=${token2}`, payload, { timeout: 5000 });
+      const retryData = retry.data;
+      if (retryData.errcode === 0 && retryData.result?.suggest !== 'risky') return true;
+      if (retryData.errcode === 87014) throw new BadRequestException('内容包含违规信息，请修改后重试');
+      throw new BadRequestException('内容安全检测失败，请稍后重试');
+    }
+    // 其他错误（频控/接口异常）——保守策略：直接拦截，保证安全
+    console.warn('[content-security] msgSecCheck errcode=' + data.errcode + ' errmsg=' + data.errmsg);
+    throw new BadRequestException('内容安全检测失败，请稍后重试');
+  }
+
+  /**
+   * 检测 UGC 图片是否合规（微信 mediaCheckAsync，异步回调）
+   * @param mediaUrl 图片完整 URL（https）
+   * @param mediaType 媒体类型：1-音频 2-图片（默认 2）
+   * @param openid 用户 openid
+   */
+  async checkImageSecurity(mediaUrl: string, mediaType: number = 2, openid?: string): Promise<boolean> {
+    if (!this.appId || !this.appSecret) {
+      console.warn('[content-security] WECHAT_APP_ID/SECRET 未配置，跳过图片检测');
+      return true;
+    }
+    const accessToken = await this.getAccessToken();
+    if (accessToken === 'mock_access_token') {
+      console.warn('[content-security] 获取 AccessToken 失败（mock），跳过图片检测');
+      return true;
+    }
+    const url = `https://api.weixin.qq.com/wxa/media_check_async?access_token=${accessToken}`;
+    const payload: any = {
+      media_url: mediaUrl,
+      media_type: mediaType,
+      version: 2,
+      openid: openid || 'otozo5TqL5mF2G7q0z7q0z7q0z7q0',
+      scene: 2,
+    };
+    const response = await axios.post(url, payload, { timeout: 5000 });
+    const data = response.data;
+    if (data.errcode === 0) {
+      // 异步检测：trace_id 已提交，业务层应放行（结果通过回调通知）
+      console.log('[content-security] mediaCheckAsync 已提交 trace_id=' + (data.trace_id || ''));
+      return true;
+    }
+    if (data.errcode === 40001) {
+      delete (global as any).__wxAccessToken;
+      const token2 = await this.getAccessToken();
+      if (token2 === 'mock_access_token') return true;
+      const retry = await axios.post(url, payload, { timeout: 5000 });
+      const retryData = retry.data;
+      if (retryData.errcode === 0) {
+        console.log('[content-security] mediaCheckAsync 重试提交 trace_id=' + (retryData.trace_id || ''));
+        return true;
+      }
+    }
+    console.warn('[content-security] mediaCheckAsync errcode=' + data.errcode + ' errmsg=' + data.errmsg);
+    throw new BadRequestException('图片安全检测失败，请稍后重试');
+  }
+
   // ==================== 订阅消息（网点新单通知） ====================
 
   /**

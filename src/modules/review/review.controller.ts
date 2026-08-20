@@ -17,7 +17,8 @@ export class ReviewController {
   @ApiBearerAuth()
   @ApiOperation({ summary: '提交评价' })
   async submit(@Request() req, @Body() dto: any) {
-    return this.reviewService.submitReview(req.user.id, dto);
+    const openid = (req.user as any)?.openid;
+    return this.reviewService.submitReview(req.user.id, dto, openid);
   }
 
   /** 我的评价列表 */

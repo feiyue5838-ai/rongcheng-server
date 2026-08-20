@@ -1,5 +1,6 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { WechatService } from '../wechat/wechat.service';
 
 function snakeToCamel(key: string): string {
   return key.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
@@ -21,18 +22,30 @@ function toCamelDeep(obj: any): any {
 
 @Injectable()
 export class QuestionService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private wechatService: WechatService) {}
 
   // ===== 小程序端 =====
 
   /** 提问 */
-  async create(user_id: string | null, dto: any) {
+  async create(user_id: string | null, dto: any, openid?: string) {
     const { content, images, module } = dto;
     if (!content || content.trim().length < 5) {
       throw new BadRequestException('问题内容至少 5 个字符');
     }
     if (!content || content.trim().length > 500) {
       throw new BadRequestException('问题内容不超过 500 字');
+    }
+
+    // 内容安全检测（文本）
+    await this.wechatService.checkTextSecurity(content.trim(), 3, openid);
+
+    // 内容安全检测（图片，异步提交）
+    if (images && images.length) {
+      for (const img of images) {
+        if (typeof img === 'string' && /^https?:\/\//.test(img)) {
+          await this.wechatService.checkImageSecurity(img, 2, openid);
+        }
+      }
     }
 
     let user_name = '热心用户';
