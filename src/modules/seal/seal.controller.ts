@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { SealService } from './seal.service';
-import { AdminJwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { ProductAdminJwtAuthGuard as AdminJwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Log } from '../../common/decorators/log.decorator';
 
 @ApiTags('刻章产品')
@@ -106,8 +106,8 @@ export class SealController {
   @UseGuards(AdminJwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: '管理端：设置场景印章（整体替换）' })
-  async adminSetSceneSeals(@Param('id') id: string, @Body() dto: { seal_ids: string[] }) {
-    return this.sealService.adminSetSceneSeals(id, dto.seal_ids || []);
+  async adminSetSceneSeals(@Param('id') id: string, @Body() dto: { seal_ids?: string[]; sealIds?: string[] }) {
+    return this.sealService.adminSetSceneSeals(id, dto.seal_ids ?? dto.sealIds ?? []);
   }
 
   @Put('admin/scenes/:id/packages')

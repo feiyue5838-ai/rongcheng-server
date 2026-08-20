@@ -796,8 +796,6 @@ model order_orders {
   order_seal_details         order_seal_details?
   order_newspaper_details    order_newspaper_details?
   order_bookkeeping_details  order_bookkeeping_details?
-  payment_orders             payment_orders[]
-  refund_orders              refund_orders[]
 
   @@index([user_id])
   @@index([biz_type])
@@ -892,7 +890,7 @@ model payment_orders {
   created_at      DateTime  @default(now())
   updated_at      DateTime  @updatedAt
 
-  order               order_orders             @relation(fields: [order_id], references: [id], onDelete: Cascade)
+  order               orders                   @relation(fields: [order_id], references: [id], onDelete: Cascade)
   user                users                    @relation(fields: [user_id], references: [id], onDelete: Cascade)
   payment_transactions payment_transactions[]
   refund_orders         refund_orders[]         @relation("RefundPayment")
@@ -1077,7 +1075,7 @@ model refund_orders {
   created_at             DateTime  @default(now())
   updated_at             DateTime  @updatedAt
 
-  order   order_orders     @relation(fields: [order_id], references: [id], onDelete: Cascade)
+  order   orders           @relation(fields: [order_id], references: [id], onDelete: Cascade)
   payment payment_orders?  @relation("RefundPayment", fields: [payment_id], references: [id])
   admin   admins?          @relation("RefundApprovedBy", fields: [reviewed_by], references: [id])
 
@@ -1503,6 +1501,8 @@ model orders {
   order_items_v2     order_items_v2[]
   fulfillment_orders fulfillment_orders[]
   settlement_items settlement_items[]
+  payment_orders payment_orders[]
+  refund_orders refund_orders[]
 }
 
 model order_items_v2 {

@@ -84,6 +84,7 @@ export class BookkeepingService {
       ...pkg,
       base_price: Number(pkg.base_price),
       invoice_price: Number(pkg.invoice_price),
+      invoice_price_normal: Number(pkg.invoice_price_normal),
       social_price: Number(pkg.social_price),
       fund_price: Number(pkg.fund_price),
     };
@@ -100,6 +101,7 @@ export class BookkeepingService {
         cycle: data.cycle,
         base_price: data.base_price,
         invoice_price: data.invoice_price || 0,
+        invoice_price_normal: data.invoice_price_normal || 0,
         social_price: data.social_price || 0,
         fund_price: data.fund_price || 0,
         description: data.description,
@@ -119,6 +121,7 @@ export class BookkeepingService {
     if (data.name !== undefined) updateData.name = data.name;
     if (data.base_price !== undefined) updateData.base_price = data.base_price;
     if (data.invoice_price !== undefined) updateData.invoice_price = data.invoice_price;
+    if (data.invoice_price_normal !== undefined) updateData.invoice_price_normal = data.invoice_price_normal;
     if (data.social_price !== undefined) updateData.social_price = data.social_price;
     if (data.fund_price !== undefined) updateData.fund_price = data.fund_price;
     if (data.description !== undefined) updateData.description = data.description;

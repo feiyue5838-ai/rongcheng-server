@@ -566,18 +566,19 @@ export class OrderV2Service {
 
     if (refund_status === 'SUCCESS') {
       const now = new Date();
-      await this.prisma.refund_orders.update({
-        where: { id: refund.id },
-        data: { status: 'completed', refund_txn_id: body.refund_id, refund_at: success_time ? new Date(success_time) : now },
-      });
-      // 同步订单退款状态
-      await this.prisma.orders.update({
-        where: { id: refund.order_id },
-        data: {
-          refund_status: refund.refund_type === 'partial' ? 'partial_refund' : 'full_refund',
-          payment_status: refund.refund_type === 'partial' ? 'partial_refund' : 'full_refund',
-        },
-      });
+      await this.prisma.$transaction([
+        this.prisma.refund_orders.update({
+          where: { id: refund.id },
+          data: { status: 'completed', refund_txn_id: body.refund_id, refund_at: success_time ? new Date(success_time) : now },
+        }),
+        this.prisma.orders.update({
+          where: { id: refund.order_id },
+          data: {
+            refund_status: refund.refund_type === 'partial' ? 'partial_refund' : 'full_refund',
+            payment_status: refund.refund_type === 'partial' ? 'partial_refund' : 'full_refund',
+          },
+        }),
+      ]);
       return { success: true };
     }
 
@@ -593,49 +594,64 @@ export class OrderV2Service {
     if (!order) throw new NotFoundException('订单不存在');
     if (order.user_id !== userId) throw new BadRequestException('无权操作此订单');
     if (order.payment_status !== 'paid') throw new BadRequestException('仅已支付订单可申请退款');
-    if (order.refund_status === 'full_refund' || order.refund_status === 'applying') {
+    if (order.refund_status === 'full_refund' || order.refund_status === 'applying' || order.refund_status === 'processing') {
       throw new BadRequestException('该订单已申请退款或已全额退款');
     }
 
     const refundType = data.refundType || 'full';
-    const refundAmount = refundType === 'full' ? Number(order.paid_amount ?? order.pay_amount ?? 0) : (data.refundAmount ?? 0);
-    if (refundAmount <= 0) throw new BadRequestException('退款金额不合法');
+    if (!['full', 'partial'].includes(refundType)) throw new BadRequestException('退款类型不合法');
+    const paidAmount = Number(order.paid_amount ?? order.pay_amount ?? 0);
+    const refundAmount = refundType === 'full' ? paidAmount : Number(data.refundAmount ?? 0);
+    if (!Number.isFinite(refundAmount) || refundAmount <= 0 || refundAmount > paidAmount) {
+      throw new BadRequestException('退款金额不合法');
+    }
 
-    const refund = await this.prisma.refund_orders.create({
-      data: {
-        refund_no: `RF${Date.now()}${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
-        order_id: order.id,
-        payment_id: undefined,
-        refund_type: refundType,
-        refund_amount: refundAmount,
-        refund_reason: data.reason,
-        status: 'applying',
-        applied_by: userId,
-        applied_at: new Date(),
-      },
+    return this.prisma.$transaction(async (tx) => {
+      const claimed = await tx.orders.updateMany({
+        where: {
+          id: order.id,
+          version: order.version,
+          payment_status: 'paid',
+          refund_status: order.refund_status,
+        },
+        data: { refund_status: 'applying', version: { increment: 1 } },
+      });
+      if (claimed.count === 0) throw new ConflictException('订单状态已变更，请刷新后重试');
+
+      const payment = await tx.payment_orders.findFirst({
+        where: { order_id: order.id, status: 'paid' },
+        orderBy: { paid_at: 'desc' },
+      });
+      const refund = await tx.refund_orders.create({
+        data: {
+          refund_no: `RF${Date.now()}${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
+          order_id: order.id,
+          payment_id: payment?.id,
+          refund_type: refundType,
+          refund_amount: refundAmount,
+          refund_reason: data.reason,
+          status: 'applying',
+          applied_by: userId,
+          applied_at: new Date(),
+        },
+      });
+
+      await tx.orderEvents.create({
+        data: {
+          orderId: order.id,
+          eventType: 'REFUND_APPLIED',
+          eventName: '用户申请退款',
+          fromStatus: order.refund_status,
+          toStatus: 'applying',
+          operatorType: 'user',
+          operatorId: userId,
+          metadata: { refundNo: refund.refund_no, refundAmount },
+          createdAt: new Date(),
+        },
+      });
+
+      return { refundNo: refund.refund_no, refundAmount, status: 'applying' };
     });
-
-    // 订单退款状态 → applying
-    await this.prisma.orders.update({
-      where: { id: order.id },
-      data: { refund_status: 'applying' },
-    });
-
-    await this.prisma.orderEvents.create({
-      data: {
-        orderId: order.id,
-        eventType: 'REFUND_APPLIED',
-        eventName: '用户申请退款',
-        fromStatus: order.refund_status,
-        toStatus: 'applying',
-        operatorType: 'user',
-        operatorId: userId,
-        metadata: { refundNo: refund.refund_no, refundAmount },
-        createdAt: new Date(),
-      },
-    });
-
-    return { refundNo: refund.refund_no, refundAmount, status: 'applying' };
   }
 
   /**
@@ -814,43 +830,114 @@ export class OrderV2Service {
     if (refund.status !== 'applying') throw new BadRequestException('仅待审核退款单可审核');
 
     const now = new Date();
-    if (approve) {
-      // 审核通过 → 待处理（等待微信退款回调）
-      await this.prisma.refund_orders.update({
-        where: { id },
-        data: { status: 'processing', reviewed_by: operatorId, reviewed_at: now, review_remark: remark },
-      });
-    } else {
-      // 驳回
-      await this.prisma.refund_orders.update({
-        where: { id },
-        data: { status: 'rejected', reviewed_by: operatorId, reviewed_at: now, review_remark: remark, failure_reason: remark },
-      });
-      // 恢复订单退款状态
-      const order = await this.prisma.orders.findUnique({ where: { id: refund.order_id } });
-      if (order) {
-        await this.prisma.orders.update({
-          where: { id: order.id },
+    if (!approve) {
+      await this.prisma.$transaction(async (tx) => {
+        const rejected = await tx.refund_orders.updateMany({
+          where: { id, status: 'applying' },
+          data: { status: 'rejected', reviewed_by: operatorId, reviewed_at: now, review_remark: remark, failure_reason: remark },
+        });
+        if (rejected.count === 0) throw new ConflictException('退款单状态已变更，请刷新后重试');
+        const restored = await tx.orders.updateMany({
+          where: { id: refund.order_id, refund_status: 'applying' },
           data: { refund_status: 'none' },
         });
-      }
+        if (restored.count === 0) throw new ConflictException('订单退款状态已变更，请刷新后重试');
+        await tx.orderEvents.create({
+          data: {
+            orderId: refund.order_id,
+            eventType: 'REFUND_REJECTED',
+            eventName: '退款审核驳回',
+            fromStatus: 'applying',
+            toStatus: 'rejected',
+            operatorType: 'admin',
+            operatorId,
+            metadata: { refundNo: refund.refund_no, remark },
+            createdAt: now,
+          },
+        });
+      });
+      return { success: true, status: 'rejected' };
     }
 
-    await this.prisma.orderEvents.create({
-      data: {
-        orderId: refund.order_id,
-        eventType: approve ? 'REFUND_APPROVED' : 'REFUND_REJECTED',
-        eventName: approve ? '退款审核通过' : '退款审核驳回',
-        fromStatus: 'applying',
-        toStatus: approve ? 'processing' : 'rejected',
-        operatorType: 'admin',
-        operatorId,
-        metadata: { refundNo: refund.refund_no, remark },
-        createdAt: now,
-      },
+    const order = await this.prisma.orders.findUnique({ where: { id: refund.order_id } });
+    if (!order) throw new NotFoundException('关联订单不存在');
+    if (order.refund_status !== 'applying') throw new ConflictException('订单退款状态已变更，请刷新后重试');
+    const payment = refund.payment_id
+      ? await this.prisma.payment_orders.findUnique({ where: { id: refund.payment_id } })
+      : await this.prisma.payment_orders.findFirst({
+          where: { order_id: refund.order_id, status: 'paid' },
+          orderBy: { paid_at: 'desc' },
+        });
+    if (!payment || payment.status !== 'paid') throw new BadRequestException('未找到可退款的已支付支付单');
+
+    const refundAmount = Number(refund.refund_amount);
+    const totalAmount = Number(payment.amount);
+    if (!Number.isFinite(refundAmount) || refundAmount <= 0 || refundAmount > totalAmount) {
+      throw new BadRequestException('退款金额不合法');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      const claimed = await tx.refund_orders.updateMany({
+        where: { id, status: 'applying' },
+        data: {
+          status: 'processing',
+          payment_id: payment.id,
+          reviewed_by: operatorId,
+          reviewed_at: now,
+          review_remark: remark,
+          failure_reason: null,
+        },
+      });
+      if (claimed.count === 0) throw new ConflictException('退款单状态已变更，请刷新后重试');
+      const orderClaimed = await tx.orders.updateMany({
+        where: { id: order.id, refund_status: 'applying' },
+        data: { refund_status: 'processing' },
+      });
+      if (orderClaimed.count === 0) throw new ConflictException('订单退款状态已变更，请刷新后重试');
     });
 
-    return { success: true, status: approve ? 'processing' : 'rejected' };
+    try {
+      await this.wechatPay.refund({
+        outTradeNo: payment.payment_no,
+        outRefundNo: refund.refund_no,
+        refundYuan: refundAmount,
+        totalYuan: totalAmount,
+        reason: refund.refund_reason || remark,
+      });
+    } catch (e: any) {
+      const failureReason = String(e?.message || e || '未知错误').slice(0, 500);
+      await this.prisma.$transaction([
+        this.prisma.refund_orders.updateMany({
+          where: { id, status: 'processing' },
+          data: { status: 'applying', failure_reason: failureReason },
+        }),
+        this.prisma.orders.updateMany({
+          where: { id: order.id, refund_status: 'processing' },
+          data: { refund_status: 'applying' },
+        }),
+      ]);
+      throw new BadRequestException(`微信退款发起失败：${failureReason}`);
+    }
+
+    try {
+      await this.prisma.orderEvents.create({
+        data: {
+          orderId: refund.order_id,
+          eventType: 'REFUND_APPROVED',
+          eventName: '退款审核通过',
+          fromStatus: 'applying',
+          toStatus: 'processing',
+          operatorType: 'admin',
+          operatorId,
+          metadata: { refundNo: refund.refund_no, remark },
+          createdAt: now,
+        },
+      });
+    } catch (e: any) {
+      console.error(`[refund] 退款已受理但事件记录失败 refund_no=${refund.refund_no}:`, e?.message || e);
+    }
+
+    return { success: true, status: 'processing' };
   }
 
   /**

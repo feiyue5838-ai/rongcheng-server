@@ -23,7 +23,7 @@ function mapStatus(v1Status) {
     case 1: return { order_status:'pending_payment', payment_status:'unpaid', fulfillment_status:'pending_assignment', refund_status:'none', invoice_status:'not_required' };
     case 2: return { order_status:'paid', payment_status:'paid', fulfillment_status:'pending_assignment', refund_status:'none', invoice_status:'not_required' };
     case 4: return { order_status:'completed', payment_status:'paid', fulfillment_status:'completed', refund_status:'none', invoice_status:'not_required' };
-    case 7: return { order_status:'processing', payment_status:'paid', fulfillment_status:'processing', refund_status:'applying', invoice_status:'not_required' };
+    case 7: return { order_status:'processing', payment_status:'paid', fulfillment_status:'processing', refund_status:'none', invoice_status:'not_required' };
     default: return { order_status:'created', payment_status:'unpaid', fulfillment_status:'pending_assignment', refund_status:'none', invoice_status:'not_required' };
   }
 }

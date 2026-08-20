@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Request } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Request } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { IsString, IsOptional, IsArray, IsNumber, MinLength, IsPhoneNumber, IsInt, Min, Max } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -305,6 +305,32 @@ export class StoreController {
   @ApiOperation({ summary: '网点端：删除通知' })
   async deleteNotification(@Param('id') id: string, @Request() req: any) {
     return this.storeService.deleteNotification(req.user.id, id);
+  }
+
+  // 管理端代网点处理履约：仅使用管理员令牌，且服务层会校验订单归属。
+  @Put(':outlet_id/orders/:order_id/accept')
+  @Log("网点", "管理员代接单", ":outlet_id/orders/:order_id/accept")
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '管理端代网点接单' })
+  async acceptOrderByAdmin(@Param('outlet_id') outlet_id: string, @Param('order_id') order_id: string) {
+    return this.storeService.acceptOrder(outlet_id, order_id);
+  }
+
+  @Put(':outlet_id/orders/:order_id/ship')
+  @Log("网点", "管理员代交付", ":outlet_id/orders/:order_id/ship")
+  @UseGuards(AdminJwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: '管理端代网点提交交付' })
+  async shipOrderByAdmin(
+    @Param('outlet_id') outlet_id: string,
+    @Param('order_id') order_id: string,
+    @Body() body: { expressCompany?: string; trackingNo?: string; remark?: string; receipts?: Array<{ type?: string; url: string; remark?: string }> },
+  ) {
+    if (!Array.isArray(body.receipts) || body.receipts.length === 0) {
+      throw new BadRequestException('至少需要上传一张交付凭证');
+    }
+    return this.storeService.shipOrder(outlet_id, order_id, body.expressCompany, body.trackingNo, body.remark, body.receipts);
   }
 
   @Get(':outlet_id/orders')

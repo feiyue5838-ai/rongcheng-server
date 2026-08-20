@@ -97,6 +97,7 @@ export class MenuRoleService {
       { path: '/faq', pathType: 'exact', roles: ['superadmin', 'content_admin'], sort: 43, enabled: true },
       { path: '/content', pathType: 'exact', roles: ['superadmin', 'content_admin'], sort: 44, enabled: true },
       { path: '/finance', pathType: 'prefix', roles: ['superadmin'], sort: 50, enabled: true },
+      { path: '/v2/settlements', pathType: 'exact', roles: ['superadmin'], sort: 51, enabled: true },
       { path: '/system/admins', pathType: 'exact', roles: ['superadmin'], sort: 60, enabled: true },
       { path: '/system/logs', pathType: 'exact', roles: ['superadmin'], sort: 61, enabled: true },
       { path: '/system/configs', pathType: 'exact', roles: ['superadmin'], sort: 62, enabled: true },

@@ -8,6 +8,57 @@ import { PrismaService } from '../../../prisma/prisma.service';
 export class SettlementV2Service {
   constructor(private readonly prisma: PrismaService) {}
 
+  private toSettlementDto(record: any) {
+    return {
+      id: record.id,
+      settlementNo: record.settlement_no,
+      supplierId: record.supplier_id,
+      supplierName: record.supplier_name,
+      supplierNo: record.supplier_no,
+      periodStart: record.period_start,
+      periodEnd: record.period_end,
+      grossAmount: Number(record.gross_amount || 0),
+      totalAmount: Number(record.gross_amount || 0),
+      refundAmount: Number(record.refund_amount || 0),
+      adjustmentAmount: Number(record.adjustment_amount || 0),
+      penaltyAmount: Number(record.penalty_amount || 0),
+      payableAmount: Number(record.payable_amount || 0),
+      orderCount: record._count?.settlement_items,
+      status: record.status,
+      confirmedBy: record.confirmed_by,
+      confirmedAt: record.confirmed_at,
+      confirmRemark: record.confirm_remark,
+      paidBy: record.paid_by,
+      paidAt: record.paid_at,
+      paymentMethod: record.payment_method,
+      transactionNo: record.transaction_no,
+      createdAt: record.created_at,
+      updatedAt: record.updated_at,
+    };
+  }
+
+  private toSettlementItemDto(item: any) {
+    return {
+      id: item.id,
+      settlementId: item.settlement_id,
+      orderId: item.order_id,
+      orderNo: item.order_no,
+      fulfillmentOrderId: item.fulfillment_order_id,
+      module: item.module,
+      orderAmount: Number(item.order_amount || 0),
+      supplierCost: Number(item.supplier_cost || 0),
+      refundDeduct: Number(item.refund_deduct || 0),
+      adjustmentAmount: Number(item.adjustment_amount || 0),
+      payableAmount: Number(item.payable_amount || 0),
+      amount: Number(item.payable_amount || 0),
+      ruleId: item.rule_id,
+      ruleVersion: item.rule_version,
+      remark: item.remark,
+      createdAt: item.created_at,
+      updatedAt: item.updated_at,
+    };
+  }
+
   private async generateSettlementNo(): Promise<string> {
     return `ST${Date.now()}${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
   }
@@ -25,16 +76,17 @@ export class SettlementV2Service {
     if (status) where.status = status;
     if (supplierId) where.supplier_id = supplierId;
 
-    const [total, list] = await Promise.all([
+    const [total, rows] = await Promise.all([
       this.prisma.settlement_records.count({ where }),
       this.prisma.settlement_records.findMany({
         where,
+        include: { _count: { select: { settlement_items: true } } },
         orderBy: { created_at: 'desc' },
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),
     ]);
-    return { list, total, page, pageSize };
+    return { list: rows.map((row) => this.toSettlementDto(row)), total, page, pageSize };
   }
 
   /**
@@ -50,7 +102,11 @@ export class SettlementV2Service {
       where: { settlement_id: id },
       orderBy: { created_at: 'asc' },
     });
-    return { ...record, items };
+    return {
+      ...this.toSettlementDto(record),
+      orderCount: items.length,
+      items: items.map((item) => this.toSettlementItemDto(item)),
+    };
   }
 
   /**
@@ -58,25 +114,27 @@ export class SettlementV2Service {
    * 汇总指定供应商周期内已完成履约的订单
    */
   async generateSettlement(data: { supplierId: string; periodStart: string; periodEnd: string; operatorId?: string }) {
-    const { supplierId, periodStart, periodEnd, operatorId } = data;
+    const { supplierId, periodStart, periodEnd } = data;
 
     // 校验供应商
     const supplier = await this.prisma.suppliers.findUnique({ where: { id: supplierId } });
     if (!supplier) throw new NotFoundException('供应商不存在');
     if (supplier.status !== 1) throw new BadRequestException('供应商已停用');
 
-    const start = new Date(periodStart);
-    const end = new Date(periodEnd);
+    const start = new Date(`${periodStart}T00:00:00.000Z`);
+    const end = new Date(`${periodEnd}T00:00:00.000Z`);
     if (isNaN(start.getTime()) || isNaN(end.getTime()) || start > end) {
       throw new BadRequestException('结算周期不合法');
     }
+    const endExclusive = new Date(end);
+    endExclusive.setUTCDate(endExclusive.getUTCDate() + 1);
 
     // 查周期内已完成履约的订单（fulfillment_orders status=completed，关联 orders）
     const fulfillments = await this.prisma.fulfillment_orders.findMany({
       where: {
         supplier_id: supplierId,
         status: 'completed',
-        completed_at: { gte: start, lte: end },
+        completed_at: { gte: start, lt: endExclusive },
       },
       orderBy: { completed_at: 'asc' },
     });
@@ -85,8 +143,22 @@ export class SettlementV2Service {
       throw new BadRequestException('该周期内无已完成订单');
     }
 
+    // 排除已进入有效结算单的履约单，避免重叠周期重复结算
+    const settledItems = await this.prisma.settlement_items.findMany({
+      where: {
+        fulfillment_order_id: { in: fulfillments.map((f) => f.id) },
+        settlement: { status: { not: 'cancelled' } },
+      },
+      select: { fulfillment_order_id: true },
+    });
+    const settledFulfillmentIds = new Set(settledItems.map((item) => item.fulfillment_order_id));
+    const eligibleFulfillments = fulfillments.filter((item) => !settledFulfillmentIds.has(item.id));
+    if (!eligibleFulfillments.length) {
+      throw new BadRequestException('该周期内订单均已生成结算单');
+    }
+
     // 按订单汇总
-    const orderNos = fulfillments.map((f) => f.order_no);
+    const orderNos = eligibleFulfillments.map((f) => f.order_no);
     const orders = await this.prisma.orders.findMany({
       where: { order_no: { in: orderNos } },
     });
@@ -105,7 +177,7 @@ export class SettlementV2Service {
       adjustment_amount: number;
       payable_amount: number;
     }[] = [];
-    for (const f of fulfillments) {
+    for (const f of eligibleFulfillments) {
       const order = orderMap.get(f.order_no);
       if (!order) continue;
       const orderAmount = Number(order.paid_amount ?? order.pay_amount ?? order.total_amount ?? 0);
@@ -138,7 +210,6 @@ export class SettlementV2Service {
           gross_amount: grossAmount,
           payable_amount: grossAmount,
           status: 'pending',
-          confirmed_by: operatorId,
         },
       });
       await tx.settlement_items.createMany({
@@ -232,16 +303,17 @@ export class SettlementV2Service {
   async getSupplierSettlements(supplierId: string, options: { page?: number; pageSize?: number }) {
     const { page = 1, pageSize = 20 } = options;
     const where = { supplier_id: supplierId };
-    const [total, list] = await Promise.all([
+    const [total, rows] = await Promise.all([
       this.prisma.settlement_records.count({ where }),
       this.prisma.settlement_records.findMany({
         where,
+        include: { _count: { select: { settlement_items: true } } },
         orderBy: { created_at: 'desc' },
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),
     ]);
-    return { list, total, page, pageSize };
+    return { list: rows.map((row) => this.toSettlementDto(row)), total, page, pageSize };
   }
 
   /**
@@ -255,6 +327,10 @@ export class SettlementV2Service {
       where: { settlement_id: id },
       orderBy: { created_at: 'asc' },
     });
-    return { ...record, items };
+    return {
+      ...this.toSettlementDto(record),
+      orderCount: items.length,
+      items: items.map((item) => this.toSettlementItemDto(item)),
+    };
   }
 }

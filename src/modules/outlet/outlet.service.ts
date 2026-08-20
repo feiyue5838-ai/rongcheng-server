@@ -595,7 +595,7 @@ export class StoreService {
   }
 
   /** 网点发货 */
-  async shipOrder(outlet_id: string, order_id: string, expressCompany: string | undefined, trackingNo: string | undefined, remark?: string) {
+  async shipOrder(outlet_id: string, order_id: string, expressCompany: string | undefined, trackingNo: string | undefined, remark?: string, receipts?: Array<{ type?: string; url: string; remark?: string }>) {
     // 验证订单归属
     const assignment = await this.prisma.order_assignments.findFirst({
       where: { order_id, outlet_id },
@@ -637,27 +637,40 @@ export class StoreService {
       }
     }
 
-    // S-02: 写入 express_company + express_no + delivery_status
-    await this.prisma.seal_orders.update({
-      where: { id: order_id },
-      data: {
-        status: 4,
-        status_text: '已发货',
-        express_company: expressCompany?.trim(),
-        express_no: trackingNo?.trim(),
-        delivery_status: 1,
-        remark: finalRemark,
-      },
-    });
-
-    // 更新分配状态为已完成
-    const activeAssign3 = await this.prisma.order_assignments.findFirst({ where: { order_id, is_active: true } });
-    if (activeAssign3) {
-      await this.prisma.order_assignments.update({
-        where: { id: activeAssign3.id },
-        data: { status: 3, status_text: '已完成', completed_at: new Date(), is_active: false },
+    // 订单、分配状态与交付凭证必须同时落库，避免出现已发货但无回执的半完成数据。
+    const activeAssign3 = await this.prisma.order_assignments.findFirst({ where: { order_id, outlet_id, is_active: true } });
+    await this.prisma.$transaction(async (tx) => {
+      await tx.seal_orders.update({
+        where: { id: order_id },
+        data: {
+          status: 4,
+          status_text: '已发货',
+          express_company: expressCompany?.trim(),
+          express_no: trackingNo?.trim(),
+          delivery_status: 1,
+          remark: finalRemark,
+        },
       });
-    }
+
+      if (activeAssign3) {
+        await tx.order_assignments.update({
+          where: { id: activeAssign3.id },
+          data: { status: 3, status_text: '已完成', completed_at: new Date(), is_active: false },
+        });
+      }
+
+      if (receipts?.length) {
+        await Promise.all(receipts.map((receipt) => tx.delivery_receipts.create({
+          data: {
+            order_id,
+            outlet_id,
+            type: receipt.type || 'certificate',
+            url: receipt.url,
+            remark: receipt.remark,
+          },
+        })));
+      }
+    });
 
     return { success: true, message: '发货成功' };
   }

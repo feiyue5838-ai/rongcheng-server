@@ -536,12 +536,14 @@ export class SealService {
 
   /** 管理端：设置场景印章（整体替换） */
   async adminSetSceneSeals(scene_id: string, seal_ids: string[]) {
-    await this.prisma.seal_scene_seals.deleteMany({ where: { scene_id } });
-    if (seal_ids.length > 0) {
-      await this.prisma.seal_scene_seals.createMany({
-        data: seal_ids.map((seal_id, i) => ({ scene_id, seal_id, sort: i + 1 })),
-      });
-    }
+    await this.prisma.$transaction(async (tx) => {
+      await tx.seal_scene_seals.deleteMany({ where: { scene_id } });
+      if (seal_ids.length > 0) {
+        await tx.seal_scene_seals.createMany({
+          data: seal_ids.map((seal_id, i) => ({ scene_id, seal_id, sort: i + 1 })),
+        });
+      }
+    });
     await this.invalidateSealCache();
     return { count: seal_ids.length };
   }
@@ -552,46 +554,48 @@ export class SealService {
    *  - 不带 id / isNew：新建套餐并关联
    */
   async adminSetScenePackages(scene_id: string, packages: any[]) {
-    const oldJoins = await this.prisma.seal_scene_packages.findMany({
-      where: { scene_id },
-      select: { package_id: true },
-    });
-    const oldIds = oldJoins.map((j) => j.package_id);
-    await this.prisma.seal_scene_packages.deleteMany({ where: { scene_id } });
-    // 删除仅本场景使用的旧套餐
-    if (oldIds.length > 0) {
-      const stillRef = await this.prisma.seal_scene_packages.findMany({
-        where: { package_id: { in: oldIds } },
+    await this.prisma.$transaction(async (tx) => {
+      const oldJoins = await tx.seal_scene_packages.findMany({
+        where: { scene_id },
         select: { package_id: true },
       });
-      const safeDelete = oldIds.filter((pid) => !stillRef.some((r) => r.package_id === pid));
-      if (safeDelete.length > 0) {
-        await this.prisma.seal_packages.deleteMany({ where: { id: { in: safeDelete } } });
+      const oldIds = oldJoins.map((j) => j.package_id);
+      await tx.seal_scene_packages.deleteMany({ where: { scene_id } });
+      // 删除仅本场景使用的旧套餐
+      if (oldIds.length > 0) {
+        const stillRef = await tx.seal_scene_packages.findMany({
+          where: { package_id: { in: oldIds } },
+          select: { package_id: true },
+        });
+        const safeDelete = oldIds.filter((pid) => !stillRef.some((r) => r.package_id === pid));
+        if (safeDelete.length > 0) {
+          await tx.seal_packages.deleteMany({ where: { id: { in: safeDelete } } });
+        }
       }
-    }
-    for (let i = 0; i < packages.length; i++) {
-      const pkg = packages[i];
-      if (pkg.id && !pkg.isNew) {
-        await this.prisma.seal_scene_packages.create({
-          data: { scene_id, package_id: pkg.id, sort: i + 1 },
-        });
-      } else {
-        const pkgId = uuidv4();
-        await this.prisma.seal_packages.create({
-          data: {
-            id: pkgId,
-            name: pkg.name,
-            price: pkg.price,
-            seal_ids: pkg.seal_ids || [],
-            badge: pkg.badge || null,
-            sort: i + 1,
-          },
-        });
-        await this.prisma.seal_scene_packages.create({
-          data: { scene_id, package_id: pkgId, sort: i + 1 },
-        });
+      for (let i = 0; i < packages.length; i++) {
+        const pkg = packages[i];
+        if (pkg.id && !pkg.isNew) {
+          await tx.seal_scene_packages.create({
+            data: { scene_id, package_id: pkg.id, sort: i + 1 },
+          });
+        } else {
+          const pkgId = uuidv4();
+          await tx.seal_packages.create({
+            data: {
+              id: pkgId,
+              name: pkg.name,
+              price: pkg.price,
+              seal_ids: pkg.seal_ids ?? pkg.sealIds ?? [],
+              badge: pkg.badge || null,
+              sort: i + 1,
+            },
+          });
+          await tx.seal_scene_packages.create({
+            data: { scene_id, package_id: pkgId, sort: i + 1 },
+          });
+        }
       }
-    }
+    });
     await this.invalidateSealCache();
     return { count: packages.length };
   }

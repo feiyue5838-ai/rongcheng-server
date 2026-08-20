@@ -68,11 +68,14 @@ export class FinanceService {
     ]);
 
     // 待确认结算（status=pending）单独展示
-    const pendingAgg = await this.prisma.settlement_records.aggregate({
-      where: { status: 'pending' },
-      _sum: { payable_amount: true, gross_amount: true },
-      _count: true,
-    });
+    const [pendingAgg, pendingRefundCount] = await Promise.all([
+      this.prisma.settlement_records.aggregate({
+        where: { status: 'pending' },
+        _sum: { payable_amount: true, gross_amount: true },
+        _count: true,
+      }),
+      this.prisma.refund_records.count({ where: { status: { in: [1, 2] } } }),
+    ]);
 
     const income = Number(incomeAgg._sum.amount || 0);
     const incomeFee = Number(incomeAgg._sum.fee || 0);
@@ -107,6 +110,7 @@ export class FinanceService {
       settleCount,
       pendingOutlet,
       pendingCount,
+      pendingRefundCount,
       platformNet,
       byModule: ((byModule as any[]) || []).map((m: any) => ({
         module: m.module,

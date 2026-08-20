@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { BookkeepingService } from './bookkeeping.service';
-import { AdminJwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { ProductAdminJwtAuthGuard as AdminJwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { Log } from '../../common/decorators/log.decorator';
 
 /** 将前端 camelCase 字段转成后端 Prisma snake_case */

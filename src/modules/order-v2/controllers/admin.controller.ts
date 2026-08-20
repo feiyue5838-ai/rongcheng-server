@@ -116,7 +116,7 @@ export class AdminController {
     @Request() req: any,
     @Body() body: { supplierId: string },
   ) {
-    return this.fulfillmentService.assignOrder(orderNo, body.supplierId, req.user.adminId);
+    return this.fulfillmentService.assignOrder(orderNo, body.supplierId, req.user.id);
   }
 
   /**
@@ -130,7 +130,7 @@ export class AdminController {
     @Request() req: any,
     @Body() body: { supplierId: string; cancelRemark?: string },
   ) {
-    return this.fulfillmentService.reassignOrder(orderNo, body.supplierId, req.user.adminId, body?.cancelRemark);
+    return this.fulfillmentService.reassignOrder(orderNo, body.supplierId, req.user.id, body?.cancelRemark);
   }
 
   // ============ 结算（财务/运营） ============
@@ -176,7 +176,7 @@ export class AdminController {
       supplierId: body.supplierId,
       periodStart: body.periodStart,
       periodEnd: body.periodEnd,
-      operatorId: req.user.adminId,
+      operatorId: req.user.id,
     });
   }
 
@@ -187,7 +187,7 @@ export class AdminController {
   @UseGuards(AdminJwtAuthGuard)
   @Put('settlements/:id/confirm')
   async confirmSettlement(@Param('id') id: string, @Request() req: any, @Body() body: { remark?: string }) {
-    return this.settlementService.confirmSettlement(id, req.user.adminId, body?.remark);
+    return this.settlementService.confirmSettlement(id, req.user.id, body?.remark);
   }
 
   /**
@@ -198,7 +198,7 @@ export class AdminController {
   @Post('settlements/:id/pay')
   async paySettlement(@Param('id') id: string, @Request() req: any, @Body() body: any) {
     return this.settlementService.paySettlement(id, {
-      operatorId: req.user.adminId,
+      operatorId: req.user.id,
       paymentMethod: body?.paymentMethod,
       transactionNo: body?.transactionNo,
       bankName: body?.bankName,
@@ -234,7 +234,7 @@ export class AdminController {
   @UseGuards(AdminJwtAuthGuard)
   @Post('refunds/:id/approve')
   async approveRefund(@Param('id') id: string, @Request() req: any, @Body() body?: any) {
-    return this.orderService.reviewRefund(id, true, req.user.adminId, body?.remark);
+    return this.orderService.reviewRefund(id, true, req.user.id, body?.remark);
   }
 
   /**
@@ -244,6 +244,6 @@ export class AdminController {
   @UseGuards(AdminJwtAuthGuard)
   @Post('refunds/:id/reject')
   async rejectRefund(@Param('id') id: string, @Request() req: any, @Body() body?: any) {
-    return this.orderService.reviewRefund(id, false, req.user.adminId, body?.remark);
+    return this.orderService.reviewRefund(id, false, req.user.id, body?.remark);
   }
 }
