@@ -50,7 +50,7 @@ export const VALID_STATUS_TRANSITIONS: Record<number, number[]> = {
   [OrderStatus.PAID]: [OrderStatus.IN_PRODUCTION, OrderStatus.SHIPPED, OrderStatus.COMPLETED, OrderStatus.AFTER_SALES, OrderStatus.REFUNDING],
   [OrderStatus.IN_PRODUCTION]: [OrderStatus.SHIPPED, OrderStatus.COMPLETED, OrderStatus.AFTER_SALES, OrderStatus.REFUNDING],
   [OrderStatus.SHIPPED]: [OrderStatus.COMPLETED, OrderStatus.AFTER_SALES, OrderStatus.REFUNDING],
-  [OrderStatus.AFTER_SALES]: [OrderStatus.COMPLETED, OrderStatus.REFUNDING],
+  [OrderStatus.AFTER_SALES]: [OrderStatus.COMPLETED, OrderStatus.REFUNDING, OrderStatus.PAID, OrderStatus.IN_PRODUCTION, OrderStatus.SHIPPED], // 用户撤销售后可回退至原状态（2/3/4）
   [OrderStatus.REFUNDING]: [OrderStatus.REFUNDED, OrderStatus.PAID, OrderStatus.AFTER_SALES, OrderStatus.IN_PRODUCTION, OrderStatus.SHIPPED],
   [OrderStatus.COMPLETED]: [], // 终态
   [OrderStatus.CANCELLED]: [], // 终态

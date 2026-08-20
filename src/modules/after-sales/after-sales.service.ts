@@ -1,6 +1,7 @@
 import { Injectable, BadRequestException, NotFoundException, Inject, forwardRef } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { OrderService } from '../order/order.service';
+import { OrderStatus, ORDER_STATUS_TEXT } from '../../common/constants/order-status';
 
 function snakeToCamel(key: string): string {
   return key.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
@@ -123,6 +124,43 @@ export class AfterSalesService {
     return this.prisma.seal_orders.update({
       where: { id: order_id },
       data: { status: 5, status_text: 'completed', remark },
+    });
+  }
+
+  /**
+   * User cancels own after-sales (status=7 -> beforeStatus, default PAID)
+   * 撤销申请：仅限本人 + 待处理(status=7)；恢复申请前状态（remark.afterSales.beforeStatus），
+   * 兜底恢复为 已支付(2)；移除 afterSales 申请信息并记录撤销痕迹。
+   */
+  async cancelAfterSales(userId: string, orderId: string) {
+    const order = await this.prisma.seal_orders.findFirst({
+      where: { id: orderId, user_id: userId, status: OrderStatus.AFTER_SALES },
+    });
+    if (!order) throw new NotFoundException('售后记录不存在或无权操作');
+    if (order.status !== OrderStatus.AFTER_SALES) {
+      throw new BadRequestException('仅待处理的售后申请可撤销');
+    }
+
+    // 解析申请前状态，仅允许回退到支付后状态（2/3/4）
+    let beforeStatus = OrderStatus.PAID;
+    let remarkObj: any = {};
+    try { remarkObj = JSON.parse(order.remark || '{}'); } catch { remarkObj = {}; }
+    const afterSales = remarkObj.afterSales;
+    if (afterSales && Number.isInteger(Number(afterSales.beforeStatus))
+      && [OrderStatus.PAID, OrderStatus.IN_PRODUCTION, OrderStatus.SHIPPED].includes(Number(afterSales.beforeStatus))) {
+      beforeStatus = Number(afterSales.beforeStatus);
+    }
+
+    remarkObj.afterSalesCancelled = { cancelledAt: new Date().toISOString(), by: 'user' };
+    delete remarkObj.afterSales;
+
+    return this.prisma.seal_orders.update({
+      where: { id: orderId },
+      data: {
+        status: beforeStatus,
+        status_text: ORDER_STATUS_TEXT[beforeStatus as OrderStatus],
+        remark: JSON.stringify(remarkObj),
+      },
     });
   }
 

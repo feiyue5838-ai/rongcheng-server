@@ -30,6 +30,14 @@ export class AfterSalesController {
     return this.afterSalesService.getUserAfterSalesDetail(req.user.id, id);
   }
 
+  @Post('user/:id/cancel')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Cancel my after-sales (pending only, restore before-status)' })
+  cancelMyAfterSales(@Request() req, @Param('id') id: string) {
+    return this.afterSalesService.cancelAfterSales(req.user.id, id);
+  }
+
   // ==================== Admin APIs ====================
 
   @Get('orders')

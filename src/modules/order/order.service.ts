@@ -490,6 +490,7 @@ export class OrderService {
         status: OrderStatus.AFTER_SALES,
         status_text: ORDER_STATUS_TEXT[OrderStatus.AFTER_SALES],
         remark: this.appendRefundRequest(order.remark, {
+          beforeStatus: order.status, // 记录申请前状态，用户撤销时可精确恢复
           reason,
           category,
           images: images || [],
